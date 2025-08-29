@@ -10,4 +10,3 @@ from taskaio._internal.taskplan.async_task import TaskPlanAsync
 from taskaio._internal.taskplan.sync_task import TaskPlanSync
 
 __all__ = ("TaskPlanAsync", "TaskPlanSync", "TaskScheduler")
-__version__ = "0.0.1"

@@ -21,7 +21,7 @@ default:
 
 [doc("Sync latest versions of packages")]
 [group("Common")]
-@venv-sync:
+@venv-sync-dev:
     uv pip install -e . --group dev
 
 
