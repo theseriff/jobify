@@ -51,6 +51,7 @@ repos:
       - id: static-analysis
         name: Static analysis
         entry: just static
+        stages: [pre-push, manual]
         language: python
         types: [python]
         require_serial: true
