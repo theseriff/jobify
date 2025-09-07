@@ -5,19 +5,19 @@ from typing import Any, ParamSpec, TypeGuard, TypeVar, overload
 from taskaio._internal.taskplan.async_task import TaskPlanAsync
 from taskaio._internal.taskplan.sync_task import TaskPlanSync
 
-T = TypeVar("T")
-P = ParamSpec("P")
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 def is_sync_callable(
-    func: Callable[P, T | Coroutine[None, None, T]],
-) -> TypeGuard[Callable[P, T]]:
+    func: Callable[_P, _R | Coroutine[None, None, _R]],
+) -> TypeGuard[Callable[_P, _R]]:
     return not asyncio.iscoroutinefunction(func)
 
 
 def is_async_callable(
-    func: Callable[P, T | Coroutine[None, None, T]],
-) -> TypeGuard[Callable[P, Coroutine[None, None, T]]]:
+    func: Callable[_P, _R | Coroutine[None, None, _R]],
+) -> TypeGuard[Callable[_P, Coroutine[None, None, _R]]]:
     return asyncio.iscoroutinefunction(func)
 
 
@@ -31,25 +31,25 @@ class TaskScheduler:
     @overload
     def schedule(  # type: ignore[overload-overlap]
         self,
-        func: Callable[P, Coroutine[None, None, T]],
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> TaskPlanAsync[T]: ...
+        func: Callable[_P, Coroutine[None, None, _R]],
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> TaskPlanAsync[_R]: ...
 
     @overload
     def schedule(
         self,
-        func: Callable[P, T],
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> TaskPlanSync[T]: ...
+        func: Callable[_P, _R],
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> TaskPlanSync[_R]: ...
 
     def schedule(
         self,
-        func: Callable[P, T | Coroutine[None, None, T]],
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> TaskPlanSync[T] | TaskPlanAsync[T]:
+        func: Callable[_P, _R | Coroutine[None, None, _R]],
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> TaskPlanSync[_R] | TaskPlanAsync[_R]:
         if is_async_callable(func):
             return TaskPlanAsync(self._loop, func, *args, **kwargs)
 

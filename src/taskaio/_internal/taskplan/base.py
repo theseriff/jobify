@@ -11,11 +11,11 @@ from taskaio._internal.exceptions import (
     TimerHandlerUninitializedError,
 )
 
-_T = TypeVar("_T")
 _P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
-class TaskPlan(Generic[_T], ABC):
+class TaskPlan(Generic[_R], ABC):
     __slots__: tuple[str, ...] = (
         "_args",
         "_event",
@@ -32,7 +32,7 @@ class TaskPlan(Generic[_T], ABC):
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,
-        func: Callable[_P, Coroutine[None, None, _T] | _T],
+        func: Callable[_P, Coroutine[None, None, _R] | _R],
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> None:
@@ -41,7 +41,7 @@ class TaskPlan(Generic[_T], ABC):
         self._kwargs: Final = kwargs
         self._event: asyncio.Event = asyncio.Event()
         self._loop: asyncio.AbstractEventLoop = loop
-        self._result: _T = EMPTY
+        self._result: _R = EMPTY
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self._task_id: str = EMPTY
         self.delay_seconds: float = 0
@@ -59,7 +59,7 @@ class TaskPlan(Generic[_T], ABC):
         ).encode().hex(":")
 
     @property
-    def result(self) -> _T:
+    def result(self) -> _R:
         if self._result is EMPTY:
             raise TaskNotCompletedError
         return self._result
@@ -70,13 +70,13 @@ class TaskPlan(Generic[_T], ABC):
             raise TimerHandlerUninitializedError
         return self._timer_handler
 
-    def at(self, at: datetime, /) -> "TaskPlan[_T]":
+    def at(self, at: datetime, /) -> "TaskPlan[_R]":
         timestamp_now = datetime.now(tz=at.tzinfo).timestamp()
         timestamp_target = at.timestamp()
         delay_seconds = timestamp_target - timestamp_now
         return self.delay(delay_seconds)
 
-    def delay(self, delay_seconds: float, /) -> "TaskPlan[_T]":
+    def delay(self, delay_seconds: float, /) -> "TaskPlan[_R]":
         self.delay_seconds = delay_seconds
         if delay_seconds < 0:
             warnings.warn(

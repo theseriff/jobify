@@ -5,15 +5,15 @@ from typing import Final, ParamSpec, TypeVar
 
 from .base import TaskPlan
 
-_T = TypeVar("_T")
 _P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
-class TaskPlanAsync(TaskPlan[_T]):
+class TaskPlanAsync(TaskPlan[_R]):
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,
-        func: Callable[_P, Coroutine[None, None, _T]],
+        func: Callable[_P, Coroutine[None, None, _R]],
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> None:
@@ -28,8 +28,8 @@ class TaskPlanAsync(TaskPlan[_T]):
         task = asyncio.create_task(self._func_injected())
         task.add_done_callback(self._task_done)
 
-    def _task_done(self, task: asyncio.Task[_T]) -> None:
+    def _task_done(self, task: asyncio.Task[_R]) -> None:
         try:
-            self._result: _T = task.result()
+            self._result: _R = task.result()
         finally:
             self._event.set()
