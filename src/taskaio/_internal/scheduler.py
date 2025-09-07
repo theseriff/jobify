@@ -26,10 +26,10 @@ class TaskScheduler:
 
     def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         self._loop = loop or asyncio.get_running_loop()
-        self._tasks: list[TaskPlanSync[Any] | TaskPlanAsync[Any]] = []  # pyright: ignore[reportExplicitAny]
+        self._tasks: list[TaskPlanSync[Any] | TaskPlanAsync[Any]] = []
 
     @overload
-    def execute(  # type: ignore[overload-overlap]
+    def schedule(  # type: ignore[overload-overlap]
         self,
         func: Callable[P, Coroutine[None, None, T]],
         *args: P.args,
@@ -37,14 +37,14 @@ class TaskScheduler:
     ) -> TaskPlanAsync[T]: ...
 
     @overload
-    def execute(
+    def schedule(
         self,
         func: Callable[P, T],
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> TaskPlanSync[T]: ...
 
-    def execute(
+    def schedule(
         self,
         func: Callable[P, T | Coroutine[None, None, T]],
         *args: P.args,

@@ -39,4 +39,4 @@ jobs:
 
       - uses: extractions/setup-just@v3
       - name: Execute Pre-Commit
-        run: pre-commit run --show-diff-on-failure --color=always --all-files
+        run: just pre-commit
