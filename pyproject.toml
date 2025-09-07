@@ -6,9 +6,9 @@ build-backend = "uv_build"
 module-root = "src"
 
 [project]
-name = "taskaio"
+name = "iojobs"
 version = "0.1.0"
-description = "Lightweight asynchronous task scheduler with cron-like syntax and delayed execution for Python functions"
+description = "Lightweight asynchronous job scheduler with cron-like syntax and delayed execution for Python functions"
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "MIT" }
@@ -17,7 +17,6 @@ authors = [
 ]
 keywords = [
     "cron",
-    "asyncio",
     "cron-jobs",
     "scheduler",
     "delayed-tasks",
@@ -41,13 +40,15 @@ classifiers = [
     "Framework :: AsyncIO",
     "Typing :: Typed",
 ]
+dependencies = ["crontab==1.0.5"]
 
 [dependency-groups]
 lint = [
-    "mypy==1.17.0",
-    "ruff==0.12.4",
+    "mypy==1.18.2",
+    "ruff==0.13.1",
     "bandit==1.8.6",
-    "semgrep==1.130.0",
+    "zizmor==1.13.0",
+    "semgrep==1.137.0",
     "codespell==2.4.1",
     "basedpyright==1.31.4",
     # mypy extensions
@@ -55,28 +56,28 @@ lint = [
     "types-setuptools",
 ]
 test = [
-    "coverage[toml]==7.9.2",
-    "pytest==8.4.1",
-    "pytest-asyncio==1.1.0",
+    "coverage[toml]==7.10.7",
+    "pytest==8.4.2",
+    "pytest-asyncio==1.2.0",
 ]
 docs = [
     "mkdocs==1.6.1",
-    "mkdocs-material==9.6.15",
-    "mkdocstrings[python]==0.29.1",
+    "mkdocs-material==9.6.20",
+    "mkdocstrings[python]==0.30.1",
 ]
 dev = [
     {include-group = "lint"},
     {include-group = "test"},
     {include-group = "docs"},
-    "pre-commit==4.2.0",
+    "pre-commit==4.3.0",
     "detect-secrets==1.5.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Maclovi/taskaio"
-Documentation = "https://github.com/Maclovi/taskaio/README.md"
-Repository = "https://github.com/Maclovi/taskaio"
-Issues = "https://github.com/Maclovi/taskaio/issues"
+Homepage = "https://github.com/Maclovi/iojobs"
+Documentation = "https://github.com/Maclovi/iojobs/README.md"
+Repository = "https://github.com/Maclovi/iojobs"
+Issues = "https://github.com/Maclovi/iojobs/issues"
 
 [tool.pytest.ini_options]
 xfail_strict = true
@@ -128,7 +129,7 @@ fix = true
 select = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "D"]
 "tests/__init__.py" = ["D400", "D415", "D104"]
 
 [tool.ruff.format]
