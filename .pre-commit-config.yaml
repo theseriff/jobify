@@ -50,7 +50,6 @@ repos:
     hooks:
       - id: static-analysis
         name: Static analysis
-        stages: [pre-push, pre-merge-commit]
         entry: just static
         language: python
         types: [python]
