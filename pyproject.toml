@@ -44,10 +44,10 @@ classifiers = [
 
 [dependency-groups]
 lint = [
-    "mypy==1.17.0",
-    "ruff==0.12.4",
+    "mypy==1.17.1",
+    "ruff==0.12.12",
     "bandit==1.8.6",
-    "semgrep==1.130.0",
+    "semgrep==1.135.0",
     "codespell==2.4.1",
     "basedpyright==1.31.4",
     # mypy extensions
@@ -55,20 +55,20 @@ lint = [
     "types-setuptools",
 ]
 test = [
-    "coverage[toml]==7.9.2",
-    "pytest==8.4.1",
+    "coverage[toml]==7.10.6",
+    "pytest==8.4.2",
     "pytest-asyncio==1.1.0",
 ]
 docs = [
     "mkdocs==1.6.1",
-    "mkdocs-material==9.6.15",
-    "mkdocstrings[python]==0.29.1",
+    "mkdocs-material==9.6.18",
+    "mkdocstrings[python]==0.30.0",
 ]
 dev = [
     {include-group = "lint"},
     {include-group = "test"},
     {include-group = "docs"},
-    "pre-commit==4.2.0",
+    "pre-commit==4.3.0",
     "detect-secrets==1.5.0",
 ]
 
