@@ -1,6 +1,9 @@
 import asyncio
+import os
+import sys
 from collections.abc import Callable, Coroutine
 from typing import Any, ParamSpec, TypeVar, overload
+from uuid import uuid4
 
 from taskaio._internal._type_guards import is_async_callable, is_sync_callable
 from taskaio._internal.taskplan.async_task import TaskPlanAsync
@@ -11,11 +14,27 @@ _R = TypeVar("_R")
 
 
 class TaskScheduler:
-    _loop: asyncio.AbstractEventLoop
-
     def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
-        self._loop = loop or asyncio.get_running_loop()
-        self._tasks: list[TaskPlanSync[Any] | TaskPlanAsync[Any]] = []  # pyright: ignore[reportExplicitAny]
+        self._callback_registry: dict[str, Callable[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
+        self._scheduled_tasks: list[
+            TaskPlanSync[Any] | TaskPlanAsync[Any]  # pyright: ignore[reportExplicitAny]
+        ] = []
+        self._loop: asyncio.AbstractEventLoop = (
+            loop or asyncio.get_running_loop()
+        )
+
+    def register(self, func: Callable[_P, _R]) -> None:
+        self._register(func)
+
+    def _register(self, func: Callable[_P, _R]) -> None:
+        fmodule = func.__module__
+        fname = func.__name__
+        if fmodule == "__main__":
+            fmodule = sys.argv[0].removesuffix(".py").replace(os.path.sep, ".")
+        if fname == "<lambda>":
+            fname = f"lambda_{uuid4().hex}"
+        callback_id = f"{fmodule}:{fname}"
+        self._callback_registry[callback_id] = func
 
     @overload
     def schedule(  # type: ignore[overload-overlap]
@@ -49,7 +68,7 @@ class TaskScheduler:
         raise TypeError(err_msg)
 
     async def wait_for_complete(self) -> None:
-        self._tasks.sort(key=lambda t: t.delay_seconds, reverse=True)
-        while self._tasks:
-            task = self._tasks.pop()
+        self._scheduled_tasks.sort(key=lambda t: t.delay_seconds, reverse=True)
+        while self._scheduled_tasks:
+            task = self._scheduled_tasks.pop()
             await task.wait()

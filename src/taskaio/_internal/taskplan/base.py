@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from datetime import datetime
 from typing import Final, Generic, ParamSpec, TypeVar
+from uuid import uuid4
 
 from taskaio._internal._types import EMPTY
 from taskaio._internal.exceptions import (
@@ -58,10 +59,7 @@ class TaskPlan(Generic[_R], ABC):
 
     @property
     def task_id(self) -> str:
-        return self._task_id or (  # fallback
-            f"func_name={self._func.__name__}, args={self._args}, "
-            f"kwargs={self._kwargs}, delay_seconds={self.delay_seconds}"
-        ).encode().hex(":")
+        return self._task_id or uuid4().hex
 
     @property
     def result(self) -> _R:
@@ -117,6 +115,12 @@ class TaskPlan(Generic[_R], ABC):
         else:
             _ = await self._event.wait()
 
+    def on_success(self, callback: Callable[[_R], None]) -> None:
+        self._on_success_callback.append(callback)
+
+    def on_error(self, callback: Callable[[Exception], None]) -> None:
+        self._on_error_callback.append(callback)
+
     def _exec_on_done(
         self,
         task: asyncio.Task[_R] | Callable[..., _R],
@@ -133,12 +137,6 @@ class TaskPlan(Generic[_R], ABC):
             self._run_hook_success(self._result)
         finally:
             self._event.set()
-
-    def on_success(self, callback: Callable[[_R], None]) -> None:
-        self._on_success_callback.append(callback)
-
-    def on_error(self, callback: Callable[[Exception], None]) -> None:
-        self._on_error_callback.append(callback)
 
     def _run_hook_success(self, result: _R) -> None:
         for call_success in self._on_success_callback:
