@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 import traceback
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Final, Generic, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Final, Generic, TypeVar
 from uuid import uuid4
 
 from taskaio._internal._types import EMPTY
@@ -15,7 +16,9 @@ from taskaio._internal.exceptions import (
     TimerHandlerUninitializedError,
 )
 
-_P = ParamSpec("_P")
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
 _R = TypeVar("_R")
 
 
@@ -35,10 +38,7 @@ class TaskInfo:
 
 class TaskPlan(Generic[_R], ABC):
     __slots__: tuple[str, ...] = (
-        "_args",
         "_event",
-        "_func",
-        "_kwargs",
         "_loop",
         "_on_error_callback",
         "_on_success_callback",
@@ -49,16 +49,7 @@ class TaskPlan(Generic[_R], ABC):
         "is_planned",
     )
 
-    def __init__(
-        self,
-        loop: asyncio.AbstractEventLoop,
-        func: Callable[_P, Coroutine[None, None, _R] | _R],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
-    ) -> None:
-        self._func: Final = func
-        self._args: Final = args
-        self._kwargs: Final = kwargs
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._event: asyncio.Event = asyncio.Event()
         self._loop: asyncio.AbstractEventLoop = loop
         self._on_success_callback: list[Callable[[_R], None]] = []
@@ -95,13 +86,13 @@ class TaskPlan(Generic[_R], ABC):
             raise TimerHandlerUninitializedError
         return self._timer_handler
 
-    def at(self, at: datetime, /) -> "TaskPlan[_R]":
+    def at(self, at: datetime, /) -> TaskPlan[_R]:
         timestamp_now = datetime.now(tz=at.tzinfo).timestamp()
         timestamp_at = at.timestamp()
         delay_seconds = timestamp_at - timestamp_now
         return self.delay(delay_seconds)
 
-    def delay(self, delay_seconds: float, /) -> "TaskPlan[_R]":
+    def delay(self, delay_seconds: float, /) -> TaskPlan[_R]:
         self.delay_seconds = delay_seconds
         if delay_seconds < 0:
             warnings.warn(
@@ -176,3 +167,39 @@ class TaskPlan(Generic[_R], ABC):
                 call_error(exc)
             except Exception:  # noqa: BLE001, PERF203
                 traceback.print_exc()
+
+
+class TaskPlanSync(TaskPlan[_R]):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        func_injected: Callable[..., _R],
+    ) -> None:
+        super().__init__(loop)
+        self._func_injected: Final = func_injected
+        self._run_in_thread: bool = False
+
+    def _begin(self) -> None:
+        if self._run_in_thread:
+            coro_callback = asyncio.to_thread(self._func_injected)
+            task = asyncio.create_task(coro_callback)
+            task.add_done_callback(self._get_result)
+        else:
+            self._get_result(self._func_injected)
+
+    def to_thread(self) -> None:
+        self._run_in_thread = True
+
+
+class TaskPlanAsync(TaskPlan[_R]):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        func: Callable[..., Coroutine[None, None, _R]],
+    ) -> None:
+        super().__init__(loop)
+        self._func_injected: Final = func
+
+    def _begin(self) -> None:
+        task = asyncio.create_task(self._func_injected())
+        task.add_done_callback(self._get_result)
