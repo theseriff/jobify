@@ -1,4 +1,8 @@
-class TaskNotCompletedError(Exception):
+class TaskaioBaseError(Exception):
+    pass
+
+
+class TaskNotCompletedError(TaskaioBaseError):
     """Raised when trying to access result of incomplete task."""
 
     def __init__(
@@ -11,7 +15,7 @@ class TaskNotCompletedError(Exception):
         super().__init__(message)
 
 
-class TimerHandlerUninitializedError(Exception):
+class TimerHandlerUninitializedError(TaskaioBaseError):
     """Raised when attempting to use an uninitialized timer handler.
 
     This occurs when accessing the timer handler before the task has been
@@ -23,6 +27,19 @@ class TimerHandlerUninitializedError(Exception):
         message: str = (
             "Timer handler is not initialized - "
             "schedule the task first with at(..) or delay(..)"
+        ),
+    ) -> None:
+        super().__init__(message)
+
+
+class LambdaNotAllowedError(TaskaioBaseError):
+    """Exception raised when lambda function is used as callback."""
+
+    def __init__(
+        self,
+        message: str = (
+            "Lambda functions cannot be used as callbacks. "
+            "Use named functions or methods instead."
         ),
     ) -> None:
         super().__init__(message)

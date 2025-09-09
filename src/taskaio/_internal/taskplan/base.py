@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Final, Generic, ParamSpec, TypeVar
 from uuid import uuid4
 
@@ -18,11 +19,18 @@ _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+
+
 @dataclass(slots=True)
 class TaskInfo:
     callback_id: str
     task_id: str
-    status: None
+    status: TaskStatus
 
 
 class TaskPlan(Generic[_R], ABC):

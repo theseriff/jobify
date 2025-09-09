@@ -5,9 +5,14 @@ system can raise. These exceptions provide more detailed information
 about errors and guidance on how to handle common scheduling scenarios.
 """
 
+__all__ = (
+    "LambdaNotAllowedError",
+    "TaskNotCompletedError",
+    "TimerHandlerUninitializedError",
+)
+
 from taskaio._internal.exceptions import (
+    LambdaNotAllowedError,
     TaskNotCompletedError,
     TimerHandlerUninitializedError,
 )
-
-__all__ = ("TaskNotCompletedError", "TimerHandlerUninitializedError")

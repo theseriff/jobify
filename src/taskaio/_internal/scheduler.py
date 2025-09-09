@@ -1,12 +1,14 @@
 import asyncio
+import contextlib
+import functools
 import os
 import sys
 import warnings
 from collections.abc import Callable, Coroutine
-from typing import Any, ParamSpec, TypeVar, overload
-from uuid import uuid4
+from typing import Any, ParamSpec, TypeVar, cast, overload
 
-from taskaio._internal._type_guards import is_async_callable, is_sync_callable
+from taskaio._internal._type_guards import is_async_callable
+from taskaio._internal.exceptions import LambdaNotAllowedError
 from taskaio._internal.taskplan.async_task import TaskPlanAsync
 from taskaio._internal.taskplan.sync_task import TaskPlanSync
 
@@ -21,11 +23,27 @@ class TaskScheduler:
             TaskPlanSync[Any] | TaskPlanAsync[Any]  # pyright: ignore[reportExplicitAny]
         ] = []
         self._loop: asyncio.AbstractEventLoop = (
-            loop or asyncio.get_running_loop()
+            loop or self._get_running_loop() or self._create_new_event_loop()
         )
 
-    def register(self, callback: Callable[_P, _R]) -> None:
+    def _get_running_loop(self) -> asyncio.AbstractEventLoop | None:
+        with contextlib.suppress(RuntimeError):
+            return asyncio.get_running_loop()
+        return None
+
+    def _create_new_event_loop(self) -> asyncio.AbstractEventLoop:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+
+    def register(self, callback: Callable[_P, _R]) -> Callable[_P, _R]:
         self._register(callback)
+
+        @functools.wraps(callback)
+        def inner(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+            return callback(*args, **kwargs)
+
+        return inner
 
     def register_all(self, *callbacks: Callable[_P, _R]) -> None:
         for callback in callbacks:
@@ -41,12 +59,12 @@ class TaskScheduler:
         self._callback_registry[callback_id] = func
 
     def _get_callback_id(self, func: Callable[_P, _R]) -> str:
-        fmodule = func.__module__
         fname = func.__name__
+        fmodule = func.__module__
+        if fname == "<lambda>":
+            raise LambdaNotAllowedError
         if fmodule == "__main__":
             fmodule = sys.argv[0].removesuffix(".py").replace(os.path.sep, ".")
-        if fname == "<lambda>":
-            fname = f"lambda_{uuid4().hex}"
         return f"{fmodule}:{fname}"
 
     @overload
@@ -83,12 +101,15 @@ class TaskScheduler:
                 UserWarning,
                 stacklevel=2,
             )
+
+        task_plan: TaskPlanAsync[_R] | TaskPlanSync[_R]
         if is_async_callable(func):
-            return TaskPlanAsync(self._loop, func, *args, **kwargs)
-        if is_sync_callable(func):
-            return TaskPlanSync(self._loop, func, *args, **kwargs)
-        err_msg = f"Unsupported function type: {type(func)}"
-        raise TypeError(err_msg)
+            task_plan = TaskPlanAsync(self._loop, func, *args, **kwargs)
+        else:
+            func = cast("Callable[_P, _R]", func)
+            task_plan = TaskPlanSync(self._loop, func, *args, **kwargs)
+        self._scheduled_tasks.append(task_plan)
+        return task_plan
 
     async def wait_for_complete(self) -> None:
         self._scheduled_tasks.sort(key=lambda t: t.delay_seconds, reverse=True)
