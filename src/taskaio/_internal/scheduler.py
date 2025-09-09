@@ -107,17 +107,7 @@ class TaskAIO:
         self._scheduled_tasks.append(task_plan)
         return task_plan
 
-    def planning(self) -> None:
-        if self._is_planning:
-            return
-        if self._loop is EMPTY:
-            self._loop = asyncio.get_running_loop()
-        for task in self._scheduled_tasks:
-            task.plan_execution()
-        self._is_planning = True
-
     async def wait_for_complete(self) -> None:
-        self.planning()
         tasks = self._scheduled_tasks
         tasks.sort(key=lambda t: t.delay_seconds, reverse=True)
         while tasks:

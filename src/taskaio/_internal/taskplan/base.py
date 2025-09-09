@@ -74,6 +74,12 @@ class TaskPlan(Generic[_R], ABC):
         raise NotImplementedError
 
     @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is EMPTY:
+            self._loop = asyncio.get_running_loop()
+        return self._loop
+
+    @property
     def task_id(self) -> str:
         return self._task_id or uuid4().hex
 
@@ -104,14 +110,14 @@ class TaskPlan(Generic[_R], ABC):
                 UserWarning,
                 stacklevel=2,
             )
+        else:
+            timer_handler = self.loop.call_later(
+                self.delay_seconds,
+                self._begin,
+            )
+            self._timer_handler = timer_handler
+            self.is_planned = True
         return self
-
-    def plan_execution(self) -> None:
-        if self.delay_seconds < 0:
-            return
-        timer_handler = self._loop.call_later(self.delay_seconds, self._begin)
-        self._timer_handler = timer_handler
-        self.is_planned = True
 
     def is_done(self) -> bool:
         return self._event.is_set()
