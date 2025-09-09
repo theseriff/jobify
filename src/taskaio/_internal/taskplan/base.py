@@ -77,8 +77,8 @@ class TaskPlan(Generic[_R], ABC):
 
     def at(self, at: datetime, /) -> "TaskPlan[_R]":
         timestamp_now = datetime.now(tz=at.tzinfo).timestamp()
-        timestamp_target = at.timestamp()
-        delay_seconds = timestamp_target - timestamp_now
+        timestamp_at = at.timestamp()
+        delay_seconds = timestamp_at - timestamp_now
         return self.delay(delay_seconds)
 
     def delay(self, delay_seconds: float, /) -> "TaskPlan[_R]":
