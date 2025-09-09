@@ -19,7 +19,8 @@ f(1, "dsa")
 
 
 async def main() -> None:
-    f.schedule(2, "das").delay(1)
+    s = f.schedule(2, "das")
+
     # f.schedule(3, "Dsa")
     # await f2(21, "vvv")
     # f2.schedule(4, "aaa").delay(1).to_thread()
