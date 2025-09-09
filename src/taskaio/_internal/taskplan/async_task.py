@@ -26,4 +26,4 @@ class TaskPlanAsync(TaskPlan[_R]):
 
     def _begin(self) -> None:
         task = asyncio.create_task(self._func_injected())
-        task.add_done_callback(self._exec_on_done)
+        task.add_done_callback(self._get_result)

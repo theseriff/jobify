@@ -104,12 +104,14 @@ class TaskPlan(Generic[_R], ABC):
                 UserWarning,
                 stacklevel=2,
             )
-        else:
-            timer_handler = self._loop.call_later(delay_seconds, self._begin)
-            self._timer_handler = timer_handler
-            self.is_planned = True
-
         return self
+
+    def plan_execution(self) -> None:
+        if self.delay_seconds < 0:
+            return
+        timer_handler = self._loop.call_later(self.delay_seconds, self._begin)
+        self._timer_handler = timer_handler
+        self.is_planned = True
 
     def is_done(self) -> bool:
         return self._event.is_set()
@@ -137,31 +139,32 @@ class TaskPlan(Generic[_R], ABC):
     def on_error(self, callback: Callable[[Exception], None]) -> None:
         self._on_error_callback.append(callback)
 
-    def _exec_on_done(
+    def _get_result(
         self,
         task: asyncio.Task[_R] | Callable[..., _R],
         /,
     ) -> None:
         try:
             if isinstance(task, asyncio.Task):
-                self._result = task.result()
+                result = task.result()
             else:
-                self._result = task()
+                result = task()
         except Exception as exc:  # noqa: BLE001
-            self._run_hook_error(exc)
+            self._run_hooks_error(exc)
         else:
-            self._run_hook_success(self._result)
+            self._result = result
+            self._run_hooks_success(result)
         finally:
             self._event.set()
 
-    def _run_hook_success(self, result: _R) -> None:
+    def _run_hooks_success(self, result: _R) -> None:
         for call_success in self._on_success_callback:
             try:
                 call_success(result)
             except Exception:  # noqa: BLE001, PERF203
                 traceback.print_exc()
 
-    def _run_hook_error(self, exc: Exception) -> None:
+    def _run_hooks_error(self, exc: Exception) -> None:
         for call_error in self._on_error_callback:
             try:
                 call_error(exc)

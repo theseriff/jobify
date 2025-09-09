@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import functools
 import os
 import sys
@@ -8,6 +7,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from taskaio._internal._type_guards import is_async_callable
+from taskaio._internal._types import EMPTY
 from taskaio._internal.exceptions import LambdaNotAllowedError
 from taskaio._internal.taskplan.async_task import TaskPlanAsync
 from taskaio._internal.taskplan.sync_task import TaskPlanSync
@@ -16,25 +16,21 @@ _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 
-class TaskScheduler:
-    def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
+class TaskAIO:
+    __slots__: tuple[str, ...] = (
+        "_callback_registry",
+        "_is_planning",
+        "_loop",
+        "_scheduled_tasks",
+    )
+
+    def __init__(self, loop: asyncio.AbstractEventLoop = EMPTY) -> None:
         self._callback_registry: dict[str, Callable[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
+        self._is_planning: bool = False
+        self._loop: asyncio.AbstractEventLoop = loop
         self._scheduled_tasks: list[
             TaskPlanSync[Any] | TaskPlanAsync[Any]  # pyright: ignore[reportExplicitAny]
         ] = []
-        self._loop: asyncio.AbstractEventLoop = (
-            loop or self._get_running_loop() or self._create_new_event_loop()
-        )
-
-    def _get_running_loop(self) -> asyncio.AbstractEventLoop | None:
-        with contextlib.suppress(RuntimeError):
-            return asyncio.get_running_loop()
-        return None
-
-    def _create_new_event_loop(self) -> asyncio.AbstractEventLoop:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop
 
     def register(self, callback: Callable[_P, _R]) -> Callable[_P, _R]:
         self._register(callback)
@@ -111,8 +107,19 @@ class TaskScheduler:
         self._scheduled_tasks.append(task_plan)
         return task_plan
 
+    def planning(self) -> None:
+        if self._is_planning:
+            return
+        if self._loop is EMPTY:
+            self._loop = asyncio.get_running_loop()
+        for task in self._scheduled_tasks:
+            task.plan_execution()
+        self._is_planning = True
+
     async def wait_for_complete(self) -> None:
-        self._scheduled_tasks.sort(key=lambda t: t.delay_seconds, reverse=True)
-        while self._scheduled_tasks:
-            task = self._scheduled_tasks.pop()
+        self.planning()
+        tasks = self._scheduled_tasks
+        tasks.sort(key=lambda t: t.delay_seconds, reverse=True)
+        while tasks:
+            task = tasks.pop()
             await task.wait()

@@ -29,9 +29,9 @@ class TaskPlanSync(TaskPlan[_R]):
         if self._run_in_thread:
             coro_callback = asyncio.to_thread(self._func_injected)
             task = asyncio.create_task(coro_callback)
-            task.add_done_callback(self._exec_on_done)
+            task.add_done_callback(self._get_result)
         else:
-            self._exec_on_done(self._func_injected)
+            self._get_result(self._func_injected)
 
     def to_thread(self) -> None:
         self._run_in_thread = True
