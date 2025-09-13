@@ -15,23 +15,6 @@ class TaskNotCompletedError(TaskaioBaseError):
         super().__init__(message)
 
 
-class TimerHandlerUninitializedError(TaskaioBaseError):
-    """Raised when attempting to use an uninitialized timer handler.
-
-    This occurs when accessing the timer handler before the task has been
-    scheduled. The timer handler is lazily initialized during task scheduling.
-    """
-
-    def __init__(
-        self,
-        message: str = (
-            "Timer handler is not initialized - "
-            "schedule the task first with at(..) or delay(..)"
-        ),
-    ) -> None:
-        super().__init__(message)
-
-
 class LambdaNotAllowedError(TaskaioBaseError):
     """Exception raised when lambda function is used as callback."""
 
@@ -43,3 +26,20 @@ class LambdaNotAllowedError(TaskaioBaseError):
         ),
     ) -> None:
         super().__init__(message)
+
+
+class NegativeDelayError(TaskaioBaseError):
+    """Exception raised when negative delay_seconds is provided."""
+
+    def __init__(
+        self,
+        delay_seconds: float,
+        message: str | None = None,
+    ) -> None:
+        if message is None:
+            message = (
+                f"Negative delay_seconds ({delay_seconds}) is not supported. "
+                "Please provide non-negative values."
+            )
+        super().__init__(message)
+        self.delay_seconds: float = delay_seconds

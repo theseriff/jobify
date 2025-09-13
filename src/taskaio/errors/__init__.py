@@ -7,12 +7,12 @@ about errors and guidance on how to handle common scheduling scenarios.
 
 __all__ = (
     "LambdaNotAllowedError",
+    "NegativeDelayError",
     "TaskNotCompletedError",
-    "TimerHandlerUninitializedError",
 )
 
 from taskaio._internal.exceptions import (
     LambdaNotAllowedError,
+    NegativeDelayError,
     TaskNotCompletedError,
-    TimerHandlerUninitializedError,
 )

@@ -5,7 +5,7 @@ It exposes the main scheduler interface and task planning components that
 form the basis of the taskaio asynchronous task scheduling system.
 """
 
-__all__ = ("TaskPlanAsync", "TaskPlanSync", "TaskScheduler")
+__all__ = ("TaskExecutorAsync", "TaskExecutorSync", "TaskScheduler")
 
 from taskaio._internal.scheduler import TaskScheduler
-from taskaio._internal.task_plan import TaskPlanAsync, TaskPlanSync
+from taskaio._internal.task_executor import TaskExecutorAsync, TaskExecutorSync
