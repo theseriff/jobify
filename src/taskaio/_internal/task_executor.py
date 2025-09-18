@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import traceback
 import warnings
-from abc import ABC
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Final, Generic, TypeVar
 from uuid import uuid4
@@ -12,6 +12,7 @@ from taskaio._internal._types import EMPTY, FuncID
 from taskaio._internal.exceptions import (
     NegativeDelayError,
     TaskNotCompletedError,
+    TaskNotInitializedError,
 )
 
 if TYPE_CHECKING:
@@ -20,12 +21,9 @@ if TYPE_CHECKING:
 _R = TypeVar("_R")
 
 
-class TaskExecutor(Generic[_R], ABC):
+class TaskInfo(Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
-        "_is_async",
-        "_on_error_callback",
-        "_on_success_callback",
         "_result",
         "at_timestamp",
         "func_id",
@@ -39,18 +37,14 @@ class TaskExecutor(Generic[_R], ABC):
         task_id: str,
         at_timestamp: float,
         func_id: str,
-        on_success_callback: list[Callable[[_R], None]],
-        on_error_callback: list[Callable[[Exception], None]],
+        timer_handler: asyncio.TimerHandle,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
-        self._is_async: bool = False
-        self._on_success_callback: Final = on_success_callback
-        self._on_error_callback: Final = on_error_callback
         self._result: _R = EMPTY
         self.at_timestamp: float = at_timestamp
         self.func_id: str = func_id
         self.task_id: str = task_id
-        self.timer_handler: asyncio.TimerHandle
+        self.timer_handler: Final = timer_handler
 
     def is_done(self) -> bool:
         return self._event.is_set()
@@ -71,9 +65,82 @@ class TaskExecutor(Generic[_R], ABC):
             raise TaskNotCompletedError
         return self._result
 
-    # @abstractmethod
+
+class TaskExecutor(Generic[_R], ABC):
+    __slots__: tuple[str, ...] = (
+        "_event",
+        "_func_id",
+        "_loop",
+        "_on_error_callback",
+        "_on_success_callback",
+        "_task_info",
+    )
+
+    def __init__(
+        self,
+        *,
+        loop: asyncio.AbstractEventLoop,
+        func_id: FuncID,
+    ) -> None:
+        self._event: asyncio.Event = asyncio.Event()
+        self._func_id: FuncID = func_id
+        self._loop: asyncio.AbstractEventLoop = loop
+        self._on_success_callback: list[Callable[[_R], None]] = []
+        self._on_error_callback: list[Callable[[Exception], None]] = []
+        self._task_info: TaskInfo[_R] | None = None
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is EMPTY:
+            self._loop = asyncio.get_running_loop()
+        return self._loop
+
+    @abstractmethod
     def execute(self) -> None:
         raise NotImplementedError
+
+    def delay(
+        self,
+        delay_seconds: float,
+        /,
+        task_id: str = EMPTY,
+    ) -> TaskInfo[_R]:
+        now = datetime.now(tz=timezone.utc)
+        at = now + timedelta(seconds=delay_seconds)
+        return self._at_execute(now=now, at=at, task_id=task_id)
+
+    def at(self, at: datetime, /, *, task_id: str = EMPTY) -> TaskInfo[_R]:
+        now = datetime.now(tz=at.tzinfo)
+        return self._at_execute(now=now, at=at, task_id=task_id)
+
+    def _at_execute(
+        self,
+        *,
+        now: datetime,
+        at: datetime,
+        task_id: str,
+    ) -> TaskInfo[_R]:
+        now_timestamp = now.timestamp()
+        at_timestamp = at.timestamp()
+        delay_seconds = at_timestamp - now_timestamp
+        if delay_seconds < 0:
+            raise NegativeDelayError(delay_seconds)
+        when = self.loop.time() + delay_seconds
+        time_handler = self.loop.call_at(when, self.execute)
+        task_info = TaskInfo[_R](
+            at_timestamp=at_timestamp,
+            func_id=self._func_id,
+            task_id=task_id or uuid4().hex,
+            timer_handler=time_handler,
+        )
+        self._task_info = task_info
+        return task_info
+
+    @property
+    def task_info(self) -> TaskInfo[_R]:
+        if self._task_info is None:
+            raise TaskNotInitializedError
+        return self._task_info
 
     def _set_result(
         self,
@@ -90,7 +157,7 @@ class TaskExecutor(Generic[_R], ABC):
         except Exception as exc:  # noqa: BLE001
             self._run_hooks_error(exc)
         else:
-            self._result = result
+            self.task_info._result = result  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
             self._run_hooks_success(result)
         finally:
             self._event.set()
@@ -109,26 +176,31 @@ class TaskExecutor(Generic[_R], ABC):
             except Exception:  # noqa: BLE001, PERF203
                 traceback.print_exc()
 
+    def on_success(
+        self,
+        *callbacks: Callable[[_R], None],
+    ) -> TaskExecutor[_R]:
+        self._on_success_callback.extend(callbacks)
+        return self
+
+    def on_error(
+        self,
+        *callbacks: Callable[[Exception], None],
+    ) -> TaskExecutor[_R]:
+        self._on_error_callback.extend(callbacks)
+        return self
+
 
 class TaskExecutorSync(TaskExecutor[_R]):
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
-        task_id: str,
-        at_timestamp: float,
-        func_id: str,
-        on_success_callback: list[Callable[[_R], None]],
-        on_error_callback: list[Callable[[Exception], None]],
-        func: Callable[..., _R],
+        loop: asyncio.AbstractEventLoop,
+        func_id: FuncID,
+        func_injected: Callable[..., _R],
     ) -> None:
-        super().__init__(
-            task_id=task_id,
-            at_timestamp=at_timestamp,
-            func_id=func_id,
-            on_success_callback=on_success_callback,
-            on_error_callback=on_error_callback,
-        )
-        self._func_injected: Final = func
+        super().__init__(loop=loop, func_id=func_id)
+        self._func_injected: Final = func_injected
         self._run_in_thread: bool = False
 
     def execute(self) -> None:
@@ -144,102 +216,16 @@ class TaskExecutorSync(TaskExecutor[_R]):
 
 
 class TaskExecutorAsync(TaskExecutor[_R]):
-    def __init__(  # noqa: PLR0913
-        self,
-        *,
-        task_id: str,
-        at_timestamp: float,
-        func_id: str,
-        on_success_callback: list[Callable[[_R], None]],
-        on_error_callback: list[Callable[[Exception], None]],
-        func: Callable[..., Coroutine[None, None, _R]],
-    ) -> None:
-        super().__init__(
-            task_id=task_id,
-            at_timestamp=at_timestamp,
-            func_id=func_id,
-            on_success_callback=on_success_callback,
-            on_error_callback=on_error_callback,
-        )
-        self._func_injected: Final = func
-
-    def execute(self) -> None:
-        coro_task = asyncio.create_task(self._func_injected())
-        coro_task.add_done_callback(self._set_result)
-
-
-class TaskBuilder(Generic[_R]):
-    __slots__: tuple[str, ...] = (
-        "_event",
-        "_func_id",
-        "_loop",
-        "_on_error_callback",
-        "_on_success_callback",
-    )
-
     def __init__(
         self,
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
+        _func_injected: Callable[..., Coroutine[None, None, _R]],
     ) -> None:
-        self._event: asyncio.Event = asyncio.Event()
-        self._func_id: FuncID = func_id
-        self._loop: asyncio.AbstractEventLoop = loop
-        self._on_success_callback: list[Callable[[_R], None]] = []
-        self._on_error_callback: list[Callable[[Exception], None]] = []
+        super().__init__(loop=loop, func_id=func_id)
+        self._func_injected: Final = _func_injected
 
-    @property
-    def loop(self) -> asyncio.AbstractEventLoop:
-        if self._loop is EMPTY:
-            self._loop = asyncio.get_running_loop()
-        return self._loop
-
-    def delay(
-        self,
-        delay_seconds: float,
-        /,
-        task_id: str = EMPTY,
-    ) -> TaskExecutor[_R]:
-        now = datetime.now(tz=timezone.utc)
-        at = now + timedelta(seconds=delay_seconds)
-        return self._at(now=now, at=at, task_id=task_id)
-
-    def at(self, at: datetime, /, *, task_id: str = EMPTY) -> TaskExecutor[_R]:
-        now = datetime.now(tz=at.tzinfo)
-        return self._at(now=now, at=at, task_id=task_id)
-
-    def _at(
-        self,
-        *,
-        now: datetime,
-        at: datetime,
-        task_id: str,
-    ) -> TaskExecutor[_R]:
-        now_timestamp = now.timestamp()
-        at_timestamp = at.timestamp()
-        delay_seconds = at_timestamp - now_timestamp
-        if delay_seconds < 0:
-            raise NegativeDelayError(delay_seconds)
-        task_executor = TaskExecutor[_R](
-            at_timestamp=at_timestamp,
-            func_id=self._func_id,
-            task_id=task_id or uuid4().hex,
-            on_success_callback=self._on_success_callback,
-            on_error_callback=self._on_error_callback,
-        )
-        when = self.loop.time() + delay_seconds
-        tm = self.loop.call_at(when, task_executor.execute)
-        task_executor.timer_handler = tm
-        return task_executor
-
-    def on_success(self, *callbacks: Callable[[_R], None]) -> TaskBuilder[_R]:
-        self._on_success_callback.extend(callbacks)
-        return self
-
-    def on_error(
-        self,
-        *callbacks: Callable[[Exception], None],
-    ) -> TaskBuilder[_R]:
-        self._on_error_callback.extend(callbacks)
-        return self
+    def execute(self) -> None:
+        coro_task = asyncio.create_task(self._func_injected())
+        coro_task.add_done_callback(self._set_result)

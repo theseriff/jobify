@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from taskaio._internal.task_executor import (
-        TaskExecutor,
+        TaskInfo,
     )
 
 _P = ParamSpec("_P")
@@ -36,7 +36,7 @@ class FuncWrapper(Generic[_P, _R]):
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop: Final = loop
         self._func_registered: dict[FuncID, Callable[_P, _R]] = {}
-        self.task_scheduled: list[TaskExecutor[_R]] = []
+        self.task_scheduled: list[TaskInfo[_R]] = []
 
     def register(
         self,

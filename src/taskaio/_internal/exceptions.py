@@ -43,3 +43,19 @@ class NegativeDelayError(TaskaioBaseError):
             )
         super().__init__(message)
         self.delay_seconds: float = delay_seconds
+
+
+class TaskNotInitializedError(TaskaioBaseError):
+    """Raised when task components are accessed before initialization."""
+
+    def __init__(
+        self,
+        message: str | None = None,
+    ) -> None:
+        if message is None:
+            message = (
+                "TaskInfo is not initialized. "
+                "Ensure the task has been properly created and configured "
+                "before accessing its properties."
+            )
+        super().__init__(message)
