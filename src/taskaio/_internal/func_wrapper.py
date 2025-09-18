@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import functools
 import os
 import sys
@@ -8,25 +7,23 @@ from typing import (
     TYPE_CHECKING,
     Final,
     Generic,
-    NewType,
     ParamSpec,
     TypeVar,
-    cast,
 )
 
+from taskaio._internal._types import FuncID
 from taskaio._internal.exceptions import LambdaNotAllowedError
-from taskaio._internal.task_executor import (
-    TaskExecutor,
-    TaskExecutorAsync,
-    TaskExecutorSync,
-)
 
 if TYPE_CHECKING:
+    import asyncio
     from collections.abc import Callable
+
+    from taskaio._internal.task_executor import (
+        TaskExecutor,
+    )
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
-FuncID = NewType("FuncID", str)
 
 
 class FuncWrapper(Generic[_P, _R]):
@@ -51,16 +48,8 @@ class FuncWrapper(Generic[_P, _R]):
 
             @functools.wraps(func)
             def inner(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-                func_injected = functools.partial(func, *args, **kwargs)
+                # func_injected = functools.partial(func, *args, **kwargs)  # noqa: E501, ERA001
 
-                _task: TaskExecutorAsync[_R] | TaskExecutorSync[_R]
-                if asyncio.iscoroutinefunction(func_injected):
-                    _task = TaskExecutorAsync(self._loop, func_injected)
-                else:
-                    _task = TaskExecutorSync(
-                        self._loop,
-                        cast("Callable[_P, _R]", func_injected),
-                    )
                 return func(*args, **kwargs)
 
             return inner
