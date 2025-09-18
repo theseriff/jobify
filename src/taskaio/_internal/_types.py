@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, NewType
 
 
 class EmptyPlaceholder:
@@ -16,3 +16,4 @@ class EmptyPlaceholder:
 
 
 EMPTY: Any = EmptyPlaceholder()  # pyright: ignore[reportExplicitAny]
+FuncID = NewType("FuncID", str)
