@@ -5,7 +5,10 @@ It exposes the main scheduler interface and task planning components that
 form the basis of the taskaio asynchronous task scheduling system.
 """
 
-__all__ = ("TaskExecutorAsync", "TaskExecutorSync", "TaskScheduler")
+from importlib.metadata import version as get_version
 
 from taskaio._internal.scheduler import TaskScheduler
 from taskaio._internal.task_executor import TaskExecutorAsync, TaskExecutorSync
+
+__all__ = ("TaskExecutorAsync", "TaskExecutorSync", "TaskScheduler")
+__version__ = get_version("taskaio")
