@@ -34,12 +34,13 @@ class TaskInfo(Generic[_R]):
     def __init__(
         self,
         *,
+        event: asyncio.Event,
         task_id: str,
         at_timestamp: float,
         func_id: str,
         timer_handler: asyncio.TimerHandle,
     ) -> None:
-        self._event: asyncio.Event = asyncio.Event()
+        self._event: asyncio.Event = event
         self._result: _R = EMPTY
         self.at_timestamp: float = at_timestamp
         self.func_id: str = func_id
@@ -56,8 +57,8 @@ class TaskInfo(Generic[_R]):
                 category=RuntimeWarning,
                 stacklevel=2,
             )
-        else:
-            _ = await self._event.wait()
+            return
+        _ = await self._event.wait()
 
     @property
     def result(self) -> _R:
@@ -73,6 +74,7 @@ class TaskExecutor(Generic[_R], ABC):
         "_loop",
         "_on_error_callback",
         "_on_success_callback",
+        "_task_id",
         "_task_info",
     )
 
@@ -87,6 +89,7 @@ class TaskExecutor(Generic[_R], ABC):
         self._loop: asyncio.AbstractEventLoop = loop
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
+        self._task_id: str | None = None
         self._task_info: TaskInfo[_R] | None = None
 
     @property
@@ -95,52 +98,55 @@ class TaskExecutor(Generic[_R], ABC):
             self._loop = asyncio.get_running_loop()
         return self._loop
 
-    @abstractmethod
-    def execute(self) -> None:
-        raise NotImplementedError
-
-    def delay(
-        self,
-        delay_seconds: float,
-        /,
-        task_id: str = EMPTY,
-    ) -> TaskInfo[_R]:
-        now = datetime.now(tz=timezone.utc)
-        at = now + timedelta(seconds=delay_seconds)
-        return self._at_execute(now=now, at=at, task_id=task_id)
-
-    def at(self, at: datetime, /, *, task_id: str = EMPTY) -> TaskInfo[_R]:
-        now = datetime.now(tz=at.tzinfo)
-        return self._at_execute(now=now, at=at, task_id=task_id)
-
-    def _at_execute(
-        self,
-        *,
-        now: datetime,
-        at: datetime,
-        task_id: str,
-    ) -> TaskInfo[_R]:
-        now_timestamp = now.timestamp()
-        at_timestamp = at.timestamp()
-        delay_seconds = at_timestamp - now_timestamp
-        if delay_seconds < 0:
-            raise NegativeDelayError(delay_seconds)
-        when = self.loop.time() + delay_seconds
-        time_handler = self.loop.call_at(when, self.execute)
-        task_info = TaskInfo[_R](
-            at_timestamp=at_timestamp,
-            func_id=self._func_id,
-            task_id=task_id or uuid4().hex,
-            timer_handler=time_handler,
-        )
-        self._task_info = task_info
-        return task_info
-
     @property
     def task_info(self) -> TaskInfo[_R]:
         if self._task_info is None:
             raise TaskNotInitializedError
         return self._task_info
+
+    @property
+    def task_id(self) -> str:
+        if self._task_id is None:
+            self._task_id = uuid4().hex
+        return self._task_id
+
+    @task_id.setter
+    def task_id(self, val: str) -> TaskExecutor[_R]:
+        self._task_id = val
+        return self
+
+    @abstractmethod
+    def execute(self) -> None:
+        raise NotImplementedError
+
+    def delay(self, delay_seconds: float) -> TaskInfo[_R]:
+        now = datetime.now(tz=timezone.utc)
+        at = now + timedelta(seconds=delay_seconds)
+        return self._at_execute(now=now, at=at)
+
+    def at(self, at: datetime) -> TaskInfo[_R]:
+        now = datetime.now(tz=at.tzinfo)
+        return self._at_execute(now=now, at=at)
+
+    def _at_execute(self, *, now: datetime, at: datetime) -> TaskInfo[_R]:
+        now_timestamp = now.timestamp()
+        at_timestamp = at.timestamp()
+        delay_seconds = at_timestamp - now_timestamp
+        if delay_seconds < 0:
+            raise NegativeDelayError(delay_seconds)
+
+        loop = self.loop
+        when = loop.time() + delay_seconds
+        time_handler = loop.call_at(when, self.execute)
+        task_info = TaskInfo[_R](
+            event=self._event,
+            at_timestamp=at_timestamp,
+            func_id=self._func_id,
+            task_id=self.task_id,
+            timer_handler=time_handler,
+        )
+        self._task_info = task_info
+        return task_info
 
     def _set_result(
         self,
@@ -192,15 +198,20 @@ class TaskExecutor(Generic[_R], ABC):
 
 
 class TaskExecutorSync(TaskExecutor[_R]):
+    __slots__: tuple[str, ...] = (
+        "_func_injected",
+        "_run_in_thread",
+    )
+
     def __init__(
         self,
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
-        func_injected: Callable[..., _R],
+        _func_injected: Callable[..., _R],
     ) -> None:
         super().__init__(loop=loop, func_id=func_id)
-        self._func_injected: Final = func_injected
+        self._func_injected: Final = _func_injected
         self._run_in_thread: bool = False
 
     def execute(self) -> None:
@@ -216,6 +227,8 @@ class TaskExecutorSync(TaskExecutor[_R]):
 
 
 class TaskExecutorAsync(TaskExecutor[_R]):
+    __slots__: tuple[str, ...] = ("_func_injected",)
+
     def __init__(
         self,
         *,
