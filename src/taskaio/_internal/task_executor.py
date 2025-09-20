@@ -25,7 +25,7 @@ class TaskInfo(Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_result",
-        "at_timestamp",
+        "exec_at_timestamp",
         "func_id",
         "task_id",
         "timer_handler",
@@ -36,13 +36,13 @@ class TaskInfo(Generic[_R]):
         *,
         event: asyncio.Event,
         task_id: str,
-        at_timestamp: float,
+        exec_at_timestamp: float,
         func_id: str,
         timer_handler: asyncio.TimerHandle,
     ) -> None:
         self._event: asyncio.Event = event
         self._result: _R = EMPTY
-        self.at_timestamp: float = at_timestamp
+        self.exec_at_timestamp: float = exec_at_timestamp
         self.func_id: str = func_id
         self.task_id: str = task_id
         self.timer_handler: Final = timer_handler
@@ -144,7 +144,7 @@ class TaskExecutor(ABC, Generic[_R]):
         time_handler = loop.call_at(when, self.execute)
         task_info = TaskInfo[_R](
             event=self._event,
-            at_timestamp=at_timestamp,
+            exec_at_timestamp=at_timestamp,
             func_id=self._func_id,
             task_id=self.task_id,
             timer_handler=time_handler,
