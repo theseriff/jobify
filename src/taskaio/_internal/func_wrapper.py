@@ -11,7 +11,6 @@ from typing import (
     ParamSpec,
     TypeVar,
     cast,
-    overload,
 )
 from uuid import uuid4
 
@@ -50,16 +49,6 @@ class FuncWrapper(Generic[_P, _R]):
         self,
         func_id: str | None,
     ) -> Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]:
-        @overload
-        def wrapper(  # type: ignore[overload-overlap]
-            func: Callable[_P, Coroutine[None, None, _R]],
-        ) -> Callable[_P, TaskExecutorAsync[_R]]: ...
-
-        @overload
-        def wrapper(
-            func: Callable[_P, _R],
-        ) -> Callable[_P, TaskExecutorSync[_R]]: ...
-
         def wrapper(
             func: Callable[_P, Coroutine[None, None, _R] | _R],
         ) -> Callable[_P, TaskExecutor[_R]]:

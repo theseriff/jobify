@@ -47,7 +47,7 @@ class TaskScheduler:
         | Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]
     ):
         wrapper = self._wrapper.register(func_id)
-        if func is not None:
+        if callable(func):
             return wrapper(func)
         return wrapper
 

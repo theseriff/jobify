@@ -125,8 +125,8 @@ class TaskExecutor(ABC, Generic[_R]):
         return self._task_id
 
     @task_id.setter
-    def task_id(self, id_: str, /) -> TaskExecutor[_R]:
-        self._task_id = id_
+    def task_id(self, t_id: str, /) -> TaskExecutor[_R]:
+        self._task_id = t_id
         return self
 
     @abstractmethod
