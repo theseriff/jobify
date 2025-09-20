@@ -15,19 +15,6 @@ class TaskNotCompletedError(TaskaioBaseError):
         super().__init__(message)
 
 
-class LambdaNotAllowedError(TaskaioBaseError):
-    """Exception raised when lambda function is used as callback."""
-
-    def __init__(
-        self,
-        message: str = (
-            "Lambda functions cannot be used as callbacks. "
-            "Use named functions or methods instead."
-        ),
-    ) -> None:
-        super().__init__(message)
-
-
 class NegativeDelayError(TaskaioBaseError):
     """Exception raised when negative delay_seconds is provided."""
 

@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
+    from taskaio._internal.task_executor import TaskExecutor
+
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -23,28 +25,34 @@ class TaskScheduler:
         )
 
     @overload
-    def register(self, func: Callable[_P, _R]) -> Callable[_P, _R]: ...
+    def register(
+        self,
+        func: Callable[_P, _R],
+    ) -> Callable[_P, TaskExecutor[_R]]: ...
 
     @overload
     def register(
         self,
         *,
         func_id: str | None = None,
-    ) -> Callable[[Callable[_P, _R]], Callable[_P, _R]]: ...
+    ) -> Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]: ...
 
     def register(
         self,
         func: Callable[_P, _R] | None = None,
         *,
         func_id: str | None = None,
-    ) -> Callable[_P, _R] | Callable[[Callable[_P, _R]], Callable[_P, _R]]:
+    ) -> (
+        Callable[_P, TaskExecutor[_R]]
+        | Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]
+    ):
         wrapper = self._wrapper.register(func_id)
         if func is not None:
             return wrapper(func)
         return wrapper
 
     async def wait_for_complete(self) -> None:
-        tasks = self._wrapper.task_scheduled
+        tasks = self._wrapper.task_registered
         tasks.sort(key=lambda t: t.at_timestamp, reverse=True)
         while tasks:
             task = tasks.pop()

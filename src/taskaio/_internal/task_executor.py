@@ -66,8 +66,12 @@ class TaskInfo(Generic[_R]):
             raise TaskNotCompletedError
         return self._result
 
+    @result.setter
+    def result(self, val: _R) -> None:
+        self._result = val
 
-class TaskExecutor(Generic[_R], ABC):
+
+class TaskExecutor(ABC, Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_func_id",
@@ -111,8 +115,8 @@ class TaskExecutor(Generic[_R], ABC):
         return self._task_id
 
     @task_id.setter
-    def task_id(self, val: str) -> TaskExecutor[_R]:
-        self._task_id = val
+    def task_id(self, id_: str, /) -> TaskExecutor[_R]:
+        self._task_id = id_
         return self
 
     @abstractmethod
@@ -163,7 +167,7 @@ class TaskExecutor(Generic[_R], ABC):
         except Exception as exc:  # noqa: BLE001
             self._run_hooks_error(exc)
         else:
-            self.task_info._result = result  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            self.task_info.result = result
             self._run_hooks_success(result)
         finally:
             self._event.set()
@@ -198,20 +202,17 @@ class TaskExecutor(Generic[_R], ABC):
 
 
 class TaskExecutorSync(TaskExecutor[_R]):
-    __slots__: tuple[str, ...] = (
-        "_func_injected",
-        "_run_in_thread",
-    )
+    __slots__: tuple[str, ...] = ("_func_injected", "_run_in_thread")
 
     def __init__(
         self,
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
-        _func_injected: Callable[..., _R],
+        func_injected: Callable[..., _R],
     ) -> None:
         super().__init__(loop=loop, func_id=func_id)
-        self._func_injected: Final = _func_injected
+        self._func_injected: Final = func_injected
         self._run_in_thread: bool = False
 
     def execute(self) -> None:
@@ -234,10 +235,10 @@ class TaskExecutorAsync(TaskExecutor[_R]):
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
-        _func_injected: Callable[..., Coroutine[None, None, _R]],
+        func_injected: Callable[..., Coroutine[None, None, _R]],
     ) -> None:
         super().__init__(loop=loop, func_id=func_id)
-        self._func_injected: Final = _func_injected
+        self._func_injected: Final = func_injected
 
     def execute(self) -> None:
         coro_task = asyncio.create_task(self._func_injected())
