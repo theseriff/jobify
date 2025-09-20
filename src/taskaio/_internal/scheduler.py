@@ -52,8 +52,7 @@ class TaskScheduler:
         return wrapper
 
     async def wait_for_complete(self) -> None:
-        tasks = self._wrapper.task_registered
-        tasks.sort(key=lambda t: t.exec_at_timestamp, reverse=True)
-        while tasks:
-            task = tasks.pop()
+        tasks_scheduled = self._wrapper.task_registered
+        while tasks_scheduled:
+            task = tasks_scheduled[0]
             await task.wait()

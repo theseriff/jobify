@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import heapq
 import traceback
 import warnings
 from abc import ABC, abstractmethod
@@ -70,6 +71,12 @@ class TaskInfo(Generic[_R]):
     def result(self, val: _R) -> None:
         self._result = val
 
+    def __lt__(self, other: TaskInfo[_R]) -> bool:
+        return self.exec_at_timestamp < other.exec_at_timestamp
+
+    def __gt__(self, other: TaskInfo[_R]) -> bool:
+        return self.exec_at_timestamp > other.exec_at_timestamp
+
 
 class TaskExecutor(ABC, Generic[_R]):
     __slots__: tuple[str, ...] = (
@@ -80,6 +87,7 @@ class TaskExecutor(ABC, Generic[_R]):
         "_on_success_callback",
         "_task_id",
         "_task_info",
+        "_task_registered",
     )
 
     def __init__(
@@ -87,6 +95,7 @@ class TaskExecutor(ABC, Generic[_R]):
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
+        task_registered: list[TaskInfo[_R]],
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
         self._func_id: FuncID = func_id
@@ -95,6 +104,7 @@ class TaskExecutor(ABC, Generic[_R]):
         self._on_error_callback: list[Callable[[Exception], None]] = []
         self._task_id: str | None = None
         self._task_info: TaskInfo[_R] | None = None
+        self._task_registered: Final = task_registered
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -150,6 +160,7 @@ class TaskExecutor(ABC, Generic[_R]):
             timer_handler=time_handler,
         )
         self._task_info = task_info
+        heapq.heappush(self._task_registered, task_info)
         return task_info
 
     def _set_result(
@@ -170,6 +181,7 @@ class TaskExecutor(ABC, Generic[_R]):
             self.task_info.result = result
             self._run_hooks_success(result)
         finally:
+            _ = heapq.heappop(self._task_registered)
             self._event.set()
 
     def _run_hooks_success(self, result: _R) -> None:
@@ -210,8 +222,13 @@ class TaskExecutorSync(TaskExecutor[_R]):
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
         func_injected: Callable[..., _R],
+        task_registered: list[TaskInfo[_R]],
     ) -> None:
-        super().__init__(loop=loop, func_id=func_id)
+        super().__init__(
+            loop=loop,
+            func_id=func_id,
+            task_registered=task_registered,
+        )
         self._func_injected: Final = func_injected
         self._run_in_thread: bool = False
 
@@ -236,8 +253,13 @@ class TaskExecutorAsync(TaskExecutor[_R]):
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
         func_injected: Callable[..., Coroutine[None, None, _R]],
+        task_registered: list[TaskInfo[_R]],
     ) -> None:
-        super().__init__(loop=loop, func_id=func_id)
+        super().__init__(
+            loop=loop,
+            func_id=func_id,
+            task_registered=task_registered,
+        )
         self._func_injected: Final = func_injected
 
     def execute(self) -> None:

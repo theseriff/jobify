@@ -10,6 +10,8 @@ from typing import (
     Generic,
     ParamSpec,
     TypeVar,
+    cast,
+    overload,
 )
 from uuid import uuid4
 
@@ -21,11 +23,9 @@ from taskaio._internal.task_executor import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Coroutine
 
-    from taskaio._internal.task_executor import (
-        TaskInfo,
-    )
+    from taskaio._internal.task_executor import TaskInfo
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -40,32 +40,49 @@ class FuncWrapper(Generic[_P, _R]):
 
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop: Final = loop
-        self._func_registered: dict[FuncID, Callable[_P, _R]] = {}
+        self._func_registered: dict[
+            FuncID,
+            Callable[_P, Coroutine[None, None, _R] | _R],
+        ] = {}
         self.task_registered: list[TaskInfo[_R]] = []
 
     def register(
         self,
         func_id: str | None,
     ) -> Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]:
-        def wrapper(func: Callable[_P, _R]) -> Callable[_P, TaskExecutor[_R]]:
+        @overload
+        def wrapper(  # type: ignore[overload-overlap]
+            func: Callable[_P, Coroutine[None, None, _R]],
+        ) -> Callable[_P, TaskExecutorAsync[_R]]: ...
+
+        @overload
+        def wrapper(
+            func: Callable[_P, _R],
+        ) -> Callable[_P, TaskExecutorSync[_R]]: ...
+
+        def wrapper(
+            func: Callable[_P, Coroutine[None, None, _R] | _R],
+        ) -> Callable[_P, TaskExecutor[_R]]:
             fn_id = FuncID(func_id or _create_func_id(func))
             self._func_registered[fn_id] = func
 
             @functools.wraps(func)
             def inner(*args: _P.args, **kwargs: _P.kwargs) -> TaskExecutor[_R]:
-                func_injected = functools.partial(func, *args, **kwargs)
                 task_exec: TaskExecutorAsync[_R] | TaskExecutorSync[_R]
+                func_injected = functools.partial(func, *args, **kwargs)
                 if asyncio.iscoroutinefunction(func_injected):
                     task_exec = TaskExecutorAsync(
                         loop=self._loop,
                         func_id=fn_id,
                         func_injected=func_injected,
+                        task_registered=self.task_registered,
                     )
                 else:
                     task_exec = TaskExecutorSync(
                         loop=self._loop,
                         func_id=fn_id,
-                        func_injected=func_injected,
+                        func_injected=cast("Callable[_P, _R]", func_injected),
+                        task_registered=self.task_registered,
                     )
                 return task_exec
 
