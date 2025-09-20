@@ -6,7 +6,7 @@ import traceback
 import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Final, Generic, TypeVar
+from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
 from uuid import uuid4
 
 from taskaio._internal._types import EMPTY, FuncID
@@ -82,9 +82,11 @@ class TaskExecutor(ABC, Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_func_id",
+        "_func_injected",
         "_loop",
         "_on_error_callback",
         "_on_success_callback",
+        "_run_to_thread",
         "_task_id",
         "_task_info",
         "_task_registered",
@@ -95,13 +97,18 @@ class TaskExecutor(ABC, Generic[_R]):
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
+        func_injected: Callable[..., Coroutine[None, None, _R] | _R],
         task_registered: list[TaskInfo[_R]],
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
         self._func_id: FuncID = func_id
+        self._func_injected: Callable[..., Coroutine[None, None, _R] | _R] = (
+            func_injected
+        )
         self._loop: asyncio.AbstractEventLoop = loop
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
+        self._run_to_thread: bool = False
         self._task_id: str | None = None
         self._task_info: TaskInfo[_R] | None = None
         self._task_registered: Final = task_registered
@@ -130,8 +137,11 @@ class TaskExecutor(ABC, Generic[_R]):
         return self
 
     @abstractmethod
-    def execute(self) -> None:
+    def _execute(self) -> None:
         raise NotImplementedError
+
+    def call(self) -> _R:
+        return cast("_R", self._func_injected())
 
     def delay(self, delay_seconds: float) -> TaskInfo[_R]:
         now = datetime.now(tz=timezone.utc)
@@ -151,7 +161,7 @@ class TaskExecutor(ABC, Generic[_R]):
 
         loop = self.loop
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self.execute)
+        time_handler = loop.call_at(when, self._execute)
         task_info = TaskInfo[_R](
             event=self._event,
             exec_at_timestamp=at_timestamp,
@@ -212,9 +222,20 @@ class TaskExecutor(ABC, Generic[_R]):
         self._on_error_callback.extend(callbacks)
         return self
 
+    @abstractmethod
+    def to_thread(self) -> TaskExecutor[_R]:
+        warnings.warn(
+            "Method 'to_thread()' is ignored for async functions. "
+            "Use it only with synchronous functions. "
+            "Async functions are already executed in the event loop.",
+            category=RuntimeWarning,
+            stacklevel=2,
+        )
+        return self
+
 
 class TaskExecutorSync(TaskExecutor[_R]):
-    __slots__: tuple[str, ...] = ("_func_injected", "_run_in_thread")
+    _func_injected: Callable[..., _R]
 
     def __init__(
         self,
@@ -228,24 +249,23 @@ class TaskExecutorSync(TaskExecutor[_R]):
             loop=loop,
             func_id=func_id,
             task_registered=task_registered,
+            func_injected=func_injected,
         )
-        self._func_injected: Final = func_injected
-        self._run_in_thread: bool = False
 
-    def execute(self) -> None:
-        if self._run_in_thread:
+    def _execute(self) -> None:
+        if self._run_to_thread:
             coro_callback = asyncio.to_thread(self._func_injected)
             coro_task = asyncio.create_task(coro_callback)
             coro_task.add_done_callback(self._set_result)
         else:
             self._set_result(self._func_injected)
 
-    def to_thread(self) -> None:
-        self._run_in_thread = True
+    def to_thread(self) -> TaskExecutor[_R]:
+        return super().to_thread()
 
 
 class TaskExecutorAsync(TaskExecutor[_R]):
-    __slots__: tuple[str, ...] = ("_func_injected",)
+    _func_injected: Callable[..., Coroutine[None, None, _R]]
 
     def __init__(
         self,
@@ -259,9 +279,13 @@ class TaskExecutorAsync(TaskExecutor[_R]):
             loop=loop,
             func_id=func_id,
             task_registered=task_registered,
+            func_injected=func_injected,
         )
-        self._func_injected: Final = func_injected
 
-    def execute(self) -> None:
+    def _execute(self) -> None:
         coro_task = asyncio.create_task(self._func_injected())
         coro_task.add_done_callback(self._set_result)
+
+    def to_thread(self) -> TaskExecutorAsync[_R]:
+        self._run_to_thread: bool = True
+        return self
