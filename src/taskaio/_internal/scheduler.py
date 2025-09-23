@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, overload
+from zoneinfo import ZoneInfo
 
 from taskaio._internal._types import EMPTY
 from taskaio._internal.func_wrapper import FuncWrapper
@@ -19,9 +20,15 @@ _R = TypeVar("_R")
 class TaskScheduler:
     __slots__: tuple[str, ...] = ("_wrapper",)
 
-    def __init__(self, loop: asyncio.AbstractEventLoop = EMPTY) -> None:
+    def __init__(
+        self,
+        *,
+        loop: asyncio.AbstractEventLoop = EMPTY,
+        tz: ZoneInfo = EMPTY,
+    ) -> None:
         self._wrapper: FuncWrapper[..., Any] = FuncWrapper(  # pyright: ignore[reportExplicitAny]
             loop=loop,
+            tz=tz or ZoneInfo("UTC"),
         )
 
     @overload

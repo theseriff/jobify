@@ -5,7 +5,7 @@ import heapq
 import traceback
 import warnings
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
 from uuid import uuid4
 
@@ -18,6 +18,7 @@ from taskaio._internal.exceptions import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
+    from zoneinfo import ZoneInfo
 
 _R = TypeVar("_R")
 
@@ -93,6 +94,7 @@ class TaskExecutor(ABC, Generic[_R]):
         "_task_id",
         "_task_info",
         "_task_registered",
+        "_tz",
     )
 
     def __init__(
@@ -102,6 +104,7 @@ class TaskExecutor(ABC, Generic[_R]):
         func_id: FuncID,
         func_injected: Callable[..., Coroutine[None, None, _R] | _R],
         task_registered: list[TaskInfo[_R]],
+        tz: ZoneInfo,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
         self._func_id: FuncID = func_id
@@ -115,6 +118,7 @@ class TaskExecutor(ABC, Generic[_R]):
         self._task_id: str | None = None
         self._task_info: TaskInfo[_R] | None = None
         self._task_registered: Final = task_registered
+        self._tz: Final = tz
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -147,10 +151,7 @@ class TaskExecutor(ABC, Generic[_R]):
     def to_thread(self) -> TaskExecutor[_R]:
         raise NotImplementedError
 
-    def on_success(
-        self,
-        *callbacks: Callable[[_R], None],
-    ) -> TaskExecutor[_R]:
+    def on_success(self, *callbacks: Callable[[_R], None]) -> TaskExecutor[_R]:
         self._on_success_callback.extend(callbacks)
         return self
 
@@ -165,7 +166,7 @@ class TaskExecutor(ABC, Generic[_R]):
         return cast("_R", self._func_injected())
 
     def delay(self, delay_seconds: float) -> TaskInfo[_R]:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=self._tz)
         at = now + timedelta(seconds=delay_seconds)
         return self._at_execute(now=now, at=at)
 
@@ -240,12 +241,14 @@ class TaskExecutorSync(TaskExecutor[_R]):
         func_id: FuncID,
         func_injected: Callable[..., _R],
         task_registered: list[TaskInfo[_R]],
+        tz: ZoneInfo,
     ) -> None:
         super().__init__(
             loop=loop,
             func_id=func_id,
             task_registered=task_registered,
             func_injected=func_injected,
+            tz=tz,
         )
 
     def _execute(self) -> None:
@@ -277,12 +280,14 @@ class TaskExecutorAsync(TaskExecutor[_R]):
         func_id: FuncID,
         func_injected: Callable[..., Coroutine[None, None, _R]],
         task_registered: list[TaskInfo[_R]],
+        tz: ZoneInfo,
     ) -> None:
         super().__init__(
             loop=loop,
             func_id=func_id,
             task_registered=task_registered,
             func_injected=func_injected,
+            tz=tz,
         )
 
     def _execute(self) -> None:
