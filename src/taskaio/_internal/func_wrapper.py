@@ -23,6 +23,7 @@ from taskaio._internal.task_executor import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
+    from zoneinfo import ZoneInfo
 
     from taskaio._internal.task_executor import TaskInfo
 
@@ -34,15 +35,22 @@ class FuncWrapper(Generic[_P, _R]):
     __slots__: tuple[str, ...] = (
         "_func_registered",
         "_loop",
+        "_tz",
         "task_registered",
     )
 
-    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(
+        self,
+        *,
+        loop: asyncio.AbstractEventLoop,
+        tz: ZoneInfo,
+    ) -> None:
         self._loop: Final = loop
         self._func_registered: dict[
             FuncID,
             Callable[_P, Coroutine[None, None, _R] | _R],
         ] = {}
+        self._tz: Final = tz
         self.task_registered: list[TaskInfo[_R]] = []
 
     def register(
@@ -64,6 +72,7 @@ class FuncWrapper(Generic[_P, _R]):
                         func_id=fn_id,
                         func_injected=func_injected,
                         task_registered=self.task_registered,
+                        tz=self._tz,
                     )
                     if asyncio.iscoroutinefunction(func_injected)
                     else TaskExecutorSync(
@@ -71,6 +80,7 @@ class FuncWrapper(Generic[_P, _R]):
                         func_id=fn_id,
                         func_injected=cast("Callable[_P, _R]", func_injected),
                         task_registered=self.task_registered,
+                        tz=self._tz,
                     )
                 )
 
