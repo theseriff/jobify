@@ -29,10 +29,10 @@ class TaskInfo(Generic[_R]):
         "_event",
         "_result",
         "_task_registered",
+        "_timer_handler",
         "exec_at_timestamp",
         "func_id",
         "task_id",
-        "timer_handler",
     )
 
     def __init__(
@@ -47,10 +47,10 @@ class TaskInfo(Generic[_R]):
         self._event: asyncio.Event = asyncio.Event()
         self._result: _R = EMPTY
         self._task_registered: list[TaskInfo[_R]] = task_registered
+        self._timer_handler: asyncio.TimerHandle = timer_handler
         self.exec_at_timestamp: float = exec_at_timestamp
         self.func_id: str = func_id
         self.task_id: str = task_id
-        self.timer_handler: asyncio.TimerHandle = timer_handler
 
     def __repr__(self) -> str:
         return (
@@ -76,12 +76,6 @@ class TaskInfo(Generic[_R]):
     def result(self, val: _R) -> None:
         self._result = val
 
-    def set_event(self) -> None:
-        self._event.set()
-
-    def clear_event(self) -> None:
-        self._event.clear()
-
     def is_done(self) -> bool:
         return self._event.is_set()
 
@@ -96,9 +90,9 @@ class TaskInfo(Generic[_R]):
         _ = await self._event.wait()
 
     def cancel(self) -> None:
-        self.timer_handler.cancel()
+        self._timer_handler.cancel()
         self._task_registered.remove(self)
-        self.set_event()
+        self._event.set()
 
 
 class TaskExecutor(ABC, Generic[_R]):
@@ -219,8 +213,8 @@ class TaskExecutor(ABC, Generic[_R]):
         if self._task_info and self._is_cron:
             task_info = self._task_info
             task_info.exec_at_timestamp = at_timestamp
-            task_info.timer_handler = time_handler
-            task_info.clear_event()
+            task_info._timer_handler = time_handler  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            task_info._event.clear()  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
         else:
             task_info = TaskInfo[_R](
                 exec_at_timestamp=at_timestamp,
@@ -253,7 +247,7 @@ class TaskExecutor(ABC, Generic[_R]):
             self._run_hooks_success(result)
         finally:
             _ = heapq.heappop(self._task_registered)
-            self.task_info.set_event()
+            self.task_info._event.set()  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
             if self._is_cron:
                 _ = self._schedule_cron()
 
