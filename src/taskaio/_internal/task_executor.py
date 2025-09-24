@@ -52,9 +52,21 @@ class TaskInfo(Generic[_R]):
         self.func_id: str = func_id
         self.task_id: str = task_id
 
+    def update(
+        self,
+        *,
+        task_id: str,
+        exec_at_timestamp: float,
+        timer_handler: asyncio.TimerHandle,
+    ) -> None:
+        self._event = asyncio.Event()
+        self.exec_at_timestamp = exec_at_timestamp
+        self.task_id = task_id
+        self._timer_handler = timer_handler
+
     def __repr__(self) -> str:
         return (
-            f"{self.__class__}_"
+            f"{self.__class__.__name__}_"
             f"(instance_id={id(self)}, "
             f"exec_at_timestamp={self.exec_at_timestamp}, "
             f"func_id={self.func_id}, task_id={self.task_id})"
@@ -105,7 +117,6 @@ class TaskExecutor(ABC, Generic[_R]):
         "_on_error_callback",
         "_on_success_callback",
         "_run_to_thread",
-        "_task_id",
         "_task_info",
         "_task_registered",
         "_tz",
@@ -128,7 +139,6 @@ class TaskExecutor(ABC, Generic[_R]):
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
         self._run_to_thread: bool = False
-        self._task_id: str | None = None
         self._task_info: TaskInfo[_R] | None = None
         self._task_registered: Final = task_registered
         self._tz: Final = tz
@@ -146,17 +156,6 @@ class TaskExecutor(ABC, Generic[_R]):
         if self._task_info is None:
             raise TaskNotInitializedError
         return self._task_info
-
-    @property
-    def task_id(self) -> str:
-        if self._task_id is None:
-            self._task_id = uuid4().hex
-        return self._task_id
-
-    @task_id.setter
-    def task_id(self, t_id: str, /) -> TaskExecutor[_R]:
-        self._task_id = t_id
-        return self
 
     @abstractmethod
     def _execute(self) -> None:
@@ -180,27 +179,72 @@ class TaskExecutor(ABC, Generic[_R]):
     def call(self) -> _R:
         return cast("_R", self._func_injected())
 
-    def cron(self, expression: str, /) -> TaskInfo[_R]:
+    def cron(
+        self,
+        expression: str,
+        /,
+        *,
+        to_thread: bool = EMPTY,
+    ) -> TaskInfo[_R]:
         self._is_cron = True
         if self._cron_parser is EMPTY:
             self._cron_parser = CronParser(expression=expression)
-        return self._schedule_cron()
+        return self._schedule_cron(to_thread=to_thread)
 
-    def _schedule_cron(self) -> TaskInfo[_R]:
+    def _schedule_cron(self, *, to_thread: bool = EMPTY) -> TaskInfo[_R]:
         now = datetime.now(tz=self._tz)
         next_run = self._cron_parser.next_run(now=now)
-        return self._at_execute(now=now, at=next_run)
+        return self._at_execute(
+            now=now,
+            at=next_run,
+            task_id=EMPTY,
+            to_thread=to_thread,
+        )
 
-    def delay(self, delay_seconds: float) -> TaskInfo[_R]:
+    def delay(
+        self,
+        delay_seconds: float,
+        /,
+        *,
+        task_id: str = EMPTY,
+        to_thread: bool = EMPTY,
+    ) -> TaskInfo[_R]:
         now = datetime.now(tz=self._tz)
         at = now + timedelta(seconds=delay_seconds)
-        return self._at_execute(now=now, at=at)
+        return self._at_execute(
+            now=now,
+            at=at,
+            task_id=task_id,
+            to_thread=to_thread,
+        )
 
-    def at(self, at: datetime) -> TaskInfo[_R]:
+    def at(
+        self,
+        at: datetime,
+        /,
+        *,
+        task_id: str = EMPTY,
+        to_thread: bool = EMPTY,
+    ) -> TaskInfo[_R]:
         now = datetime.now(tz=at.tzinfo)
-        return self._at_execute(now=now, at=at)
+        return self._at_execute(
+            now=now,
+            at=at,
+            task_id=task_id,
+            to_thread=to_thread,
+        )
 
-    def _at_execute(self, *, now: datetime, at: datetime) -> TaskInfo[_R]:
+    def _at_execute(
+        self,
+        *,
+        now: datetime,
+        at: datetime,
+        task_id: str,
+        to_thread: bool,
+    ) -> TaskInfo[_R]:
+        if to_thread is not EMPTY:
+            _ = self.to_thread()
+
         now_timestamp = now.timestamp()
         at_timestamp = at.timestamp()
         delay_seconds = at_timestamp - now_timestamp
@@ -212,14 +256,16 @@ class TaskExecutor(ABC, Generic[_R]):
         time_handler = loop.call_at(when, self._execute)
         if self._task_info and self._is_cron:
             task_info = self._task_info
-            task_info.exec_at_timestamp = at_timestamp
-            task_info._timer_handler = time_handler  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-            task_info._event.clear()  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            task_info.update(
+                task_id=uuid4().hex,
+                exec_at_timestamp=at_timestamp,
+                timer_handler=time_handler,
+            )
         else:
             task_info = TaskInfo[_R](
                 exec_at_timestamp=at_timestamp,
                 func_id=self._func_id,
-                task_id=self.task_id,
+                task_id=task_id or uuid4().hex,
                 timer_handler=time_handler,
                 task_registered=self._task_registered,
             )
@@ -295,13 +341,7 @@ class TaskExecutorSync(TaskExecutor[_R]):
             self._set_result(self._func_injected)
 
     def to_thread(self) -> TaskExecutor[_R]:
-        warnings.warn(
-            "Method 'to_thread()' is ignored for async functions. "
-            "Use it only with synchronous functions. "
-            "Async functions are already executed in the event loop.",
-            category=RuntimeWarning,
-            stacklevel=2,
-        )
+        self._run_to_thread: bool = True
         return self
 
 
@@ -330,5 +370,11 @@ class TaskExecutorAsync(TaskExecutor[_R]):
         coro_task.add_done_callback(self._set_result)
 
     def to_thread(self) -> TaskExecutorAsync[_R]:
-        self._run_to_thread: bool = True
+        warnings.warn(
+            "Method 'to_thread()' is ignored for async functions. "
+            "Use it only with synchronous functions. "
+            "Async functions are already executed in the event loop.",
+            category=RuntimeWarning,
+            stacklevel=2,
+        )
         return self
