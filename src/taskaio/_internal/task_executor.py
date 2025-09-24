@@ -320,6 +320,8 @@ class TaskExecutorSync(TaskExecutor[_R]):
         "_threadpool_executor",
     )
     _func_injected: Callable[..., _R]
+    _processpool_executor: concurrent.futures.ProcessPoolExecutor
+    _threadpool_executor: concurrent.futures.ThreadPoolExecutor
 
     def __init__(
         self,
@@ -330,12 +332,8 @@ class TaskExecutorSync(TaskExecutor[_R]):
         task_registered: list[TaskInfo[_R]],
         tz: ZoneInfo,
     ) -> None:
-        self._processpool_executor: Final = (
-            concurrent.futures.ProcessPoolExecutor()
-        )
-        self._threadpool_executor: Final = (
-            concurrent.futures.ThreadPoolExecutor()
-        )
+        self._processpool_executor = concurrent.futures.ProcessPoolExecutor()
+        self._threadpool_executor = concurrent.futures.ThreadPoolExecutor()
         super().__init__(
             loop=loop,
             func_id=func_id,
@@ -343,6 +341,10 @@ class TaskExecutorSync(TaskExecutor[_R]):
             func_injected=func_injected,
             tz=tz,
         )
+
+    def __del__(self) -> None:
+        self._processpool_executor.shutdown()
+        self._threadpool_executor.shutdown()
 
     def _execute(self) -> None:
         if self._run_to_thread:
