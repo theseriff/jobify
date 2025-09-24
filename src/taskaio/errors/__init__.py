@@ -6,12 +6,14 @@ about errors and guidance on how to handle common scheduling scenarios.
 """
 
 __all__ = (
+    "ConcurrentExecutionError",
     "NegativeDelayError",
     "TaskNotCompletedError",
     "TaskNotInitializedError",
 )
 
 from taskaio._internal.exceptions import (
+    ConcurrentExecutionError,
     NegativeDelayError,
     TaskNotCompletedError,
     TaskNotInitializedError,

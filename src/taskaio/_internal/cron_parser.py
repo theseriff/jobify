@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Final
 
 from crontab import CronTab
@@ -11,7 +11,5 @@ class CronParser:
         self._expression: Final = expression
         self._entry: Final = CronTab(expression)
 
-    def next_run(self, *, now: datetime | None = None) -> datetime:
-        if now is None:
-            now = datetime.now(tz=timezone.utc)
+    def next_run(self, *, now: datetime) -> datetime:
         return self._entry.next(now=now, return_datetime=True)  # type: ignore[no-any-return] # pyright: ignore[reportAttributeAccessIssue,reportUnknownMemberType,reportUnknownVariableType]

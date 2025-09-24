@@ -46,3 +46,31 @@ class TaskNotInitializedError(TaskaioBaseError):
                 "before accessing its properties."
             )
         super().__init__(message)
+
+
+class ConcurrentExecutionError(TaskaioBaseError):
+    """Raised when both thread and process execution modes are specified.
+
+    This exception is raised when a task is configured to execute both
+    in a separate thread and a separate process simultaneously, which
+    creates ambiguous execution behavior.
+
+    Tasks must be configured for one of the following:
+    - Default execution (main thread)
+    - Thread execution (to_thread=True)
+    - Process execution (to_process=True)
+
+    But not multiple modes at the same time.
+    """
+
+    def __init__(
+        self,
+        message: str | None = None,
+    ) -> None:
+        if message is None:
+            message = (
+                "Cannot execute task both in thread and process simultaneously. "  # noqa: E501
+                "Please specify only one execution mode: either to_thread=True "  # noqa: E501
+                "or to_process=True, but not both."
+            )
+        super().__init__(message)
