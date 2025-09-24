@@ -8,9 +8,9 @@ from taskaio._internal.func_wrapper import FuncWrapper
 
 if TYPE_CHECKING:
     import asyncio
-    from collections.abc import Callable
+    from collections.abc import AsyncIterable, Callable
 
-    from taskaio._internal.task_executor import TaskExecutor
+    from taskaio._internal.task_executor import TaskExecutor, TaskInfo
 
 
 _P = ParamSpec("_P")
@@ -58,8 +58,9 @@ class TaskScheduler:
             return wrapper(func)
         return wrapper
 
-    async def wait_for_complete(self) -> None:
+    async def wait_for_complete(self) -> AsyncIterable[TaskInfo[object]]:
         tasks_scheduled = self._wrapper.task_registered
         while tasks_scheduled:
             task = tasks_scheduled[0]
             await task.wait()
+            yield task

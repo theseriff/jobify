@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
 from uuid import uuid4
 
 from taskaio._internal._types import EMPTY, FuncID
+from taskaio._internal.cron_parser import CronParser
 from taskaio._internal.exceptions import (
     NegativeDelayError,
     TaskNotCompletedError,
@@ -27,6 +28,7 @@ class TaskInfo(Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_result",
+        "_task_registered",
         "exec_at_timestamp",
         "func_id",
         "task_id",
@@ -36,18 +38,27 @@ class TaskInfo(Generic[_R]):
     def __init__(
         self,
         *,
-        event: asyncio.Event,
         task_id: str,
         exec_at_timestamp: float,
         func_id: str,
         timer_handler: asyncio.TimerHandle,
+        task_registered: list[TaskInfo[_R]],
     ) -> None:
-        self._event: asyncio.Event = event
+        self._event: asyncio.Event = asyncio.Event()
         self._result: _R = EMPTY
+        self._task_registered: list[TaskInfo[_R]] = task_registered
         self.exec_at_timestamp: float = exec_at_timestamp
         self.func_id: str = func_id
         self.task_id: str = task_id
-        self.timer_handler: Final = timer_handler
+        self.timer_handler: asyncio.TimerHandle = timer_handler
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__}_"
+            f"(instance_id={id(self)}, "
+            f"exec_at_timestamp={self.exec_at_timestamp}, "
+            f"func_id={self.func_id}, task_id={self.task_id})"
+        )
 
     def __lt__(self, other: TaskInfo[_R]) -> bool:
         return self.exec_at_timestamp < other.exec_at_timestamp
@@ -65,6 +76,12 @@ class TaskInfo(Generic[_R]):
     def result(self, val: _R) -> None:
         self._result = val
 
+    def set_event(self) -> None:
+        self._event.set()
+
+    def clear_event(self) -> None:
+        self._event.clear()
+
     def is_done(self) -> bool:
         return self._event.is_set()
 
@@ -80,13 +97,16 @@ class TaskInfo(Generic[_R]):
 
     def cancel(self) -> None:
         self.timer_handler.cancel()
+        self._task_registered.remove(self)
+        self.set_event()
 
 
 class TaskExecutor(ABC, Generic[_R]):
     __slots__: tuple[str, ...] = (
-        "_event",
+        "_cron_parser",
         "_func_id",
         "_func_injected",
+        "_is_cron",
         "_loop",
         "_on_error_callback",
         "_on_success_callback",
@@ -106,7 +126,6 @@ class TaskExecutor(ABC, Generic[_R]):
         task_registered: list[TaskInfo[_R]],
         tz: ZoneInfo,
     ) -> None:
-        self._event: asyncio.Event = asyncio.Event()
         self._func_id: FuncID = func_id
         self._func_injected: Callable[..., Coroutine[None, None, _R] | _R] = (
             func_injected
@@ -119,6 +138,8 @@ class TaskExecutor(ABC, Generic[_R]):
         self._task_info: TaskInfo[_R] | None = None
         self._task_registered: Final = task_registered
         self._tz: Final = tz
+        self._cron_parser: CronParser = EMPTY
+        self._is_cron: bool = False
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -165,6 +186,17 @@ class TaskExecutor(ABC, Generic[_R]):
     def call(self) -> _R:
         return cast("_R", self._func_injected())
 
+    def cron(self, expression: str, /) -> TaskInfo[_R]:
+        self._is_cron = True
+        if self._cron_parser is EMPTY:
+            self._cron_parser = CronParser(expression=expression)
+        return self._schedule_cron()
+
+    def _schedule_cron(self) -> TaskInfo[_R]:
+        now = datetime.now(tz=self._tz)
+        next_run = self._cron_parser.next_run(now=now)
+        return self._at_execute(now=now, at=next_run)
+
     def delay(self, delay_seconds: float) -> TaskInfo[_R]:
         now = datetime.now(tz=self._tz)
         at = now + timedelta(seconds=delay_seconds)
@@ -184,14 +216,20 @@ class TaskExecutor(ABC, Generic[_R]):
         loop = self.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._execute)
-        task_info = TaskInfo[_R](
-            event=self._event,
-            exec_at_timestamp=at_timestamp,
-            func_id=self._func_id,
-            task_id=self.task_id,
-            timer_handler=time_handler,
-        )
-        self._task_info = task_info
+        if self._task_info and self._is_cron:
+            task_info = self._task_info
+            task_info.exec_at_timestamp = at_timestamp
+            task_info.timer_handler = time_handler
+            task_info.clear_event()
+        else:
+            task_info = TaskInfo[_R](
+                exec_at_timestamp=at_timestamp,
+                func_id=self._func_id,
+                task_id=self.task_id,
+                timer_handler=time_handler,
+                task_registered=self._task_registered,
+            )
+            self._task_info = task_info
         heapq.heappush(self._task_registered, task_info)
         return task_info
 
@@ -208,13 +246,16 @@ class TaskExecutor(ABC, Generic[_R]):
                 func = task_or_func
                 result = func()
         except Exception as exc:  # noqa: BLE001
+            traceback.print_exc()
             self._run_hooks_error(exc)
         else:
             self.task_info.result = result
             self._run_hooks_success(result)
         finally:
             _ = heapq.heappop(self._task_registered)
-            self._event.set()
+            self.task_info.set_event()
+            if self._is_cron:
+                _ = self._schedule_cron()
 
     def _run_hooks_success(self, result: _R) -> None:
         for call_success in self._on_success_callback:

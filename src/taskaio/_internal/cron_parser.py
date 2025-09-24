@@ -11,7 +11,7 @@ class CronParser:
         self._expression: Final = expression
         self._entry: Final = CronTab(expression)
 
-    def next_run(self, *, now: datetime | None = None) -> float:
+    def next_run(self, *, now: datetime | None = None) -> datetime:
         if now is None:
             now = datetime.now(tz=timezone.utc)
-        return self._entry.next(now=now)  # type: ignore[no-any-return] # pyright: ignore[reportAttributeAccessIssue,reportUnknownMemberType,reportUnknownVariableType]
+        return self._entry.next(now=now, return_datetime=True)  # type: ignore[no-any-return] # pyright: ignore[reportAttributeAccessIssue,reportUnknownMemberType,reportUnknownVariableType]

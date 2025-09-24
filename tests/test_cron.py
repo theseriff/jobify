@@ -14,6 +14,6 @@ def test_cronparser() -> None:
         second=0,
         microsecond=0,
     )
-    expected_delay = int(midnight.timestamp() - now.timestamp())
-    next_run = int(cron.next_run(now=now))
+    expected_delay = midnight
+    next_run = cron.next_run(now=now)
     assert next_run == expected_delay

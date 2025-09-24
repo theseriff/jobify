@@ -46,37 +46,3 @@ class TaskNotInitializedError(TaskaioBaseError):
                 "before accessing its properties."
             )
         super().__init__(message)
-
-
-class CronParseError(TaskaioBaseError):
-    """Exception raised when cron expression parsing fails.
-
-    This exception is raised when an invalid cron expression is provided
-    to a scheduled task. Cron expressions must follow the standard format
-    and contain valid values for each time field.
-
-    Examples of invalid expressions that would raise this error:
-    - "*/15 * * *" (too few fields)
-    - "60 * * * *" (minutes out of range 0-59)
-    - "*/10 * 32 * *" (day of month out of range 1-31)
-    - "0 0 * JAN-MAR *" (invalid month names without proper support)
-    - "*/5 * * * * *" (too many fields)
-
-    Attributes:
-        expression: The cron expression that failed to parse (if available)
-        message: Detailed explanation of the parsing error
-
-    """
-
-    def __init__(
-        self,
-        expression: str | None = None,
-        message: str | None = None,
-    ) -> None:
-        if message is None:
-            message = "Failed to parse cron expression"
-            if expression:
-                message += f": {expression}"
-
-        super().__init__(message)
-        self.expression: str | None = expression
