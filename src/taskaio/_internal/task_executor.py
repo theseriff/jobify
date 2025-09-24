@@ -14,6 +14,7 @@ from uuid import uuid4
 from taskaio._internal._types import EMPTY, FuncID
 from taskaio._internal.cron_parser import CronParser
 from taskaio._internal.exceptions import (
+    ConcurrentExecutionError,
     NegativeDelayError,
     TaskNotCompletedError,
     TaskNotInitializedError,
@@ -118,7 +119,6 @@ class TaskExecutor(ABC, Generic[_R]):
         "_loop",
         "_on_error_callback",
         "_on_success_callback",
-        "_run_to_thread",
         "_task_info",
         "_task_registered",
         "_tz",
@@ -140,7 +140,6 @@ class TaskExecutor(ABC, Generic[_R]):
         self._loop: asyncio.AbstractEventLoop = loop
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
-        self._run_to_thread: bool = False
         self._task_info: TaskInfo[_R] | None = None
         self._task_registered: Final = task_registered
         self._tz: Final = tz
@@ -167,6 +166,10 @@ class TaskExecutor(ABC, Generic[_R]):
     def to_thread(self) -> TaskExecutor[_R]:
         raise NotImplementedError
 
+    @abstractmethod
+    def to_process(self) -> TaskExecutor[_R]:
+        raise NotImplementedError
+
     def on_success(self, *callbacks: Callable[[_R], None]) -> TaskExecutor[_R]:
         self._on_success_callback.extend(callbacks)
         return self
@@ -187,13 +190,19 @@ class TaskExecutor(ABC, Generic[_R]):
         /,
         *,
         to_thread: bool = EMPTY,
+        to_process: bool = EMPTY,
     ) -> TaskInfo[_R]:
         self._is_cron = True
         if self._cron_parser is EMPTY:
             self._cron_parser = CronParser(expression=expression)
-        return self._schedule_cron(to_thread=to_thread)
+        return self._schedule_cron(to_thread=to_thread, to_process=to_process)
 
-    def _schedule_cron(self, *, to_thread: bool = EMPTY) -> TaskInfo[_R]:
+    def _schedule_cron(
+        self,
+        *,
+        to_thread: bool = EMPTY,
+        to_process: bool = EMPTY,
+    ) -> TaskInfo[_R]:
         now = datetime.now(tz=self._tz)
         next_run = self._cron_parser.next_run(now=now)
         return self._at_execute(
@@ -201,6 +210,7 @@ class TaskExecutor(ABC, Generic[_R]):
             at=next_run,
             task_id=EMPTY,
             to_thread=to_thread,
+            to_process=to_process,
         )
 
     def delay(
@@ -210,6 +220,7 @@ class TaskExecutor(ABC, Generic[_R]):
         *,
         task_id: str = EMPTY,
         to_thread: bool = EMPTY,
+        to_process: bool = EMPTY,
     ) -> TaskInfo[_R]:
         now = datetime.now(tz=self._tz)
         at = now + timedelta(seconds=delay_seconds)
@@ -218,6 +229,7 @@ class TaskExecutor(ABC, Generic[_R]):
             at=at,
             task_id=task_id,
             to_thread=to_thread,
+            to_process=to_process,
         )
 
     def at(
@@ -227,6 +239,7 @@ class TaskExecutor(ABC, Generic[_R]):
         *,
         task_id: str = EMPTY,
         to_thread: bool = EMPTY,
+        to_process: bool = EMPTY,
     ) -> TaskInfo[_R]:
         now = datetime.now(tz=at.tzinfo)
         return self._at_execute(
@@ -234,6 +247,7 @@ class TaskExecutor(ABC, Generic[_R]):
             at=at,
             task_id=task_id,
             to_thread=to_thread,
+            to_process=to_process,
         )
 
     def _at_execute(
@@ -243,8 +257,13 @@ class TaskExecutor(ABC, Generic[_R]):
         at: datetime,
         task_id: str,
         to_thread: bool,
+        to_process: bool,
     ) -> TaskInfo[_R]:
-        if to_thread is not EMPTY:
+        if to_thread and to_process:
+            raise ConcurrentExecutionError
+        if to_process is not EMPTY:
+            _ = self.to_process()
+        elif to_thread is not EMPTY:
             _ = self.to_thread()
 
         now_timestamp = now.timestamp()
@@ -317,6 +336,8 @@ class TaskExecutor(ABC, Generic[_R]):
 class TaskExecutorSync(TaskExecutor[_R]):
     __slots__: tuple[str, ...] = (
         "_processpool_executor",
+        "_run_to_process",
+        "_run_to_thread",
         "_threadpool_executor",
     )
     _func_injected: Callable[..., _R]
@@ -334,6 +355,8 @@ class TaskExecutorSync(TaskExecutor[_R]):
     ) -> None:
         self._processpool_executor = concurrent.futures.ProcessPoolExecutor()
         self._threadpool_executor = concurrent.futures.ThreadPoolExecutor()
+        self._run_to_process: bool = False
+        self._run_to_thread: bool = False
         super().__init__(
             loop=loop,
             func_id=func_id,
@@ -347,17 +370,24 @@ class TaskExecutorSync(TaskExecutor[_R]):
         self._threadpool_executor.shutdown()
 
     def _execute(self) -> None:
-        if self._run_to_thread:
-            future = self.loop.run_in_executor(
-                self._threadpool_executor,
-                self._func_injected,
-            )
+        executor = EMPTY
+        if self._run_to_process:
+            executor = self._processpool_executor
+        elif self._run_to_thread:
+            executor = self._threadpool_executor
+
+        if executor is not EMPTY:
+            future = self.loop.run_in_executor(executor, self._func_injected)
             future.add_done_callback(self._set_result)
         else:
             self._set_result(self._func_injected)
 
     def to_thread(self) -> TaskExecutor[_R]:
-        self._run_to_thread: bool = True
+        self._run_to_thread = True
+        return self
+
+    def to_process(self) -> TaskExecutor[_R]:
+        self._run_to_process = True
         return self
 
 
@@ -388,6 +418,16 @@ class TaskExecutorAsync(TaskExecutor[_R]):
     def to_thread(self) -> TaskExecutorAsync[_R]:
         warnings.warn(
             "Method 'to_thread()' is ignored for async functions. "
+            "Use it only with synchronous functions. "
+            "Async functions are already executed in the event loop.",
+            category=RuntimeWarning,
+            stacklevel=2,
+        )
+        return self
+
+    def to_process(self) -> TaskExecutor[_R]:
+        warnings.warn(
+            "Method 'to_process()' is ignored for async functions. "
             "Use it only with synchronous functions. "
             "Async functions are already executed in the event loop.",
             category=RuntimeWarning,
