@@ -40,9 +40,7 @@ classifiers = [
     "Framework :: AsyncIO",
     "Typing :: Typed",
 ]
-dependencies = [
-    "crontab==1.0.5",
-]
+dependencies = ["crontab==1.0.5"]
 
 [dependency-groups]
 lint = [
