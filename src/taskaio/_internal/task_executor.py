@@ -417,9 +417,7 @@ class TaskExecutorAsync(TaskExecutor[_R]):
 
     def to_thread(self) -> TaskExecutorAsync[_R]:
         warnings.warn(
-            "Method 'to_thread()' is ignored for async functions. "
-            "Use it only with synchronous functions. "
-            "Async functions are already executed in the event loop.",
+            ASYNC_FUNC_IGNORED_WARNING.format(fname="to_process"),
             category=RuntimeWarning,
             stacklevel=2,
         )
@@ -427,10 +425,15 @@ class TaskExecutorAsync(TaskExecutor[_R]):
 
     def to_process(self) -> TaskExecutor[_R]:
         warnings.warn(
-            "Method 'to_process()' is ignored for async functions. "
-            "Use it only with synchronous functions. "
-            "Async functions are already executed in the event loop.",
+            ASYNC_FUNC_IGNORED_WARNING.format(fname="to_process"),
             category=RuntimeWarning,
             stacklevel=2,
         )
         return self
+
+
+ASYNC_FUNC_IGNORED_WARNING = textwrap.dedent("""\
+    Method {fname!r} is ignored for async functions. \
+    Use it only with synchronous functions. \
+    Async functions are already executed in the event loop.
+""")
