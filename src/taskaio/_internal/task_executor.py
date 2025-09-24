@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import heapq
+import textwrap
 import traceback
 import warnings
 from abc import ABC, abstractmethod
@@ -52,7 +54,7 @@ class TaskInfo(Generic[_R]):
         self.func_id: str = func_id
         self.task_id: str = task_id
 
-    def update(
+    def _update(
         self,
         *,
         task_id: str,
@@ -65,12 +67,12 @@ class TaskInfo(Generic[_R]):
         self._timer_handler = timer_handler
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}_"
-            f"(instance_id={id(self)}, "
-            f"exec_at_timestamp={self.exec_at_timestamp}, "
-            f"func_id={self.func_id}, task_id={self.task_id})"
-        )
+        return textwrap.dedent(f"""\
+            {self.__class__.__name__}_\
+            (instance_id={id(self)}, \
+            exec_at_timestamp={self.exec_at_timestamp}, \
+            func_id={self.func_id}, task_id={self.task_id})
+        """)
 
     def __lt__(self, other: TaskInfo[_R]) -> bool:
         return self.exec_at_timestamp < other.exec_at_timestamp
@@ -256,7 +258,7 @@ class TaskExecutor(ABC, Generic[_R]):
         time_handler = loop.call_at(when, self._execute)
         if self._task_info and self._is_cron:
             task_info = self._task_info
-            task_info.update(
+            task_info._update(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
                 task_id=uuid4().hex,
                 exec_at_timestamp=at_timestamp,
                 timer_handler=time_handler,
@@ -275,11 +277,11 @@ class TaskExecutor(ABC, Generic[_R]):
 
     def _set_result(
         self,
-        task_or_func: asyncio.Task[_R] | Callable[..., _R],
+        task_or_func: asyncio.Future[_R] | Callable[..., _R],
         /,
     ) -> None:
         try:
-            if isinstance(task_or_func, asyncio.Task):
+            if isinstance(task_or_func, asyncio.Future):
                 task = task_or_func
                 result = task.result()
             else:
@@ -313,6 +315,10 @@ class TaskExecutor(ABC, Generic[_R]):
 
 
 class TaskExecutorSync(TaskExecutor[_R]):
+    __slots__: tuple[str, ...] = (
+        "_processpool_executor",
+        "_threadpool_executor",
+    )
     _func_injected: Callable[..., _R]
 
     def __init__(
@@ -324,6 +330,12 @@ class TaskExecutorSync(TaskExecutor[_R]):
         task_registered: list[TaskInfo[_R]],
         tz: ZoneInfo,
     ) -> None:
+        self._processpool_executor: Final = (
+            concurrent.futures.ProcessPoolExecutor()
+        )
+        self._threadpool_executor: Final = (
+            concurrent.futures.ThreadPoolExecutor()
+        )
         super().__init__(
             loop=loop,
             func_id=func_id,
@@ -334,9 +346,11 @@ class TaskExecutorSync(TaskExecutor[_R]):
 
     def _execute(self) -> None:
         if self._run_to_thread:
-            coro_callback = asyncio.to_thread(self._func_injected)
-            coro_task = asyncio.create_task(coro_callback)
-            coro_task.add_done_callback(self._set_result)
+            future = self.loop.run_in_executor(
+                self._threadpool_executor,
+                self._func_injected,
+            )
+            future.add_done_callback(self._set_result)
         else:
             self._set_result(self._func_injected)
 
