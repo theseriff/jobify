@@ -20,23 +20,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
-
       - uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
-
       - name: Install Dependencies and library
         run: uv pip install --system -e . --group dev
-
       - name: Load cached Pre-Commit Dependencies
         id: cached-pre-commit-dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit/
           key: pre-commit-4|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
-
       - uses: extractions/setup-just@v3
       - name: Execute Pre-Commit
         run: just pre-commit
