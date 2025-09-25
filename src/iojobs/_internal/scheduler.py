@@ -3,21 +3,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, overload
 from zoneinfo import ZoneInfo
 
-from taskaio._internal._types import EMPTY
-from taskaio._internal.func_wrapper import FuncWrapper
+from iojobs._internal._types import EMPTY
+from iojobs._internal.func_wrapper import FuncWrapper
 
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
-    from taskaio._internal.task_executor import TaskExecutor
+    from iojobs._internal.job_executor import JobExecutor
 
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 
-class TaskScheduler:
+class JobScheduler:
     __slots__: tuple[str, ...] = ("_wrapper",)
 
     def __init__(
@@ -35,14 +35,14 @@ class TaskScheduler:
     def register(
         self,
         func: Callable[_P, _R],
-    ) -> Callable[_P, TaskExecutor[_R]]: ...
+    ) -> Callable[_P, JobExecutor[_R]]: ...
 
     @overload
     def register(
         self,
         *,
         func_id: str | None = None,
-    ) -> Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]: ...
+    ) -> Callable[[Callable[_P, _R]], Callable[_P, JobExecutor[_R]]]: ...
 
     def register(
         self,
@@ -50,8 +50,8 @@ class TaskScheduler:
         *,
         func_id: str | None = None,
     ) -> (
-        Callable[_P, TaskExecutor[_R]]
-        | Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]
+        Callable[_P, JobExecutor[_R]]
+        | Callable[[Callable[_P, _R]], Callable[_P, JobExecutor[_R]]]
     ):
         wrapper = self._wrapper.register(func_id)
         if callable(func):
@@ -59,11 +59,11 @@ class TaskScheduler:
         return wrapper
 
     async def wait_for_complete(self) -> None:
-        tasks_scheduled = self._wrapper.task_registered
+        jobs_scheduled = self._wrapper.jobs_registered
         try:
-            while tasks_scheduled:
-                task = tasks_scheduled[0]
-                await task.wait()
+            while jobs_scheduled:
+                job = jobs_scheduled[0]
+                await job.wait()
         finally:
             self.stop()
 

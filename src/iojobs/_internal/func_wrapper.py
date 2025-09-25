@@ -14,19 +14,19 @@ from typing import (
 )
 from uuid import uuid4
 
-from taskaio._internal._types import FuncID
-from taskaio._internal.executors import ExecutorPool
-from taskaio._internal.task_executor import (
-    TaskExecutor,
-    TaskExecutorAsync,
-    TaskExecutorSync,
+from iojobs._internal._types import FuncID
+from iojobs._internal.executors import ExecutorPool
+from iojobs._internal.job_executor import (
+    JobExecutor,
+    JobExecutorAsync,
+    JobExecutorSync,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from zoneinfo import ZoneInfo
 
-    from taskaio._internal.task_executor import TaskInfo
+    from iojobs._internal.job_executor import JobInfo
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -38,7 +38,7 @@ class FuncWrapper(Generic[_P, _R]):
         "_func_registered",
         "_loop",
         "_tz",
-        "task_registered",
+        "jobs_registered",
     )
 
     def __init__(
@@ -54,40 +54,40 @@ class FuncWrapper(Generic[_P, _R]):
             Callable[_P, Coroutine[None, None, _R] | _R],
         ] = {}
         self._tz: Final = tz
-        self.task_registered: list[TaskInfo[_R]] = []
+        self.jobs_registered: list[JobInfo[_R]] = []
 
     def register(
         self,
         func_id: str | None,
-    ) -> Callable[[Callable[_P, _R]], Callable[_P, TaskExecutor[_R]]]:
+    ) -> Callable[[Callable[_P, _R]], Callable[_P, JobExecutor[_R]]]:
         def wrapper(
             func: Callable[_P, Coroutine[None, None, _R] | _R],
-        ) -> Callable[_P, TaskExecutor[_R]]:
+        ) -> Callable[_P, JobExecutor[_R]]:
             fn_id = FuncID(func_id or _create_func_id(func))
             self._func_registered[fn_id] = func
 
             @functools.wraps(func)
-            def inner(*args: _P.args, **kwargs: _P.kwargs) -> TaskExecutor[_R]:
-                task: TaskExecutor[_R]
+            def inner(*args: _P.args, **kwargs: _P.kwargs) -> JobExecutor[_R]:
+                job: JobExecutor[_R]
                 func_injected = functools.partial(func, *args, **kwargs)
                 if asyncio.iscoroutinefunction(func_injected):
-                    task = TaskExecutorAsync(
+                    job = JobExecutorAsync(
                         loop=self._loop,
                         func_id=fn_id,
                         func_injected=func_injected,
-                        task_registered=self.task_registered,
+                        jobs_registered=self.jobs_registered,
                         tz=self._tz,
                     )
                 else:
-                    task = TaskExecutorSync(
+                    job = JobExecutorSync(
                         loop=self._loop,
                         func_id=fn_id,
                         func_injected=cast("Callable[_P, _R]", func_injected),
-                        task_registered=self.task_registered,
+                        jobs_registered=self.jobs_registered,
                         tz=self._tz,
                         executors=self._executors,
                     )
-                return task
+                return job
 
             return inner
 
