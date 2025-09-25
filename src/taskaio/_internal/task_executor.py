@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import heapq
 import textwrap
 import traceback
 import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
 from uuid import uuid4
 
@@ -24,7 +24,16 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from zoneinfo import ZoneInfo
 
+    from taskaio._internal.executors import ExecutorPool
+
 _R = TypeVar("_R")
+
+
+class TaskStatus(str, Enum):
+    SCHEDULED = "scheduled"
+    SUCCESS = "success"
+    CANCELED = "canceled"
+    ERROR = "error"
 
 
 class TaskInfo(Generic[_R]):
@@ -35,6 +44,7 @@ class TaskInfo(Generic[_R]):
         "_timer_handler",
         "exec_at_timestamp",
         "func_id",
+        "status",
         "task_id",
     )
 
@@ -54,6 +64,7 @@ class TaskInfo(Generic[_R]):
         self.exec_at_timestamp: float = exec_at_timestamp
         self.func_id: str = func_id
         self.task_id: str = task_id
+        self.status: TaskStatus = TaskStatus.SCHEDULED
 
     def _update(
         self,
@@ -335,26 +346,23 @@ class TaskExecutor(ABC, Generic[_R]):
 
 class TaskExecutorSync(TaskExecutor[_R]):
     __slots__: tuple[str, ...] = (
-        "_processpool_executor",
+        "_executors",
         "_run_to_process",
         "_run_to_thread",
-        "_threadpool_executor",
     )
     _func_injected: Callable[..., _R]
-    _processpool_executor: concurrent.futures.ProcessPoolExecutor
-    _threadpool_executor: concurrent.futures.ThreadPoolExecutor
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
         func_injected: Callable[..., _R],
         task_registered: list[TaskInfo[_R]],
+        executors: ExecutorPool,
         tz: ZoneInfo,
     ) -> None:
-        self._processpool_executor = concurrent.futures.ProcessPoolExecutor()
-        self._threadpool_executor = concurrent.futures.ThreadPoolExecutor()
+        self._executors: Final = executors
         self._run_to_process: bool = False
         self._run_to_thread: bool = False
         super().__init__(
@@ -365,16 +373,12 @@ class TaskExecutorSync(TaskExecutor[_R]):
             tz=tz,
         )
 
-    def __del__(self) -> None:
-        self._processpool_executor.shutdown()
-        self._threadpool_executor.shutdown()
-
     def _execute(self) -> None:
         executor = EMPTY
         if self._run_to_process:
-            executor = self._processpool_executor
+            executor = self._executors.processpool_executor
         elif self._run_to_thread:
-            executor = self._threadpool_executor
+            executor = self._executors.threadpool_executor
 
         if executor is not EMPTY:
             future = self.loop.run_in_executor(executor, self._func_injected)
@@ -432,8 +436,8 @@ class TaskExecutorAsync(TaskExecutor[_R]):
         return self
 
 
-ASYNC_FUNC_IGNORED_WARNING = textwrap.dedent("""\
-    Method {fname!r} is ignored for async functions. \
-    Use it only with synchronous functions. \
-    Async functions are already executed in the event loop.
-""")
+ASYNC_FUNC_IGNORED_WARNING = """\
+Method {fname!r} is ignored for async functions. \
+Use it only with synchronous functions. \
+Async functions are already executed in the event loop.
+"""

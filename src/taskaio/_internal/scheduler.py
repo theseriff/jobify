@@ -60,6 +60,12 @@ class TaskScheduler:
 
     async def wait_for_complete(self) -> None:
         tasks_scheduled = self._wrapper.task_registered
-        while tasks_scheduled:
-            task = tasks_scheduled[0]
-            await task.wait()
+        try:
+            while tasks_scheduled:
+                task = tasks_scheduled[0]
+                await task.wait()
+        finally:
+            self.stop()
+
+    def stop(self) -> None:
+        self._wrapper.stop()

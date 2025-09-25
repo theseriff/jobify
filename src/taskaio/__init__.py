@@ -8,16 +8,11 @@ form the basis of the taskaio asynchronous task scheduling system.
 from importlib.metadata import version as get_version
 
 from taskaio._internal.scheduler import TaskScheduler
-from taskaio._internal.task_executor import (
-    TaskExecutorAsync,
-    TaskExecutorSync,
-    TaskInfo,
-)
+from taskaio._internal.task_executor import TaskExecutor, TaskInfo
 
 __version__ = get_version("taskaio")
 __all__ = (
-    "TaskExecutorAsync",
-    "TaskExecutorSync",
+    "TaskExecutor",
     "TaskInfo",
     "TaskScheduler",
 )
