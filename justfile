@@ -14,20 +14,20 @@ default:
 
 [doc("Prepare venv and repo for developing")]
 [group("Common")]
-@bootstrap:
+bootstrap:
     just venv-sync-dev
     pre-commit install
 
 
 [doc("Sync latest versions of packages")]
 [group("Common")]
-@venv-sync-dev:
+venv-sync-dev:
     uv pip install -e . --group dev
 
 
 [doc("Lint check")]
 [group("Linter and Static")]
-@lint:
+lint:
     echo "Run ruff check..." && ruff check --exit-non-zero-on-fix
     echo "Run ruff format..." && ruff format
     echo "Run codespell..." && codespell
@@ -35,28 +35,28 @@ default:
 
 [doc("Static analysis")]
 [group("Linter and Static")]
-@static:
+static:
     echo "Run mypy.." && mypy --config-file pyproject.toml
     echo "Run bandit..." && bandit -c pyproject.toml -r src
     echo "Run semgrep..." && semgrep scan --config auto --error
-    echo "Run basedpyright..." && basedpyright --warnings --project pyproject.toml
+    uv run --active --frozen basedpyright --warnings --project pyproject.toml
 
 
 [doc("Run pre-commit all files")]
 [group("Linter and Static")]
-@pre-commit:
+pre-commit:
     pre-commit run --show-diff-on-failure --color=always --all-files
 
 
 [doc("Run test")]
 [group("Test")]
-@test *args:
+test *args:
     coverage run -m pytest -x --ff {{ args }}
 
 
 [doc("Run test with coverage")]
 [group("Test")]
-@test-cov *args:
+test-cov *args:
     just test {{ args }}
     coverage combine
     coverage report --show-missing --skip-covered --sort=cover --precision=2
