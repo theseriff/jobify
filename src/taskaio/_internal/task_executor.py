@@ -48,7 +48,7 @@ class TaskInfo(Generic[_R]):
         "task_id",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         task_id: str,
@@ -56,6 +56,7 @@ class TaskInfo(Generic[_R]):
         func_id: str,
         timer_handler: asyncio.TimerHandle,
         task_registered: list[TaskInfo[_R]],
+        task_status: TaskStatus,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
         self._result: _R = EMPTY
@@ -64,7 +65,7 @@ class TaskInfo(Generic[_R]):
         self.exec_at_timestamp: float = exec_at_timestamp
         self.func_id: str = func_id
         self.task_id: str = task_id
-        self.status: TaskStatus = TaskStatus.SCHEDULED
+        self.status: TaskStatus = task_status
 
     def _update(
         self,
@@ -72,11 +73,13 @@ class TaskInfo(Generic[_R]):
         task_id: str,
         exec_at_timestamp: float,
         timer_handler: asyncio.TimerHandle,
+        task_status: TaskStatus,
     ) -> None:
         self._event = asyncio.Event()
+        self._timer_handler = timer_handler
         self.exec_at_timestamp = exec_at_timestamp
         self.task_id = task_id
-        self._timer_handler = timer_handler
+        self.status = task_status
 
     def __repr__(self) -> str:
         return textwrap.dedent(f"""\
@@ -116,6 +119,7 @@ class TaskInfo(Generic[_R]):
         _ = await self._event.wait()
 
     def cancel(self) -> None:
+        self.status = TaskStatus.CANCELED
         self._timer_handler.cancel()
         self._task_registered.remove(self)
         self._event.set()
@@ -292,6 +296,7 @@ class TaskExecutor(ABC, Generic[_R]):
                 task_id=uuid4().hex,
                 exec_at_timestamp=at_timestamp,
                 timer_handler=time_handler,
+                task_status=TaskStatus.SCHEDULED,
             )
         else:
             task_info = TaskInfo[_R](
@@ -300,6 +305,7 @@ class TaskExecutor(ABC, Generic[_R]):
                 task_id=task_id or uuid4().hex,
                 timer_handler=time_handler,
                 task_registered=self._task_registered,
+                task_status=TaskStatus.SCHEDULED,
             )
             self._task_info = task_info
         heapq.heappush(self._task_registered, task_info)
@@ -319,9 +325,11 @@ class TaskExecutor(ABC, Generic[_R]):
                 result = func()
         except Exception as exc:  # noqa: BLE001
             traceback.print_exc()
+            self.task_info.status = TaskStatus.ERROR
             self._run_hooks_error(exc)
         else:
             self.task_info.result = result
+            self.task_info.status = TaskStatus.SUCCESS
             self._run_hooks_success(result)
         finally:
             _ = heapq.heappop(self._task_registered)
