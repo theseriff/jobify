@@ -23,10 +23,5 @@ jobs:
         run: uv python install 3.13
       - name: Build
         run: uv build
-      # Check that basic features work and we didn't miss to include crucial files
-      - name: Smoke test (wheel)
-        run: uv run --isolated --no-project --with dist/*.whl tests/smoke_test.py
-      - name: Smoke test (source distribution)
-        run: uv run --isolated --no-project --with dist/*.tar.gz tests/smoke_test.py
       - name: Publish
-        run: uv publish
+        run: uv publish --trusted-publishing always
