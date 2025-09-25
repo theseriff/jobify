@@ -4,60 +4,77 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 # Use sh on Unix-like systems
 set shell := ["sh", "-c"]
 
-
-[doc("All command information")]
-[group("Common")]
 [private]
 default:
   @just --list --unsorted --list-heading $'commands…\n'
 
-
 [doc("Prepare venv and repo for developing")]
 [group("Common")]
-bootstrap:
-    just venv-sync-dev
-    pre-commit install
+init:
+  uv sync --group dev
 
 
-[doc("Sync latest versions of packages")]
-[group("Common")]
-venv-sync-dev:
-    uv pip install -e . --group dev
+[doc("Install pre-commit hooks")]
+[group("pre-commit")]
+pre-commit-install:
+  uv run --active --frozen pre-commit install
+
+[doc("Pre-commit all files")]
+[group("pre-commit")]
+pre-commit-all:
+  uv run --active --frozen pre-commit run --show-diff-on-failure --color=always --all-files
 
 
-[doc("Lint check")]
-[group("Linter and Static")]
-lint:
-    echo "Run ruff check..." && ruff check --exit-non-zero-on-fix
-    echo "Run ruff format..." && ruff format
-    echo "Run codespell..." && codespell
+# Linter
+[doc("Ruff format")]
+[group("linter")]
+ruff-format *params:
+  uv run --active --frozen ruff format {{params}}
+
+[doc("Ruff check")]
+[group("linter")]
+ruff-check *params:
+  uv run --active --frozen ruff check --exit-non-zero-on-fix {{params}}
+
+_codespell:
+  uv run --active --frozen codespell
+
+[doc("Check typos")]
+[group("linter")]
+typos: _codespell
+  uv run --active --frozen pre-commit run --all-files typos
+
+[doc("Linter run")]
+[group("linter")]
+linter: ruff-format ruff-check _codespell
 
 
-[doc("Static analysis")]
-[group("Linter and Static")]
-static:
-    echo "Run mypy.." && mypy --config-file pyproject.toml
-    echo "Run bandit..." && bandit -c pyproject.toml -r src
-    echo "Run semgrep..." && semgrep scan --config auto --error
-    uv run --active --frozen basedpyright --warnings --project pyproject.toml
+# Static analysis
+[doc("Mypy check")]
+[group("static analysis")]
+mypy *params:
+  uv run --active --frozen mypy {{params}}
 
+[doc("Basedpyright check")]
+[group("static analysis")]
+basedpyright *params:
+  uv run --active --frozen basedpyright --warnings --project pyproject.toml
 
-[doc("Run pre-commit all files")]
-[group("Linter and Static")]
-pre-commit:
-    pre-commit run --show-diff-on-failure --color=always --all-files
+[doc("Bandit check")]
+[group("static analysis")]
+bandit:
+  uv run --active --frozen bandit -c pyproject.toml -r src
 
+[doc("Semgrep check")]
+[group("static analysis")]
+semgrep:
+  uv run --active --frozen semgrep scan --config auto --error src
 
-[doc("Run test")]
-[group("Test")]
-test *args:
-    coverage run -m pytest -x --ff {{ args }}
+[doc("Zizmor check")]
+[group("static analysis")]
+zizmor:
+  uv run --active --frozen zizmor .
 
-
-[doc("Run test with coverage")]
-[group("Test")]
-test-cov *args:
-    just test {{ args }}
-    coverage combine
-    coverage report --show-missing --skip-covered --sort=cover --precision=2
-    rm .coverage*
+[doc("Static analysis check")]
+[group("static analysis")]
+static-analysis: mypy basedpyright bandit semgrep
