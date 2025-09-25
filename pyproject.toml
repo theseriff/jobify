@@ -6,9 +6,9 @@ build-backend = "uv_build"
 module-root = "src"
 
 [project]
-name = "taskaio"
+name = "iojobs"
 version = "0.1.0"
-description = "Lightweight asynchronous task scheduler with cron-like syntax and delayed execution for Python functions"
+description = "Lightweight asynchronous job scheduler with cron-like syntax and delayed execution for Python functions"
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "MIT" }
@@ -73,10 +73,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Maclovi/taskaio"
-Documentation = "https://github.com/Maclovi/taskaio/README.md"
-Repository = "https://github.com/Maclovi/taskaio"
-Issues = "https://github.com/Maclovi/taskaio/issues"
+Homepage = "https://github.com/Maclovi/iojobs"
+Documentation = "https://github.com/Maclovi/iojobs/README.md"
+Repository = "https://github.com/Maclovi/iojobs"
+Issues = "https://github.com/Maclovi/iojobs/issues"
 
 [tool.pytest.ini_options]
 xfail_strict = true

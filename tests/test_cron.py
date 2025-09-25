@@ -1,7 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from taskaio._internal.cron_parser import CronParser
+from iojobs._internal.cron_parser import CronParser
 
 
 def test_cronparser() -> None:

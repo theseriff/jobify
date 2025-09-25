@@ -1,9 +1,11 @@
 import concurrent.futures
 
-from taskaio._internal._types import EMPTY
+from iojobs._internal._types import EMPTY
 
 
 class ExecutorPool:
+    __slots__: tuple[str, ...] = ("_processpool", "_threadpool")
+
     def __init__(self) -> None:
         self._processpool: concurrent.futures.ProcessPoolExecutor = EMPTY
         self._threadpool: concurrent.futures.ThreadPoolExecutor = EMPTY

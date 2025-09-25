@@ -1,21 +1,21 @@
-class TaskaioBaseError(Exception):
+class IOJobsBaseError(Exception):
     pass
 
 
-class TaskNotCompletedError(TaskaioBaseError):
-    """Raised when trying to access result of incomplete task."""
+class JobNotCompletedError(IOJobsBaseError):
+    """Raised when trying to access result of incomplete job."""
 
     def __init__(
         self,
         message: str = (
-            "Task result is not ready yet, "
+            "Job result is not ready yet, "
             "please use .wait() and then you can use .result"
         ),
     ) -> None:
         super().__init__(message)
 
 
-class NegativeDelayError(TaskaioBaseError):
+class NegativeDelayError(IOJobsBaseError):
     """Exception raised when negative delay_seconds is provided."""
 
     def __init__(
@@ -32,8 +32,8 @@ class NegativeDelayError(TaskaioBaseError):
         self.delay_seconds: float = delay_seconds
 
 
-class TaskNotInitializedError(TaskaioBaseError):
-    """Raised when task components are accessed before initialization."""
+class JobNotInitializedError(IOJobsBaseError):
+    """Raised when job components are accessed before initialization."""
 
     def __init__(
         self,
@@ -41,21 +41,21 @@ class TaskNotInitializedError(TaskaioBaseError):
     ) -> None:
         if message is None:
             message = (
-                "TaskInfo is not initialized. "
-                "Ensure the task has been properly created and configured "
+                "JobInfo is not initialized. "
+                "Ensure the job has been properly created and configured "
                 "before accessing its properties."
             )
         super().__init__(message)
 
 
-class ConcurrentExecutionError(TaskaioBaseError):
+class ConcurrentExecutionError(IOJobsBaseError):
     """Raised when both thread and process execution modes are specified.
 
-    This exception is raised when a task is configured to execute both
+    This exception is raised when a job is configured to execute both
     in a separate thread and a separate process simultaneously, which
     creates ambiguous execution behavior.
 
-    Tasks must be configured for one of the following:
+    Jobs must be configured for one of the following:
     - Default execution (main thread)
     - Thread execution (to_thread=True)
     - Process execution (to_process=True)
@@ -69,7 +69,7 @@ class ConcurrentExecutionError(TaskaioBaseError):
     ) -> None:
         if message is None:
             message = (
-                "Cannot execute task both in thread and process simultaneously. "  # noqa: E501
+                "Cannot execute jobs both in thread and process simultaneously. "  # noqa: E501
                 "Please specify only one execution mode: either to_thread=True "  # noqa: E501
                 "or to_process=True, but not both."
             )
