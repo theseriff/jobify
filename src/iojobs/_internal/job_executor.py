@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 _R = TypeVar("_R")
 
 
-class JobInfo(Generic[_R]):
+class ScheduledJob(Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_job_registered",
@@ -48,11 +48,11 @@ class JobInfo(Generic[_R]):
         exec_at_timestamp: float,
         func_id: str,
         timer_handler: asyncio.TimerHandle,
-        job_registered: list[JobInfo[_R]],
+        job_registered: list[ScheduledJob[_R]],
         job_status: JobStatus,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
-        self._job_registered: list[JobInfo[_R]] = job_registered
+        self._job_registered: list[ScheduledJob[_R]] = job_registered
         self._result: _R = EMPTY
         self._timer_handler: asyncio.TimerHandle = timer_handler
         self.exec_at_timestamp: float = exec_at_timestamp
@@ -82,10 +82,10 @@ class JobInfo(Generic[_R]):
             func_id={self.func_id}, job_id={self.job_id})
         """)
 
-    def __lt__(self, other: JobInfo[_R]) -> bool:
+    def __lt__(self, other: ScheduledJob[_R]) -> bool:
         return self.exec_at_timestamp < other.exec_at_timestamp
 
-    def __gt__(self, other: JobInfo[_R]) -> bool:
+    def __gt__(self, other: ScheduledJob[_R]) -> bool:
         return self.exec_at_timestamp > other.exec_at_timestamp
 
     @property
@@ -138,7 +138,7 @@ class JobExecutor(ABC, Generic[_R]):
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
         func_injected: Callable[..., Coroutine[None, None, _R] | _R],
-        jobs_registered: list[JobInfo[_R]],
+        jobs_registered: list[ScheduledJob[_R]],
         tz: ZoneInfo,
     ) -> None:
         self._func_id: FuncID = func_id
@@ -148,7 +148,7 @@ class JobExecutor(ABC, Generic[_R]):
         self._loop: asyncio.AbstractEventLoop = loop
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
-        self._job_info: JobInfo[_R] | None = None
+        self._job_info: ScheduledJob[_R] | None = None
         self._jobs_registered: Final = jobs_registered
         self._tz: Final = tz
         self._cron_parser: CronParser = EMPTY
@@ -161,7 +161,7 @@ class JobExecutor(ABC, Generic[_R]):
         return self._loop
 
     @property
-    def job_info(self) -> JobInfo[_R]:
+    def job_info(self) -> ScheduledJob[_R]:
         if self._job_info is None:
             raise JobNotInitializedError
         return self._job_info
@@ -199,7 +199,7 @@ class JobExecutor(ABC, Generic[_R]):
         *,
         to_thread: bool = EMPTY,
         to_process: bool = EMPTY,
-    ) -> JobInfo[_R]:
+    ) -> ScheduledJob[_R]:
         if self._cron_parser is EMPTY:
             self._cron_parser = CronParser(expression=expression)
             self._is_cron = True
@@ -210,7 +210,7 @@ class JobExecutor(ABC, Generic[_R]):
         *,
         to_thread: bool = EMPTY,
         to_process: bool = EMPTY,
-    ) -> JobInfo[_R]:
+    ) -> ScheduledJob[_R]:
         now = datetime.now(tz=self._tz)
         next_run = self._cron_parser.next_run(now=now)
         return self._at_execute(
@@ -229,7 +229,7 @@ class JobExecutor(ABC, Generic[_R]):
         job_id: str = EMPTY,
         to_thread: bool = EMPTY,
         to_process: bool = EMPTY,
-    ) -> JobInfo[_R]:
+    ) -> ScheduledJob[_R]:
         now = datetime.now(tz=self._tz)
         at = now + timedelta(seconds=delay_seconds)
         return self._at_execute(
@@ -248,7 +248,7 @@ class JobExecutor(ABC, Generic[_R]):
         job_id: str = EMPTY,
         to_thread: bool = EMPTY,
         to_process: bool = EMPTY,
-    ) -> JobInfo[_R]:
+    ) -> ScheduledJob[_R]:
         now = datetime.now(tz=at.tzinfo)
         return self._at_execute(
             now=now,
@@ -266,7 +266,7 @@ class JobExecutor(ABC, Generic[_R]):
         job_id: str,
         to_thread: bool,
         to_process: bool,
-    ) -> JobInfo[_R]:
+    ) -> ScheduledJob[_R]:
         if to_thread and to_process:
             raise ConcurrentExecutionError
         if to_process is not EMPTY:
@@ -292,7 +292,7 @@ class JobExecutor(ABC, Generic[_R]):
                 job_status=JobStatus.SCHEDULED,
             )
         else:
-            job_info = JobInfo[_R](
+            job_info = ScheduledJob[_R](
                 exec_at_timestamp=at_timestamp,
                 func_id=self._func_id,
                 job_id=job_id or uuid4().hex,
@@ -355,7 +355,7 @@ class JobExecutorSync(JobExecutor[_R]):
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
         func_injected: Callable[..., _R],
-        jobs_registered: list[JobInfo[_R]],
+        jobs_registered: list[ScheduledJob[_R]],
         executors: ExecutorPool,
         tz: ZoneInfo,
     ) -> None:
@@ -400,7 +400,7 @@ class JobExecutorAsync(JobExecutor[_R]):
         loop: asyncio.AbstractEventLoop,
         func_id: FuncID,
         func_injected: Callable[..., Coroutine[None, None, _R]],
-        jobs_registered: list[JobInfo[_R]],
+        jobs_registered: list[ScheduledJob[_R]],
         tz: ZoneInfo,
     ) -> None:
         super().__init__(

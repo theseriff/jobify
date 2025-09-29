@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from zoneinfo import ZoneInfo
 
-    from iojobs._internal.job_executor import JobInfo
+    from iojobs._internal.job_executor import ScheduledJob
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -54,7 +54,7 @@ class FuncWrapper(Generic[_P, _R]):
             Callable[_P, Coroutine[None, None, _R] | _R],
         ] = {}
         self._tz: Final = tz
-        self.jobs_registered: list[JobInfo[_R]] = []
+        self.jobs_registered: list[ScheduledJob[_R]] = []
 
     def register(
         self,
