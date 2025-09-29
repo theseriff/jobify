@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
 
     from iojobs._internal.job_executor import ScheduledJob
+    from iojobs._internal.serializers.abc import JobsSerializer
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -36,6 +37,7 @@ class FuncWrapper(Generic[_P, _R]):
     __slots__: tuple[str, ...] = (
         "_executors",
         "_func_registered",
+        "_job_serializer",
         "_loop",
         "_tz",
         "jobs_registered",
@@ -44,8 +46,9 @@ class FuncWrapper(Generic[_P, _R]):
     def __init__(
         self,
         *,
-        loop: asyncio.AbstractEventLoop,
         tz: ZoneInfo,
+        loop: asyncio.AbstractEventLoop,
+        serializer: JobsSerializer,
     ) -> None:
         self._executors: Final = ExecutorPool()
         self._loop: Final = loop
@@ -54,6 +57,7 @@ class FuncWrapper(Generic[_P, _R]):
             Callable[_P, Coroutine[None, None, _R] | _R],
         ] = {}
         self._tz: Final = tz
+        self._job_serializer: JobsSerializer = serializer
         self.jobs_registered: list[ScheduledJob[_R]] = []
 
     def register(

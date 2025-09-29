@@ -5,12 +5,14 @@ from zoneinfo import ZoneInfo
 
 from iojobs._internal._types import EMPTY
 from iojobs._internal.func_wrapper import FuncWrapper
+from iojobs._internal.serializers.ast_literal import AstLiteralSerializer
 
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
     from iojobs._internal.job_executor import JobExecutor
+    from iojobs._internal.serializers.abc import JobsSerializer
 
 
 _P = ParamSpec("_P")
@@ -23,12 +25,14 @@ class JobScheduler:
     def __init__(
         self,
         *,
-        loop: asyncio.AbstractEventLoop = EMPTY,
         tz: ZoneInfo = EMPTY,
+        loop: asyncio.AbstractEventLoop = EMPTY,
+        serializer: JobsSerializer = EMPTY,
     ) -> None:
         self._wrapper: FuncWrapper[..., Any] = FuncWrapper(  # pyright: ignore[reportExplicitAny]
             loop=loop,
             tz=tz or ZoneInfo("UTC"),
+            serializer=serializer or AstLiteralSerializer(),
         )
 
     @overload

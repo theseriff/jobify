@@ -8,8 +8,8 @@ from typing import Any, Protocol
 class JobsSerializer(Protocol, metaclass=ABCMeta):
     @abstractmethod
     def dumpb(self, value: Any) -> bytes:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def loadb(self, value: bytes) -> Any:
-        pass
+        raise NotImplementedError
