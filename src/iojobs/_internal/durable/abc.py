@@ -6,8 +6,8 @@ from typing import Protocol
 from iojobs._internal.enums import ExecutionMode, JobStatus
 
 
-@dataclass(slots=True)
-class PersistedJob:
+@dataclass(slots=True, kw_only=True)
+class JobPersisted:
     job_id: str
     func_id: str
     exec_at_timestamp: float
@@ -23,5 +23,5 @@ class PersistedJob:
 
 class JobRepository(Protocol, metaclass=ABCMeta):
     @abstractmethod
-    def load(self, persisted_job: PersistedJob) -> None:
+    def load_all(self) -> tuple[JobPersisted]:
         raise NotImplementedError

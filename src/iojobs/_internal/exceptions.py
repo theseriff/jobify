@@ -15,20 +15,26 @@ class JobNotCompletedError(IOJobsBaseError):
         super().__init__(message)
 
 
+class JobFailedError(IOJobsBaseError):
+    def __init__(self, job_id: str, reason: str) -> None:
+        self.job_id: str = job_id
+        self.reason: str = reason
+        message = f"job_id: {job_id}, failed_reason: {reason}"
+        super().__init__(message)
+
+
 class NegativeDelayError(IOJobsBaseError):
     """Exception raised when negative delay_seconds is provided."""
 
     def __init__(
         self,
         delay_seconds: float,
-        message: str | None = None,
+        message: str = (
+            "Negative delay_seconds ({delay_seconds}) is not supported. "
+            "Please provide non-negative values."
+        ),
     ) -> None:
-        if message is None:
-            message = (
-                f"Negative delay_seconds ({delay_seconds}) is not supported. "
-                "Please provide non-negative values."
-            )
-        super().__init__(message)
+        super().__init__(message.format(delay_seconds=delay_seconds))
         self.delay_seconds: float = delay_seconds
 
 
@@ -37,40 +43,10 @@ class JobNotInitializedError(IOJobsBaseError):
 
     def __init__(
         self,
-        message: str | None = None,
+        message: str = (
+            "Job is not initialized. "
+            "Ensure the job has been properly created and configured "
+            "before accessing its properties."
+        ),
     ) -> None:
-        if message is None:
-            message = (
-                "JobInfo is not initialized. "
-                "Ensure the job has been properly created and configured "
-                "before accessing its properties."
-            )
-        super().__init__(message)
-
-
-class ConcurrentExecutionError(IOJobsBaseError):
-    """Raised when both thread and process execution modes are specified.
-
-    This exception is raised when a job is configured to execute both
-    in a separate thread and a separate process simultaneously, which
-    creates ambiguous execution behavior.
-
-    Jobs must be configured for one of the following:
-    - Default execution (main thread)
-    - Thread execution (to_thread=True)
-    - Process execution (to_process=True)
-
-    But not multiple modes at the same time.
-    """
-
-    def __init__(
-        self,
-        message: str | None = None,
-    ) -> None:
-        if message is None:
-            message = (
-                "Cannot execute jobs both in thread and process simultaneously. "  # noqa: E501
-                "Please specify only one execution mode: either to_thread=True "  # noqa: E501
-                "or to_process=True, but not both."
-            )
         super().__init__(message)

@@ -1,6 +1,6 @@
-from iojobs._internal.durable.abc import JobRepository, PersistedJob
+from iojobs._internal.durable.abc import JobPersisted, JobRepository
 
 
 class SQLiteJobRepository(JobRepository):
-    def load(self, persisted_job: PersistedJob) -> None:
+    def load_all(self) -> tuple[JobPersisted]:
         raise NotImplementedError

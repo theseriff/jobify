@@ -78,3 +78,14 @@ zizmor:
 [doc("Static analysis check")]
 [group("static analysis")]
 static-analysis: mypy basedpyright bandit semgrep
+
+
+[doc("Run all tests")]
+[group("tests")]
+test-all +param="tests/":
+  uv run --active --frozen pytest {{param}}
+
+[doc("Run all tests with coverage")]
+[group("tests")]
+test-coverage-all +param="tests/":
+  uv run --active --frozen pytest {{param}} --cov --cov-report=term:skip-covered

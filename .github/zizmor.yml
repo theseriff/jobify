@@ -1,0 +1,4 @@
+rules:
+  template-injection:
+    ignore:
+      - publish_pypi.yml:44

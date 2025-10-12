@@ -26,34 +26,36 @@ keywords = [
 ]
 classifiers = [
     "Typing :: Typed",
-    "Topic :: Utilities",
-    "Topic :: Documentation",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Framework :: Pytest",
     "Framework :: AsyncIO",
     "Natural Language :: English",
     "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
-    "Intended Audience :: Developers",
-    "Development Status :: 4 - Beta",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Documentation",
+    "Topic :: Utilities",
 ]
-dependencies = ["crontab==1.0.5"]
+dependencies = [
+    "crontab==1.0.5",
+    "tzdata==2025.2; sys_platform == 'win32'",
+]
 
 [dependency-groups]
 lint = [
     "mypy==1.18.2",
-    "ruff==0.13.2",
+    "ruff==0.13.3",
     "bandit==1.8.6",
-    "zizmor==1.13.0",
-    "semgrep==1.137.0",
+    "zizmor==1.14.2",
+    "semgrep==1.139.0",
     "codespell==2.4.1",
-    "basedpyright==1.31.5",
+    "basedpyright==1.31.6",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-setuptools",
@@ -62,16 +64,19 @@ test = [
     "coverage[toml]==7.10.7",
     "pytest==8.4.2",
     "pytest-asyncio==1.2.0",
+    "pytest-timeout>=2.4.0",
+    "pytest-cov>=6.2.1",
+    "covdefaults>=2.3.0",
 ]
 docs = [
     "mkdocs==1.6.1",
-    "mkdocs-material==9.6.20",
+    "mkdocs-material==9.6.21",
     "mkdocstrings[python]==0.30.1",
 ]
 dev = [
-    {include-group = "lint"},
-    {include-group = "test"},
-    {include-group = "docs"},
+    { include-group = "lint" },
+    { include-group = "test" },
+    { include-group = "docs" },
     "pre-commit==4.3.0",
     "detect-secrets==1.5.0",
 ]
@@ -82,18 +87,43 @@ Documentation = "https://github.com/Maclovi/iojobs/README.md"
 Repository = "https://github.com/Maclovi/iojobs"
 Issues = "https://github.com/Maclovi/iojobs/issues"
 
+# Tests
 [tool.pytest.ini_options]
 xfail_strict = true
+timeout = 30
+addopts = "--strict-markers --strict-config"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 markers = []
 
+[tool.coverage.run]
+plugins = ["covdefaults"]
+parallel = true
+branch = true
+concurrency = ["thread", "multiprocessing"]
+source = ["src", "tests"]
+omit = ["**/__init__.py"]
+
+[tool.coverage.report]
+fail_under = 95
+skip_empty = true
+show_missing = true
+exclude_also = [
+    'if TYPE_CHECKING:',
+    "if __name__ == .__main__.:",
+    '@()?abstractmethod',
+    "raise NotImplementedError",
+    "pass",
+    '\.\.\.',
+]
+omit = ["*/__init__.py", "*/_types.py"]
+
+# Static Analysis
 [tool.basedpyright]
 include = ["src", "tests"]
 ignore = ["**/__pycache__", "**/alembic"]
 pythonVersion = "3.10"
-reportImplicitStringConcatenation = false
 reportImplicitOverride = false
 reportAny = false
 
@@ -101,7 +131,6 @@ reportAny = false
 mypy_path = "src"
 files = ["src", "tests"]
 python_version = "3.10"
-
 strict = true
 pretty = true
 warn_return_any = true
@@ -121,6 +150,14 @@ check_untyped_defs = true
 namespace_packages = true
 ignore_missing_imports = true
 
+[tool.semgrep]
+paths = ["src"]
+include = ["src"]
+
+[tool.bandit]
+targets = "src"
+
+# Liter
 [tool.ruff]
 src = ["src"]
 include = ["src/**.py", "tests/**.py"]
@@ -132,8 +169,7 @@ fix = true
 select = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "D"]
-"tests/__init__.py" = ["D400", "D415", "D104"]
+"tests/**" = ["S101", "D", "SLF001"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -142,41 +178,14 @@ docstring-code-format = true
 known-first-party = ["src", "tests"]
 no-lines-before = ["local-folder"]
 
-[tool.coverage.run]
-parallel = true
-branch = true
-concurrency = ["thread", "multiprocessing"]
-source = ["src", "tests"]
-omit = ["**/__init__.py"]
-
-[tool.coverage.report]
-show_missing = true
-skip_empty = true
-exclude_also = [
-    'if TYPE_CHECKING:',
-    "if __name__ == .__main__.:",
-    '@()?abstractmethod',
-    "raise NotImplementedError",
-    "pass",
-    '\.\.\.',
-]
-omit = [
-    '*/__init__.py',
-]
-
-[tool.semgrep]
-paths = ["src"]
-include = ["src"]
-
-[tool.bandit]
-targets = "src"
-
 [tool.codespell]
 skip = "*.pyi,*.pyc,./site"
 
+# Python Semantic Release
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 commit_parser = "conventional"
+build_command = "uv build"
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
