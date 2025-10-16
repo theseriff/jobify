@@ -52,7 +52,7 @@ lint = [
     "mypy==1.18.2",
     "ruff==0.14.0",
     "bandit==1.8.6",
-    "zizmor==1.14.2",
+    "zizmor==1.15.0",
     "semgrep==1.139.0",
     "codespell==2.4.1",
     "basedpyright==1.31.7",
