@@ -7,20 +7,14 @@ import sys
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
-from iojobs._internal.durable.sqlite import SQLiteJobRepository
-from iojobs._internal.executors_pool import ExecutorPool
 from iojobs._internal.job_runner import JobRunnerAsync, JobRunnerSync
-from iojobs._internal.serializers.ast_literal import AstLiteralSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
-    from zoneinfo import ZoneInfo
 
-    from iojobs._internal._types import JobExtras
-    from iojobs._internal.durable.abc import JobRepository
+    from iojobs._internal._inner_deps import JobInnerDeps
     from iojobs._internal.job_runner import Job, JobRunner
-    from iojobs._internal.serializers.abc import JobsSerializer
 
 
 _P = ParamSpec("_P")
@@ -39,28 +33,17 @@ def create_default_name(func: Callable[_P, _R], /) -> str:
 
 
 class FuncWrapper(Generic[_P, _R]):
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
-        tz: ZoneInfo,
-        loop: asyncio.AbstractEventLoop,
-        serializer: JobsSerializer,
-        durable: JobRepository,
         func_name: str,
+        inner_deps: JobInnerDeps[_R],
         original_func: Callable[_P, _R],
-        asyncio_tasks: list[asyncio.Task[_R]],
-        extras: JobExtras,
+        jobs_registered: list[Job[_R]],
     ) -> None:
-        self._tz: ZoneInfo = tz
-        self._loop: asyncio.AbstractEventLoop = loop
-        self._executors: ExecutorPool = ExecutorPool()
-        self._serializer: JobsSerializer = serializer or AstLiteralSerializer()
-        self._durable: JobRepository = durable or SQLiteJobRepository()
-        self._func_registered: dict[str, Callable[_P, _R]] = {}
-        self._jobs_registered: list[Job[_R]] = []
-        self._asyncio_tasks: list[asyncio.Task[_R]] = asyncio_tasks
         self._func_name: str = func_name
-        self._extras: JobExtras = extras
+        self._inner_deps: JobInnerDeps[_R] = inner_deps
+        self._jobs_registered: list[Job[_R]] = jobs_registered
         self._original_func: Callable[_P, _R] = original_func
         # This is a hack to make ProcessPoolExecutor work
         # with decorated functions.
@@ -123,23 +106,16 @@ class FuncWrapper(Generic[_P, _R]):
         func_injected = functools.partial(self._original_func, *args, **kwargs)
         return (
             JobRunnerAsync(
-                tz=self._tz,
-                loop=self._loop,
                 func_name=self._func_name,
+                inner_deps=self._inner_deps,
                 func_injected=func_injected,
                 jobs_registered=self._jobs_registered,
-                asyncio_tasks=self._asyncio_tasks,
-                extras=self._extras,
             )
             if asyncio.iscoroutinefunction(func_injected)
             else JobRunnerSync(
-                tz=self._tz,
-                loop=self._loop,
-                executors=self._executors,
                 func_name=self._func_name,
+                inner_deps=self._inner_deps,
                 func_injected=func_injected,
                 jobs_registered=self._jobs_registered,
-                asyncio_tasks=self._asyncio_tasks,
-                extras=self._extras,
             )
         )

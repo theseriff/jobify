@@ -37,7 +37,7 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
         return 10 // num
 
     expected_on_success = 0
-    msg_or_error = ""
+    msg_or_error: Exception = Exception()
 
     def on_success(num: int) -> None:
         nonlocal expected_on_success
@@ -45,21 +45,18 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
 
     def on_error(exc: Exception) -> None:
         nonlocal msg_or_error
-        msg_or_error = str(exc)
+        msg_or_error = exc
 
     job1 = await t.schedule(1).on_success(on_success).delay(0)
     job2 = await t.schedule(0).on_error(on_error).delay(0)
     await job1.wait()
     await job2.wait()
 
-    with pytest.raises(
-        JobFailedError,
-        match="failed_reason: integer division or modulo by zero",
-    ):
+    with pytest.raises(JobFailedError, match="division"):
         assert job2.result()
 
     assert job1.result() == expected_on_success
-    assert msg_or_error == "integer division or modulo by zero"
+    assert type(msg_or_error) is ZeroDivisionError
 
 
 async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:

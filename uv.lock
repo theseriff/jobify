@@ -638,7 +638,7 @@ dev = [
     { name = "ruff", specifier = "==0.14.0" },
     { name = "semgrep", specifier = "==1.139.0" },
     { name = "types-setuptools" },
-    { name = "zizmor", specifier = "==1.14.2" },
+    { name = "zizmor", specifier = "==1.15.2" },
 ]
 docs = [
     { name = "mkdocs", specifier = "==1.6.1" },
@@ -654,7 +654,7 @@ lint = [
     { name = "ruff", specifier = "==0.14.0" },
     { name = "semgrep", specifier = "==1.139.0" },
     { name = "types-setuptools" },
-    { name = "zizmor", specifier = "==1.14.2" },
+    { name = "zizmor", specifier = "==1.15.2" },
 ]
 test = [
     { name = "covdefaults", specifier = ">=2.3.0" },
@@ -2089,18 +2089,18 @@ wheels = [
 
 [[package]]
 name = "zizmor"
-version = "1.14.2"
+version = "1.15.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/83/34/7a2ee0043e78d5335c44ae6876b6161505b4e628dacfc94b57ee8abaee9c/zizmor-1.14.2.tar.gz", hash = "sha256:f9c0de529eb932d7af3c92f3d1004f5fed7fc357d30edf16ae31ce4bdf8f7514", size = 367884, upload-time = "2025-09-29T14:19:54.423Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/05/775c4f8076a7793384c9df0bac66eb4fba518150882b85b178bdb6a3e9d9/zizmor-1.15.2.tar.gz", hash = "sha256:02e295d8a97fef0bd1c1b1438eb5b7ba6cdcf71894e45ee2e14269579cc11fa2", size = 384666, upload-time = "2025-10-14T15:02:23.293Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/b3/e3ace638eca1b6ca94f7b504d42381fdfe13027f33b452685048fe826826/zizmor-1.14.2-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:c95caf9d303e38bce71a475bf1915c121cc6d415bad8396efd6af6a93cd828ff", size = 6631155, upload-time = "2025-09-29T14:19:49.411Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/8f/32c929a2f892c308fe24f98f1f9f1bfd3e1479bce61e11fcc3ab8c885193/zizmor-1.14.2-py3-none-macosx_11_0_arm64.whl", hash = "sha256:c97c1ca199ba06c79d18f103dce24fe84896dfd498e49b01e5a19eaba3d85992", size = 6268296, upload-time = "2025-09-29T14:19:48.152Z" },
-    { url = "https://files.pythonhosted.org/packages/9c/9d/f3a31684caaa623aa6c8589da8d0e2e93a4b364a269c5cbbbbbf21ed88c4/zizmor-1.14.2-py3-none-manylinux_2_24_aarch64.whl", hash = "sha256:c6ee0ad81b1def2030a3af7925527b1633899bd9db0a48843dcafa997d4881b2", size = 6442397, upload-time = "2025-09-29T14:19:43.085Z" },
-    { url = "https://files.pythonhosted.org/packages/94/43/00550a8dc50475142c464be5a5a6604153efd33d1e67dee2ea70e5f964fd/zizmor-1.14.2-py3-none-manylinux_2_28_armv7l.whl", hash = "sha256:1f2ce27f3c369aed20e92c9b99bfbb6b7ccfa60a2cbee3262b22193259e783e8", size = 6434596, upload-time = "2025-09-29T14:19:45.121Z" },
-    { url = "https://files.pythonhosted.org/packages/6f/48/a9538f5784db60a69f70bd419ac2f9ab5ed96621a3e366607dad9476feef/zizmor-1.14.2-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:8c0b310f03902cc5175757f2bd6c135220f96f35501472f24fb6db8e8675b19e", size = 6748864, upload-time = "2025-09-29T14:19:46.901Z" },
-    { url = "https://files.pythonhosted.org/packages/d1/92/c914c2f944e0857aaae70957ae0dc1af90b965a0b92dab9b0ce7dc028e7e/zizmor-1.14.2-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:b0206029d772bd30087d8724fe3b2787302a531aefa236e3e4456bccea7370db", size = 6450748, upload-time = "2025-09-29T14:19:50.589Z" },
-    { url = "https://files.pythonhosted.org/packages/ac/43/80e3cf50d0167180c0172f69c21edbd7f72728c66650ea6ab93a226ec1e9/zizmor-1.14.2-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:7b53b2df89d83a44273fe6dc2a99356d2cfca37f9e1dce466db6e03debefb2a9", size = 6445170, upload-time = "2025-09-29T14:19:51.872Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/83/78fad93c1950ca95d4b5536c5d4df0a6f93af33740f426db127e1fac9c28/zizmor-1.14.2-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:9a81e6a7aecc5250f7bd7f4b978f0652be7785a638f8b176fd73e12c29c8f68a", size = 6850125, upload-time = "2025-09-29T14:19:53.209Z" },
-    { url = "https://files.pythonhosted.org/packages/a5/2c/ef141944d5b6afc93e2b21c923c4a3507c76a22b115c4462e6b308228e05/zizmor-1.14.2-py3-none-win32.whl", hash = "sha256:3c94c9fb8da4692acaa3dd41e81fa4376f7ca9b3d419eb18cf7224f5b6908e03", size = 5676486, upload-time = "2025-09-29T14:19:57.372Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/a5/058cd135eaf211491332ffe1f23aa17723eea4aa8c8c95ac28a26bf0c95d/zizmor-1.14.2-py3-none-win_amd64.whl", hash = "sha256:fb945e754445d8f76d3ba3f9e3ea428eebce0117058aa75155c4c03d9934ed75", size = 6381685, upload-time = "2025-09-29T14:19:55.673Z" },
+    { url = "https://files.pythonhosted.org/packages/88/6a/9efbfc00a952592725f464fba2dfd38f3fab8101f4b98bfed92183dd28fb/zizmor-1.15.2-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:6ecdf45aa1bf2b99cfa9a8a5641fb05c89a98ab38648a4ddd248c94f03a6673f", size = 6942196, upload-time = "2025-10-14T15:02:16.554Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/93/5d89f81091c31a66a1d64781c0fd2f3c22c948d30513ddc3f68a967538a6/zizmor-1.15.2-py3-none-macosx_11_0_arm64.whl", hash = "sha256:3eaa500fefccbcd45c21038d879a662944e453b71de7ab6f3fb4c55be35f1a27", size = 6551013, upload-time = "2025-10-14T15:02:15.217Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/da/55aa363ea58cdd7cdad911f5b3c1abe461f65d83aa46447cae34eeb9cefb/zizmor-1.15.2-py3-none-manylinux_2_24_aarch64.whl", hash = "sha256:015cbb03138b7a8be85287f98957afa2b7c014019242c33c23d6984e2bb1b3fa", size = 6825574, upload-time = "2025-10-14T15:02:10.239Z" },
+    { url = "https://files.pythonhosted.org/packages/16/65/a22881f38d50e19f4d9607e41483205d8b2191f2c09ea847176361dafaef/zizmor-1.15.2-py3-none-manylinux_2_28_armv7l.whl", hash = "sha256:e41eff0c812de71102599e17369f02bf8d76884371509f11a414d889ce3e1f55", size = 6538122, upload-time = "2025-10-14T15:02:12.462Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/71/f4ef6980a5bd266edfab08c67712deaff9165c45b15720be846031b71d86/zizmor-1.15.2-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:d7ae84ca07a05939deccfcc4ae4ea10ccf6800d752263b49bbbfd90f3f6acc37", size = 7131829, upload-time = "2025-10-14T15:02:13.883Z" },
+    { url = "https://files.pythonhosted.org/packages/be/f1/200d44114dbb19dae44925f793b97f8e7316655e3d65353e3f36c4e1e3f1/zizmor-1.15.2-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:44aca6641be4f28a819160db08d81fdf307a168e583b881fddfbb27396397c12", size = 6844318, upload-time = "2025-10-14T15:02:17.972Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/40/d86743e67fbb653deab99eccbcd4754c0841dc524da89a5be846412bb70d/zizmor-1.15.2-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:f5655b757ebc3987b2d4b4f7412ba0163b8fcbec97737b0fb272bcd86d2d18b2", size = 6551932, upload-time = "2025-10-14T15:02:19.615Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/bc/0a9f86d2731f237a882aa9ef70bcf1d25dbe67b3b7b51ec5e21b31866168/zizmor-1.15.2-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:258d5b7731b17f2d4aef9c27aebeb21b5910c66ea57224365c6e0f0c9299e86e", size = 7239487, upload-time = "2025-10-14T15:02:21.985Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/6a/fbed9fd802a57607b8db593c45c6d52cf3be515489d1421d276f9e203c6e/zizmor-1.15.2-py3-none-win32.whl", hash = "sha256:75562fc3717e1b05be0afaf750a0a775788e3679926377d3a569130e92d5f948", size = 5791429, upload-time = "2025-10-14T15:02:25.972Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/85/c4ea0d438fb890f3a2eb9acf9a4f4ebf497574438de3afa2984d81d49f9b/zizmor-1.15.2-py3-none-win_amd64.whl", hash = "sha256:8341528d2c1a39e857aa484dd4899c5fa6ccde155c14a0db15210ebbfc31ed54", size = 6520551, upload-time = "2025-10-14T15:02:24.67Z" },
 ]

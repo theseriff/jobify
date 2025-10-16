@@ -26,23 +26,26 @@ pre-commit-all:
 
 
 # Linter
+_linter *params:
+  uv run --no-dev --group lint --active --frozen {{params}}
+
 [doc("Ruff format")]
 [group("linter")]
 ruff-format *params:
-  uv run --active --frozen ruff format {{params}}
+  just _linter ruff format {{params}}
 
 [doc("Ruff check")]
 [group("linter")]
 ruff-check *params:
-  uv run --active --frozen ruff check --exit-non-zero-on-fix {{params}}
+  just _linter ruff check --exit-non-zero-on-fix {{params}}
 
 _codespell:
-  uv run --active --frozen codespell
+  just _linter codespell
 
 [doc("Check typos")]
 [group("linter")]
 typos: _codespell
-  uv run --active --frozen pre-commit run --all-files typos
+  just _linter pre-commit run --all-files typos
 
 [doc("Linter run")]
 [group("linter")]
@@ -50,42 +53,49 @@ linter: ruff-format ruff-check _codespell
 
 
 # Static analysis
+_static-analysis *params:
+  uv run --no-dev --group lint --active --frozen {{params}}
+
 [doc("Mypy check")]
 [group("static analysis")]
 mypy *params:
-  uv run --active --frozen mypy {{params}}
+  just _static-analysis mypy {{params}}
 
 [doc("Basedpyright check")]
 [group("static analysis")]
 basedpyright *params:
-  uv run --active --frozen basedpyright --warnings --project pyproject.toml
+  just _static-analysis basedpyright --warnings --project pyproject.toml {{params}}
 
 [doc("Bandit check")]
 [group("static analysis")]
 bandit:
-  uv run --active --frozen bandit -c pyproject.toml -r src
+  just _static-analysis bandit -c pyproject.toml -r src
 
 [doc("Semgrep check")]
 [group("static analysis")]
 semgrep:
-  uv run --active --frozen semgrep scan --config auto --error src
+  just _static-analysis semgrep scan --config auto --error src
 
 [doc("Zizmor check")]
 [group("static analysis")]
 zizmor:
-  uv run --active --frozen zizmor .
+  just _static-analysis zizmor .
 
 [doc("Static analysis check")]
 [group("static analysis")]
 static-analysis: mypy basedpyright bandit semgrep
 
 
+# Tests
+_test *params:
+  uv run --no-dev --group test --active --frozen pytest {{params}}
+
 [doc("Run all tests")]
 [group("tests")]
 test-all +param="tests/":
-  uv run --active --frozen pytest {{param}}
+  just _test {{param}}
 
 [doc("Run all tests with coverage")]
 [group("tests")]
 test-coverage-all +param="tests/":
-  uv run --active --frozen pytest {{param}} --cov --cov-report=term:skip-covered
+  just _test {{param}} --cov --cov-report=term:skip-covered

@@ -4,15 +4,15 @@ import functools
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, overload
 from zoneinfo import ZoneInfo
 
-from iojobs._internal._types import EMPTY, JobExtras
+from iojobs._internal._inner_deps import ExecutorsPool, JobInnerDeps
 from iojobs._internal.durable.sqlite import SQLiteJobRepository
-from iojobs._internal.executors_pool import ExecutorPool
 from iojobs._internal.func_wrapper import FuncWrapper, create_default_name
 from iojobs._internal.serializers.ast_literal import AstLiteralSerializer
 
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
+    from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
     from iojobs._internal.durable.abc import JobRepository
     from iojobs._internal.job_runner import Job
@@ -25,34 +25,35 @@ _R = TypeVar("_R")
 
 class JobScheduler:
     __slots__: tuple[str, ...] = (
-        "_asyncio_tasks",
-        "_durable",
-        "_executors",
-        "_extras",
         "_func_registered",
+        "_inner_deps",
         "_jobs_registered",
-        "_loop",
-        "_serializer",
-        "_tz",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
-        tz: ZoneInfo = EMPTY,
-        loop: asyncio.AbstractEventLoop = EMPTY,
-        serializer: JobsSerializer = EMPTY,
-        durable: JobRepository = EMPTY,
+        tz: ZoneInfo | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+        serializer: JobsSerializer | None = None,
+        durable: JobRepository | None = None,
+        threadpool_executor: ThreadPoolExecutor | None = None,
+        processpool_executor: ProcessPoolExecutor | None = None,
     ) -> None:
-        self._tz: ZoneInfo = tz or ZoneInfo("UTC")
-        self._loop: asyncio.AbstractEventLoop = loop
-        self._executors: ExecutorPool = ExecutorPool()
-        self._serializer: JobsSerializer = serializer or AstLiteralSerializer()
-        self._durable: JobRepository = durable or SQLiteJobRepository()
-        self._func_registered: dict[str, Callable[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
+        self._inner_deps: JobInnerDeps[Any] = JobInnerDeps(  # pyright: ignore[reportExplicitAny]
+            _loop=loop,
+            tz=tz or ZoneInfo("UTC"),
+            durable=durable or SQLiteJobRepository(),
+            executors=ExecutorsPool(
+                _threadpool=threadpool_executor,
+                _processpool=processpool_executor,
+            ),
+            serializer=serializer or AstLiteralSerializer(),
+            asyncio_tasks=set(),
+            extras={},
+        )
+        self._func_registered: dict[str, FuncWrapper[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
         self._jobs_registered: list[Job[Any]] = []  # pyright: ignore[reportExplicitAny]
-        self._asyncio_tasks: list[asyncio.Task[Any]] = []  # pyright: ignore[reportExplicitAny]
-        self._extras: JobExtras = {}
 
     @overload
     def register(self, func: Callable[_P, _R]) -> FuncWrapper[_P, _R]: ...
@@ -93,14 +94,10 @@ class JobScheduler:
         def wrapper(func: Callable[_P, _R]) -> FuncWrapper[_P, _R]:
             fname = func_name or create_default_name(func)
             fwrapper = FuncWrapper(
-                tz=self._tz,
-                loop=self._loop,
-                serializer=self._serializer,
-                durable=self._durable,
                 func_name=fname,
+                inner_deps=self._inner_deps,
                 original_func=func,
-                asyncio_tasks=self._asyncio_tasks,
-                extras=self._extras,
+                jobs_registered=self._jobs_registered,
             )
             _ = functools.update_wrapper(fwrapper, func)
             self._func_registered[fname] = fwrapper
@@ -109,4 +106,4 @@ class JobScheduler:
         return wrapper
 
     def shutdown(self) -> None:
-        self._executors.shutdown()
+        self._inner_deps.close()

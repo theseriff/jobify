@@ -23,11 +23,6 @@ async def f2(num: int) -> int:
     return num + 1
 
 
-@pytest.fixture(scope="session")
-async def scheduler() -> JobScheduler:
-    return JobScheduler()
-
-
 @pytest.mark.parametrize(
     "execution_mode",
     [
@@ -78,7 +73,11 @@ async def test_scheduler(  # noqa: PLR0913
         raise NotImplementedError
 
     _ = await asyncio.gather(job_sync.wait(), job_async.wait())
+    if method == "cron":
+        job_sync.cancel()
+        job_async.cancel()
+
     assert job_sync.result() == expected
     assert job_async.result() == expected
-    assert scheduler._asyncio_tasks == []
+    assert scheduler._inner_deps.asyncio_tasks == set()
     assert scheduler._jobs_registered == []
