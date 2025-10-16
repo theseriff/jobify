@@ -4,15 +4,13 @@ import asyncio
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
 
     from iojobs._internal.durable.abc import JobRepository
     from iojobs._internal.serializers.abc import JobsSerializer
-
-_R = TypeVar("_R")
 
 
 @dataclass(slots=True, kw_only=True)
@@ -41,14 +39,14 @@ class ExecutorsPool:
 
 
 @dataclass(slots=True, kw_only=True)
-class JobInnerDeps(Generic[_R]):
+class JobInnerDeps:
     _loop: asyncio.AbstractEventLoop | None
     tz: ZoneInfo
     durable: JobRepository
     executors: ExecutorsPool
     serializer: JobsSerializer
-    asyncio_tasks: set[asyncio.Task[_R]]
-    extras: dict[str, _R]
+    asyncio_tasks: set[asyncio.Task[Any]]  # pyright: ignore[reportExplicitAny]
+    extras: dict[str, Any]  # pyright: ignore[reportExplicitAny]
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:

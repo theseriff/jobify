@@ -153,12 +153,12 @@ class JobRunner(ABC, Generic[_R]):
         self,
         *,
         func_name: str,
-        inner_deps: JobInnerDeps[_R],
+        inner_deps: JobInnerDeps,
         func_injected: Callable[..., Awaitable[_R] | _R],
         jobs_registered: list[Job[_R]],
     ) -> None:
         self._func_name: str = func_name
-        self._inner_deps: JobInnerDeps[_R] = inner_deps
+        self._inner_deps: JobInnerDeps = inner_deps
         self._func_injected: Callable[..., Awaitable[_R] | _R] = func_injected
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
@@ -358,7 +358,7 @@ class JobRunnerSync(JobRunner[_R]):
         self,
         *,
         func_name: str,
-        inner_deps: JobInnerDeps[_R],
+        inner_deps: JobInnerDeps,
         func_injected: Callable[..., _R],
         jobs_registered: list[Job[_R]],
     ) -> None:
@@ -405,7 +405,7 @@ class JobRunnerAsync(JobRunner[_R]):
         self,
         *,
         func_name: str,
-        inner_deps: JobInnerDeps[_R],
+        inner_deps: JobInnerDeps,
         func_injected: Callable[..., _R],
         jobs_registered: list[Job[_R]],
     ) -> None:

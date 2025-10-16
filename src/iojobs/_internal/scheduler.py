@@ -40,7 +40,7 @@ class JobScheduler:
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
     ) -> None:
-        self._inner_deps: JobInnerDeps[Any] = JobInnerDeps(  # pyright: ignore[reportExplicitAny]
+        self._inner_deps: JobInnerDeps = JobInnerDeps(
             _loop=loop,
             tz=tz or ZoneInfo("UTC"),
             durable=durable or SQLiteJobRepository(),

@@ -14,6 +14,7 @@ init:
   uv sync --group dev
 
 
+# Pre-commit
 [doc("Install pre-commit hooks")]
 [group("pre-commit")]
 pre-commit-install:
@@ -26,26 +27,26 @@ pre-commit-all:
 
 
 # Linter
-_linter *params:
+_setup_lint *params:
   uv run --no-dev --group lint --active --frozen {{params}}
 
 [doc("Ruff format")]
 [group("linter")]
 ruff-format *params:
-  just _linter ruff format {{params}}
+  just _setup_lint ruff format {{params}}
 
 [doc("Ruff check")]
 [group("linter")]
 ruff-check *params:
-  just _linter ruff check --exit-non-zero-on-fix {{params}}
+  just _setup_lint ruff check --exit-non-zero-on-fix {{params}}
 
 _codespell:
-  just _linter codespell
+  just _setup_lint codespell
 
 [doc("Check typos")]
 [group("linter")]
 typos: _codespell
-  just _linter pre-commit run --all-files typos
+  just _setup_lint pre-commit run --all-files typos
 
 [doc("Linter run")]
 [group("linter")]
@@ -53,33 +54,33 @@ linter: ruff-format ruff-check _codespell
 
 
 # Static analysis
-_static-analysis *params:
+_setup_static *params:
   uv run --no-dev --group lint --active --frozen {{params}}
 
 [doc("Mypy check")]
 [group("static analysis")]
 mypy *params:
-  just _static-analysis mypy {{params}}
+  just _setup_static mypy {{params}}
 
 [doc("Basedpyright check")]
 [group("static analysis")]
 basedpyright *params:
-  just _static-analysis basedpyright --warnings --project pyproject.toml {{params}}
+  just _setup_static basedpyright --warnings --project pyproject.toml {{params}}
 
 [doc("Bandit check")]
 [group("static analysis")]
 bandit:
-  just _static-analysis bandit -c pyproject.toml -r src
+  just _setup_static bandit -c pyproject.toml -r src
 
 [doc("Semgrep check")]
 [group("static analysis")]
 semgrep:
-  just _static-analysis semgrep scan --config auto --error src
+  just _setup_static semgrep scan --config auto --error src
 
 [doc("Zizmor check")]
 [group("static analysis")]
 zizmor:
-  just _static-analysis zizmor .
+  just _setup_static zizmor .
 
 [doc("Static analysis check")]
 [group("static analysis")]
@@ -87,15 +88,15 @@ static-analysis: mypy basedpyright bandit semgrep
 
 
 # Tests
-_test *params:
+_setup_test *params:
   uv run --no-dev --group test --active --frozen pytest {{params}}
 
 [doc("Run all tests")]
 [group("tests")]
 test-all +param="tests/":
-  just _test {{param}}
+  just _setup_test {{param}}
 
 [doc("Run all tests with coverage")]
 [group("tests")]
 test-coverage-all +param="tests/":
-  just _test {{param}} --cov --cov-report=term:skip-covered
+  just _setup_test {{param}} --cov --cov-report=term:skip-covered

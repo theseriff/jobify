@@ -37,12 +37,12 @@ class FuncWrapper(Generic[_P, _R]):
         self,
         *,
         func_name: str,
-        inner_deps: JobInnerDeps[_R],
+        inner_deps: JobInnerDeps,
         original_func: Callable[_P, _R],
         jobs_registered: list[Job[_R]],
     ) -> None:
         self._func_name: str = func_name
-        self._inner_deps: JobInnerDeps[_R] = inner_deps
+        self._inner_deps: JobInnerDeps = inner_deps
         self._jobs_registered: list[Job[_R]] = jobs_registered
         self._original_func: Callable[_P, _R] = original_func
         # This is a hack to make ProcessPoolExecutor work
