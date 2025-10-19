@@ -1,5 +1,4 @@
 # pyright: reportPrivateUsage=false
-from datetime import datetime
 from unittest import mock
 
 import pytest
@@ -18,7 +17,6 @@ async def test_job(scheduler: JobScheduler) -> None:
     job2 = await t.schedule(1).delay(0.01)
     assert str(job1).startswith(f"Job(instance_id={id(job1)}")
     assert str(job2).startswith(f"Job(instance_id={id(job2)}")
-    assert job2 > job1
 
     await job1.wait()
     with pytest.warns(RuntimeWarning, match="Job is already done"):
@@ -27,7 +25,7 @@ async def test_job(scheduler: JobScheduler) -> None:
     job2.cancel()
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELED
-    assert job2 not in job2._job_registered
+    assert job2.id not in job2._job_registered
     assert job2._timer_handler.cancelled()
 
 
@@ -78,21 +76,3 @@ async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:
 
     total_calls = 3
     mock_print_exc.assert_has_calls([mock.call() for _ in range(total_calls)])
-
-
-async def test_job_runner_cron_parser_non_empty(
-    scheduler: JobScheduler,
-    now: datetime,
-) -> None:
-    @scheduler.register(func_name="t")
-    def t(num: int) -> int:
-        return 10 // num
-
-    mock_parser = mock.MagicMock()
-    mock_parser.next_run.return_value = now
-    job_schedule = t.schedule(1)
-    job_schedule._cron_parser = mock_parser
-
-    job = await job_schedule.cron("* * * * *", now=now)
-    await job.wait()
-    assert job_schedule._is_cron is True

@@ -61,4 +61,4 @@ def test_patch_func_name(scheduler: JobScheduler) -> None:
     assert t._original_func.__qualname__ == new_qualname
     assert t1_reg._original_func.__qualname__ == new_qualname
     assert t2_reg._original_func.__qualname__ == new_qualname
-    assert t1_reg is not t2_reg is not t
+    assert t1_reg is t2_reg is t

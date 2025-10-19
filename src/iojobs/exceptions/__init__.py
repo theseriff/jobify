@@ -9,7 +9,6 @@ from iojobs._internal.exceptions import (
     IOJobsBaseError,
     JobFailedError,
     JobNotCompletedError,
-    JobNotInitializedError,
     NegativeDelayError,
 )
 
@@ -17,6 +16,5 @@ __all__ = (
     "IOJobsBaseError",
     "JobFailedError",
     "JobNotCompletedError",
-    "JobNotInitializedError",
     "NegativeDelayError",
 )

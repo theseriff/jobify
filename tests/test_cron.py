@@ -28,9 +28,9 @@ async def test_cron_reschedule(scheduler: JobScheduler, now: datetime) -> None:
     with mock.patch.object(CronParser, "next_run", return_value=now):
         job = await t.schedule("Biba").cron("* * * * *", now=now)
 
-    prev_job_id = job.job_id
+    prev_job_id = job.id
     await job.wait()
-    new_job_id = job.job_id
+    new_job_id = job.id
 
     assert job.result() == "hello, Biba!"
     assert prev_job_id != new_job_id

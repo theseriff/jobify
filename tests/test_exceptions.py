@@ -6,7 +6,6 @@ import pytest
 from iojobs import JobScheduler
 from iojobs._internal.exceptions import (
     JobNotCompletedError,
-    JobNotInitializedError,
     NegativeDelayError,
 )
 
@@ -38,8 +37,3 @@ async def test_job_not_completed() -> None:
 async def test_negative_delay() -> None:
     with pytest.raises(NegativeDelayError, match="Negative delay_seconds"):
         _ = await f1.schedule(2).delay(-1)
-
-
-async def test_job_not_initialized() -> None:
-    with pytest.raises(JobNotInitializedError, match="Job is not initialized"):
-        _ = f1.schedule(2).job

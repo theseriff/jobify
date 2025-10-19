@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-import asyncio
 import functools
 import os
 import sys
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
-from iojobs._internal.job_runner import JobRunnerAsync, JobRunnerSync
+from iojobs._internal.job_runner import JobRunner
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
 
     from iojobs._internal._inner_deps import JobInnerDeps
-    from iojobs._internal.job_runner import Job, JobRunner
+    from iojobs._internal.job_runner import Job
 
 
 _P = ParamSpec("_P")
@@ -39,11 +38,11 @@ class FuncWrapper(Generic[_P, _R]):
         func_name: str,
         inner_deps: JobInnerDeps,
         original_func: Callable[_P, _R],
-        jobs_registered: list[Job[_R]],
+        jobs_registered: dict[str, Job[_R]],
     ) -> None:
         self._func_name: str = func_name
         self._inner_deps: JobInnerDeps = inner_deps
-        self._jobs_registered: list[Job[_R]] = jobs_registered
+        self._jobs_registered: dict[str, Job[_R]] = jobs_registered
         self._original_func: Callable[_P, _R] = original_func
         # This is a hack to make ProcessPoolExecutor work
         # with decorated functions.
@@ -86,14 +85,14 @@ class FuncWrapper(Generic[_P, _R]):
         self: FuncWrapper[_P, CoroutineType[object, object, _T]],
         *args: _P.args,
         **kwargs: _P.kwargs,
-    ) -> JobRunnerAsync[_T]: ...
+    ) -> JobRunner[_T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_P, Coroutine[object, object, _T]],
         *args: _P.args,
         **kwargs: _P.kwargs,
-    ) -> JobRunnerAsync[_T]: ...
+    ) -> JobRunner[_T]: ...
 
     @overload
     def schedule(
@@ -104,18 +103,9 @@ class FuncWrapper(Generic[_P, _R]):
 
     def schedule(self, *args: _P.args, **kwargs: _P.kwargs) -> JobRunner[Any]:  # pyright: ignore[reportExplicitAny]
         func_injected = functools.partial(self._original_func, *args, **kwargs)
-        return (
-            JobRunnerAsync(
-                func_name=self._func_name,
-                inner_deps=self._inner_deps,
-                func_injected=func_injected,
-                jobs_registered=self._jobs_registered,
-            )
-            if asyncio.iscoroutinefunction(func_injected)
-            else JobRunnerSync(
-                func_name=self._func_name,
-                inner_deps=self._inner_deps,
-                func_injected=func_injected,
-                jobs_registered=self._jobs_registered,
-            )
+        return JobRunner(
+            func_name=self._func_name,
+            inner_deps=self._inner_deps,
+            func_injected=func_injected,
+            jobs_registered=self._jobs_registered,
         )

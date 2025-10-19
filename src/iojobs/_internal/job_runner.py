@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import heapq
 import traceback
 import warnings
-from abc import ABC, abstractmethod
+from abc import ABC
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
 from uuid import uuid4
@@ -23,7 +22,6 @@ from iojobs._internal.enums import ExecutionMode, JobStatus
 from iojobs._internal.exceptions import (
     JobFailedError,
     JobNotCompletedError,
-    JobNotInitializedError,
     NegativeDelayError,
 )
 
@@ -32,6 +30,13 @@ if TYPE_CHECKING:
 
     from iojobs._internal._inner_deps import JobInnerDeps
     from iojobs._internal.command_runner import CommandRunner
+
+
+ASYNC_FUNC_IGNORED_WARNING = """\
+Method {fname!r} is ignored for async functions. \
+Use it only with synchronous functions. \
+Async functions are already executed in the event loop.
+"""
 
 _R = TypeVar("_R")
 
@@ -44,50 +49,43 @@ class Job(Generic[_R]):
         "_job_registered",
         "_result",
         "_timer_handler",
-        "exec_at_timestamp",
+        "exec_at",
         "func_name",
-        "job_id",
+        "id",
         "status",
     )
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         job_id: str,
-        exec_at_timestamp: float,
+        exec_at: datetime,
         func_name: str,
-        timer_handler: asyncio.TimerHandle,
-        job_registered: list[Job[_R]],
+        job_registered: dict[str, Job[_R]],
         job_status: JobStatus,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
-        self._job_registered: list[Job[_R]] = job_registered
+        self._job_registered: dict[str, Job[_R]] = job_registered
         self._result: _R = EMPTY
         self._exception: Exception = EMPTY
         self._is_was_waiting: bool = False
-        self._timer_handler: asyncio.TimerHandle = timer_handler
-        self.exec_at_timestamp: float = exec_at_timestamp
+        self._timer_handler: asyncio.TimerHandle = EMPTY
+        self.exec_at: datetime = exec_at
         self.func_name: str = func_name
-        self.job_id: str = job_id
         self.status: JobStatus = job_status
+        self.id: str = job_id
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__qualname__}("
             f"instance_id={id(self)}, "
-            f"exec_at_timestamp={self.exec_at_timestamp}, "
-            f"func_name={self.func_name}, job_id={self.job_id})"
+            f"exec_at={self.exec_at.isoformat()}, "
+            f"func_name={self.func_name}, job_id={self.id})"
         )
-
-    def __lt__(self, other: Job[_R]) -> bool:
-        return self.exec_at_timestamp < other.exec_at_timestamp
-
-    def __gt__(self, other: Job[_R]) -> bool:
-        return self.exec_at_timestamp > other.exec_at_timestamp
 
     def result(self) -> _R:
         if self._result is FAILED:
-            raise JobFailedError(self.job_id, reason=str(self._exception))
+            raise JobFailedError(self.id, reason=str(self._exception))
         if self._result is EMPTY:
             raise JobNotCompletedError
         return self._result
@@ -102,15 +100,15 @@ class Job(Generic[_R]):
         self,
         *,
         job_id: str,
-        exec_at_timestamp: float,
-        timer_handler: asyncio.TimerHandle,
+        exec_at: datetime,
         job_status: JobStatus,
+        time_handler: asyncio.TimerHandle,
     ) -> None:
         self._event = asyncio.Event()
         self._is_was_waiting = False
-        self._timer_handler = timer_handler
-        self.exec_at_timestamp = exec_at_timestamp
-        self.job_id = job_id
+        self._timer_handler = time_handler
+        self.id = job_id
+        self.exec_at = exec_at
         self.status = job_status
 
     def is_done(self) -> bool:
@@ -129,11 +127,19 @@ class Job(Generic[_R]):
         self._is_was_waiting = True
 
     def cancel(self) -> None:
+        _ = self._job_registered.pop(self.id, None)
         self.status = JobStatus.CANCELED
         self._timer_handler.cancel()
-        with contextlib.suppress(ValueError):
-            self._job_registered.remove(self)
         self._event.set()
+
+
+@dataclass(slots=True, kw_only=True)
+class RunnerContext(Generic[_R]):
+    job: Job[_R]
+    cmd: CommandRunner[_R]
+    execution_mode: ExecutionMode
+    cron_parser: CronParser | None
+    asyncio_task: asyncio.Task[_R] = EMPTY
 
 
 class JobRunner(ABC, Generic[_R]):
@@ -142,8 +148,6 @@ class JobRunner(ABC, Generic[_R]):
         "_func_injected",
         "_func_name",
         "_inner_deps",
-        "_is_cron",
-        "_job",
         "_jobs_registered",
         "_on_error_callback",
         "_on_success_callback",
@@ -155,64 +159,33 @@ class JobRunner(ABC, Generic[_R]):
         func_name: str,
         inner_deps: JobInnerDeps,
         func_injected: Callable[..., Awaitable[_R] | _R],
-        jobs_registered: list[Job[_R]],
+        jobs_registered: dict[str, Job[_R]],
     ) -> None:
         self._func_name: str = func_name
         self._inner_deps: JobInnerDeps = inner_deps
         self._func_injected: Callable[..., Awaitable[_R] | _R] = func_injected
         self._on_success_callback: list[Callable[[_R], None]] = []
         self._on_error_callback: list[Callable[[Exception], None]] = []
-        self._job: Job[_R] | None = None
         self._jobs_registered: Final = jobs_registered
         self._cron_parser: CronParser = EMPTY
-        self._is_cron: bool = False
-
-    @property
-    def job(self) -> Job[_R]:
-        if self._job is None:
-            raise JobNotInitializedError
-        return self._job
-
-    @abstractmethod
-    def _execute(self, execution_mode: ExecutionMode) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _to_thread_validate(self) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _to_process_validate(self) -> None:
-        raise NotImplementedError
 
     async def cron(
         self,
         expression: str,
         /,
         *,
-        now: datetime = EMPTY,
+        now: datetime | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_R]:
-        self._is_cron = True
-        if self._cron_parser is EMPTY:
-            self._cron_parser = CronParser(expression=expression)
-        return await self._schedule_cron(
-            now=now or datetime.now(tz=self._inner_deps.tz),
-            execution_mode=execution_mode,
-        )
-
-    async def _schedule_cron(
-        self,
-        *,
-        now: datetime,
-        execution_mode: ExecutionMode,
-    ) -> Job[_R]:
-        next_run = self._cron_parser.next_run(now=now)
+        now = now or datetime.now(tz=self._inner_deps.tz)
+        cron_parser = CronParser(expression=expression)
+        next_at = cron_parser.next_run(now=now)
         return await self._at(
-            at=next_run,
             now=now,
-            job_id=EMPTY,
-            execution_mode=execution_mode,
+            at=next_at,
+            job_id=uuid4().hex,
+            exec_mode=execution_mode,
+            cron_parser=cron_parser,
         )
 
     async def delay(
@@ -220,8 +193,8 @@ class JobRunner(ABC, Generic[_R]):
         delay_seconds: float,
         /,
         *,
-        now: datetime = EMPTY,
-        job_id: str = EMPTY,
+        now: datetime | None = None,
+        job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_R]:
         now = now or datetime.now(tz=self._inner_deps.tz)
@@ -229,8 +202,8 @@ class JobRunner(ABC, Generic[_R]):
         return await self._at(
             now=now,
             at=at,
-            job_id=job_id,
-            execution_mode=execution_mode,
+            job_id=job_id or uuid4().hex,
+            exec_mode=execution_mode,
         )
 
     async def at(
@@ -238,16 +211,15 @@ class JobRunner(ABC, Generic[_R]):
         at: datetime,
         /,
         *,
-        now: datetime = EMPTY,
-        job_id: str = EMPTY,
+        now: datetime | None = None,
+        job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_R]:
-        now = now or datetime.now(tz=at.tzinfo)
         return await self._at(
-            now=now,
+            now=now or datetime.now(tz=at.tzinfo),
             at=at,
-            job_id=job_id,
-            execution_mode=execution_mode,
+            job_id=job_id or uuid4().hex,
+            exec_mode=execution_mode,
         )
 
     async def _at(
@@ -256,50 +228,77 @@ class JobRunner(ABC, Generic[_R]):
         now: datetime,
         at: datetime,
         job_id: str,
-        execution_mode: ExecutionMode,
+        exec_mode: ExecutionMode,
+        cron_parser: CronParser | None = None,
     ) -> Job[_R]:
-        if execution_mode is ExecutionMode.PROCESS:
-            self._to_process_validate()
-        elif execution_mode is ExecutionMode.THREAD:
-            self._to_thread_validate()
+        delay_seconds = self._calculate_delay_seconds(now=now, at=at)
+        cmd = self._get_runner_cmd(exec_mode)
+        job = Job(
+            exec_at=at,
+            func_name=self._func_name,
+            job_id=job_id,
+            job_registered=self._jobs_registered,
+            job_status=JobStatus.SCHEDULED,
+        )
+        runner_ctx = RunnerContext(
+            job=job,
+            cmd=cmd,
+            cron_parser=cron_parser,
+            execution_mode=exec_mode,
+        )
+        loop = self._inner_deps.loop
+        when = loop.time() + delay_seconds
+        time_handler = loop.call_at(when, self._execute, runner_ctx)
+        job._timer_handler = time_handler
+        self._jobs_registered[job_id] = job
+        return job
 
+    def _calculate_delay_seconds(
+        self,
+        now: datetime,
+        at: datetime,
+    ) -> float:
         now_timestamp = now.timestamp()
         at_timestamp = at.timestamp()
         delay_seconds = at_timestamp - now_timestamp
         if delay_seconds < 0:
             raise NegativeDelayError(delay_seconds)
+        return delay_seconds
 
+    def _get_runner_cmd(self, exec_mode: ExecutionMode) -> CommandRunner[_R]:
+        cmd: CommandRunner[_R]
+        if asyncio.iscoroutinefunction(self._func_injected):
+            cmd = AsyncRunner(self._func_injected)
+            if exec_mode is ExecutionMode.MAIN:
+                return cmd
+            if exec_mode is ExecutionMode.PROCESS:
+                warn = ASYNC_FUNC_IGNORED_WARNING.format(fname="to_process")
+            else:
+                warn = ASYNC_FUNC_IGNORED_WARNING.format(fname="to_thread")
+            warnings.warn(warn, category=RuntimeWarning, stacklevel=2)
+            return cmd
+
+        func_injected = cast("Callable[..., _R]", self._func_injected)
+
+        if exec_mode is ExecutionMode.MAIN:
+            return SyncRunner(func_injected)
+        executor = (
+            self._inner_deps.executors.processpool
+            if exec_mode is ExecutionMode.PROCESS
+            else self._inner_deps.executors.threadpool
+        )
         loop = self._inner_deps.loop
-        when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._execute, execution_mode)
-        if self._job and self._is_cron:
-            job = self._job
-            job._update(
-                job_id=uuid4().hex,
-                exec_at_timestamp=at_timestamp,
-                timer_handler=time_handler,
-                job_status=JobStatus.SCHEDULED,
-            )
-        else:
-            job = Job[_R](
-                exec_at_timestamp=at_timestamp,
-                func_name=self._func_name,
-                job_id=job_id or uuid4().hex,
-                timer_handler=time_handler,
-                job_registered=self._jobs_registered,
-                job_status=JobStatus.SCHEDULED,
-            )
-            self._job = job
-        heapq.heappush(self._jobs_registered, job)
-        return job
+        return ExecutorPoolRunner(func_injected, executor, loop)
 
-    async def _runner(
-        self,
-        *,
-        cmd: CommandRunner[_R],
-        exec_mode: ExecutionMode,
-    ) -> _R:
-        job = self.job
+    def _execute(self, runner_ctx: RunnerContext[_R]) -> None:
+        task = asyncio.create_task(self._runner(runner_ctx=runner_ctx))
+        runner_ctx.asyncio_task = task
+        self._inner_deps.asyncio_tasks.add(task)
+
+    async def _runner(self, *, runner_ctx: RunnerContext[_R]) -> _R:
+        job = runner_ctx.job
+        cmd = runner_ctx.cmd
+        task = runner_ctx.asyncio_task
         try:
             result = await cmd.run()
         except Exception as exc:
@@ -315,15 +314,28 @@ class JobRunner(ABC, Generic[_R]):
             self._run_hooks_success(result)
             return result
         finally:
-            _ = heapq.heappop(self._jobs_registered)
-            task = cast("asyncio.Task[_R]", asyncio.current_task())
+            _ = self._jobs_registered.pop(job.id)
             self._inner_deps.asyncio_tasks.discard(task)
-            self.job._event.set()
-            if self._is_cron:
-                _ = await self._schedule_cron(
-                    now=datetime.now(tz=self._inner_deps.tz),
-                    execution_mode=exec_mode,
-                )
+            job._event.set()
+            if runner_ctx.cron_parser:
+                await self._reschedule_cron(runner_ctx)
+
+    async def _reschedule_cron(self, runner_ctx: RunnerContext[_R]) -> None:
+        cron_parser = cast("CronParser", runner_ctx.cron_parser)
+        now = datetime.now(tz=self._inner_deps.tz)
+        next_at = cron_parser.next_run(now=now)
+        delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
+        loop = self._inner_deps.loop
+        when = loop.time() + delay_seconds
+        time_handler = loop.call_at(when, self._execute, runner_ctx)
+        job = runner_ctx.job
+        job._update(
+            job_id=uuid4().hex,
+            exec_at=next_at,
+            time_handler=time_handler,
+            job_status=JobStatus.SCHEDULED,
+        )
+        self._jobs_registered[job.id] = job
 
     def on_success(self, *callbacks: Callable[[_R], None]) -> JobRunner[_R]:
         self._on_success_callback.extend(callbacks)
@@ -349,100 +361,3 @@ class JobRunner(ABC, Generic[_R]):
                 call_error(exc)
             except Exception:  # noqa: BLE001, PERF203
                 traceback.print_exc()
-
-
-class JobRunnerSync(JobRunner[_R]):
-    _func_injected: Callable[..., _R]
-
-    def __init__(
-        self,
-        *,
-        func_name: str,
-        inner_deps: JobInnerDeps,
-        func_injected: Callable[..., _R],
-        jobs_registered: list[Job[_R]],
-    ) -> None:
-        super().__init__(
-            func_name=func_name,
-            inner_deps=inner_deps,
-            jobs_registered=jobs_registered,
-            func_injected=func_injected,
-        )
-
-    def _execute(self, execution_mode: ExecutionMode) -> None:
-        executor = EMPTY
-        match execution_mode:
-            case ExecutionMode.PROCESS:
-                executor = self._inner_deps.executors.processpool
-            case ExecutionMode.THREAD:
-                executor = self._inner_deps.executors.threadpool
-            case _:
-                pass
-
-        cmd: ExecutorPoolRunner[_R] | SyncRunner[_R]
-        if executor is not EMPTY:
-            loop = self._inner_deps.loop
-            cmd = ExecutorPoolRunner(self._func_injected, executor, loop)
-        else:
-            cmd = SyncRunner(self._func_injected)
-
-        task = asyncio.create_task(
-            self._runner(cmd=cmd, exec_mode=execution_mode),
-        )
-        self._inner_deps.asyncio_tasks.add(task)
-
-    def _to_thread_validate(self) -> None:
-        pass
-
-    def _to_process_validate(self) -> None:
-        pass
-
-
-class JobRunnerAsync(JobRunner[_R]):
-    _func_injected: Callable[..., Awaitable[_R]]
-
-    def __init__(
-        self,
-        *,
-        func_name: str,
-        inner_deps: JobInnerDeps,
-        func_injected: Callable[..., _R],
-        jobs_registered: list[Job[_R]],
-    ) -> None:
-        super().__init__(
-            func_name=func_name,
-            inner_deps=inner_deps,
-            jobs_registered=jobs_registered,
-            func_injected=func_injected,
-        )
-
-    def _execute(self, execution_mode: ExecutionMode) -> None:
-        if execution_mode is not ExecutionMode.MAIN:
-            pass  # In async functions, runs only in the ExecutionMode.MAIN
-
-        cmd = AsyncRunner(self._func_injected)
-        task = asyncio.create_task(
-            self._runner(cmd=cmd, exec_mode=execution_mode),
-        )
-        self._inner_deps.asyncio_tasks.add(task)
-
-    def _to_thread_validate(self) -> None:
-        warnings.warn(
-            ASYNC_FUNC_IGNORED_WARNING.format(fname="to_thread"),
-            category=RuntimeWarning,
-            stacklevel=2,
-        )
-
-    def _to_process_validate(self) -> None:
-        warnings.warn(
-            ASYNC_FUNC_IGNORED_WARNING.format(fname="to_process"),
-            category=RuntimeWarning,
-            stacklevel=2,
-        )
-
-
-ASYNC_FUNC_IGNORED_WARNING = """\
-Method {fname!r} is ignored for async functions. \
-Use it only with synchronous functions. \
-Async functions are already executed in the event loop.
-"""

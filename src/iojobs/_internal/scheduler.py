@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 from zoneinfo import ZoneInfo
 
 from iojobs._internal._inner_deps import ExecutorsPool, JobInnerDeps
@@ -53,7 +53,7 @@ class JobScheduler:
             extras={},
         )
         self._func_registered: dict[str, FuncWrapper[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
-        self._jobs_registered: list[Job[Any]] = []  # pyright: ignore[reportExplicitAny]
+        self._jobs_registered: dict[str, Job[Any]] = {}  # pyright: ignore[reportExplicitAny]
 
     @overload
     def register(self, func: Callable[_P, _R]) -> FuncWrapper[_P, _R]: ...
@@ -93,6 +93,8 @@ class JobScheduler:
     ) -> Callable[[Callable[_P, _R]], FuncWrapper[_P, _R]]:
         def wrapper(func: Callable[_P, _R]) -> FuncWrapper[_P, _R]:
             fname = func_name or create_default_name(func)
+            if fwrapper := self._func_registered.get(fname):
+                return cast("FuncWrapper[_P, _R]", fwrapper)
             fwrapper = FuncWrapper(
                 func_name=fname,
                 inner_deps=self._inner_deps,

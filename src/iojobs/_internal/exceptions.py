@@ -36,17 +36,3 @@ class NegativeDelayError(IOJobsBaseError):
     ) -> None:
         super().__init__(message.format(delay_seconds=delay_seconds))
         self.delay_seconds: float = delay_seconds
-
-
-class JobNotInitializedError(IOJobsBaseError):
-    """Raised when job components are accessed before initialization."""
-
-    def __init__(
-        self,
-        message: str = (
-            "Job is not initialized. "
-            "Ensure the job has been properly created and configured "
-            "before accessing its properties."
-        ),
-    ) -> None:
-        super().__init__(message)
