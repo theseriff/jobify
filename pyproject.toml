@@ -50,12 +50,12 @@ dependencies = [
 [dependency-groups]
 lint = [
     "mypy==1.18.2",
-    "ruff==0.14.0",
+    "ruff==0.14.2",
     "bandit==1.8.6",
-    "zizmor==1.15.2",
-    "semgrep==1.139.0",
+    "zizmor==1.16.0",
+    "semgrep==1.141.0",
     "codespell==2.4.1",
-    "basedpyright==1.31.7",
+    "basedpyright==1.32.1",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-setuptools",
@@ -70,7 +70,7 @@ test = [
 ]
 docs = [
     "mkdocs==1.6.1",
-    "mkdocs-material==9.6.21",
+    "mkdocs-material==9.6.22",
     "mkdocstrings[python]==0.30.1",
 ]
 dev = [
