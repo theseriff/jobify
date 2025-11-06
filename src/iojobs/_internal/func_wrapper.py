@@ -36,15 +36,15 @@ class FuncWrapper(Generic[_P, _R]):
         self,
         *,
         func_name: str,
-        inner_deps: JobInnerContext,
+        inner_ctx: JobInnerContext,
         original_func: Callable[_P, _R],
         jobs_registered: dict[str, Job[_R]],
     ) -> None:
         self._func_name: str = func_name
-        self._inner_deps: JobInnerContext = inner_deps
+        self._inner_ctx: JobInnerContext = inner_ctx
         self._jobs_registered: dict[str, Job[_R]] = jobs_registered
-        self._on_success_callback: list[Callable[[_R], None]] = []
-        self._on_error_callback: list[Callable[[Exception], None]] = []
+        self._on_success_hooks: list[Callable[[_R], None]] = []
+        self._on_error_hooks: list[Callable[[Exception], None]] = []
         self._original_func: Callable[_P, _R] = original_func
         # This is a hack to make ProcessPoolExecutor work
         # with decorated functions.
@@ -107,7 +107,9 @@ class FuncWrapper(Generic[_P, _R]):
         func_injected = functools.partial(self._original_func, *args, **kwargs)
         return JobRunner(
             func_name=self._func_name,
-            inner_deps=self._inner_deps,
+            inner_ctx=self._inner_ctx,
             func_injected=func_injected,
             jobs_registered=self._jobs_registered,
+            on_success_hooks=self._on_success_hooks,
+            on_error_hooks=self._on_error_hooks,
         )

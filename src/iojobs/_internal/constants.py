@@ -1,8 +1,24 @@
 # pyright: reportExplicitAny=false
+from enum import Enum, unique
 from typing import Any
 
 
-class EmptyPlaceholder:
+@unique
+class ExecutionMode(str, Enum):
+    MAIN = "main"
+    THREAD = "thread"
+    PROCESS = "process"
+
+
+@unique
+class JobStatus(str, Enum):
+    SCHEDULED = "scheduled"
+    CANCELED = "canceled"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class EmptyPlaceholder:  # pragma: no cover
     def __repr__(self) -> str:
         return "EMPTY"
 

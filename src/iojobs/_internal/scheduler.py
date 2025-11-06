@@ -11,7 +11,7 @@ from iojobs._internal.serializers.ast_literal import AstLiteralSerializer
 
 if TYPE_CHECKING:
     import asyncio
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
     from iojobs._internal.durable.abc import JobRepository
@@ -97,7 +97,7 @@ class JobScheduler:
                 return cast("FuncWrapper[_P, _R]", fwrapper)
             fwrapper = FuncWrapper(
                 func_name=fname,
-                inner_deps=self._inner_ctx,
+                inner_ctx=self._inner_ctx,
                 original_func=func,
                 jobs_registered=self._jobs_registered,
             )
@@ -107,5 +107,83 @@ class JobScheduler:
 
         return wrapper
 
-    def shutdown(self) -> None:
+    @overload
+    def register_on_success_hooks(
+        self,
+        fwrap: FuncWrapper[_P, _R],
+        *,
+        hooks: Iterable[Callable[[_R], None]],
+    ) -> FuncWrapper[_P, _R]: ...
+
+    @overload
+    def register_on_success_hooks(
+        self,
+        *,
+        hooks: Iterable[Callable[[_R], None]],
+    ) -> Callable[[FuncWrapper[_P, _R]], FuncWrapper[_P, _R]]: ...
+
+    def register_on_success_hooks(
+        self,
+        fwrap: FuncWrapper[_P, _R] | None = None,
+        *,
+        hooks: Iterable[Callable[[_R], None]],
+    ) -> (
+        FuncWrapper[_P, _R]
+        | Callable[[FuncWrapper[_P, _R]], FuncWrapper[_P, _R]]
+    ):
+        f = self._register_on_success_hooks(hooks)
+        if callable(fwrap):
+            return f(fwrap)
+        return f
+
+    def _register_on_success_hooks(
+        self,
+        callbacks: Iterable[Callable[[_R], None]],
+    ) -> Callable[[FuncWrapper[_P, _R]], FuncWrapper[_P, _R]]:
+        def wrapper(fwrap: FuncWrapper[_P, _R]) -> FuncWrapper[_P, _R]:
+            fwrap._on_success_hooks.extend(callbacks)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+            return fwrap
+
+        return wrapper
+
+    @overload
+    def register_on_error_hooks(
+        self,
+        fwrap: FuncWrapper[_P, _R],
+        *,
+        hooks: Iterable[Callable[[Exception], None]],
+    ) -> FuncWrapper[_P, _R]: ...
+
+    @overload
+    def register_on_error_hooks(
+        self,
+        *,
+        hooks: Iterable[Callable[[Exception], None]],
+    ) -> Callable[[FuncWrapper[_P, _R]], FuncWrapper[_P, _R]]: ...
+
+    def register_on_error_hooks(
+        self,
+        fwrap: FuncWrapper[_P, _R] | None = None,
+        *,
+        hooks: Iterable[Callable[[Exception], None]],
+    ) -> (
+        FuncWrapper[_P, _R]
+        | Callable[[FuncWrapper[_P, _R]], FuncWrapper[_P, _R]]
+    ):
+        f = self._register_on_error_hooks(hooks)
+        if callable(fwrap):
+            return f(fwrap)
+        return f
+
+    def _register_on_error_hooks(
+        self,
+        callbacks: Iterable[Callable[[Exception], None]],
+    ) -> Callable[[FuncWrapper[_P, _R]], FuncWrapper[_P, _R]]:
+        def wrapper(fwrap: FuncWrapper[_P, _R]) -> FuncWrapper[_P, _R]:
+            fwrap._on_error_hooks.extend(callbacks)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+            return fwrap
+
+        return wrapper
+
+    def close(self) -> None:
         self._inner_ctx.close()

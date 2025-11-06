@@ -117,7 +117,7 @@ exclude_also = [
     "pass",
     '\.\.\.',
 ]
-omit = ["*/__init__.py", "*/_types.py"]
+omit = ["*/__init__.py"]
 
 # Static Analysis
 [tool.basedpyright]

@@ -11,14 +11,13 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, Generic, TypeVar, cast
 from uuid import uuid4
 
-from iojobs._internal._types import EMPTY, FAILED
 from iojobs._internal.command_runner import (
     AsyncRunner,
     ExecutorPoolRunner,
     SyncRunner,
 )
+from iojobs._internal.constants import EMPTY, FAILED, ExecutionMode, JobStatus
 from iojobs._internal.cron_parser import CronParser
-from iojobs._internal.enums import ExecutionMode, JobStatus
 from iojobs._internal.exceptions import (
     JobFailedError,
     JobNotCompletedError,
@@ -26,7 +25,8 @@ from iojobs._internal.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    import functools
+    from collections.abc import Callable
 
     from iojobs._internal._inner_context import JobInnerContext
     from iojobs._internal.command_runner import CommandRunner
@@ -147,25 +147,29 @@ class JobRunner(ABC, Generic[_R]):
         "_cron_parser",
         "_func_injected",
         "_func_name",
-        "_inner_deps",
+        "_inner_ctx",
         "_jobs_registered",
-        "_on_error_callback",
-        "_on_success_callback",
+        "_on_error_hooks",
+        "_on_success_hooks",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         func_name: str,
-        inner_deps: JobInnerContext,
-        func_injected: Callable[..., Awaitable[_R] | _R],
+        inner_ctx: JobInnerContext,
+        func_injected: functools.partial[_R],
         jobs_registered: dict[str, Job[_R]],
+        on_success_hooks: list[Callable[[_R], None]],
+        on_error_hooks: list[Callable[[Exception], None]],
     ) -> None:
         self._func_name: str = func_name
-        self._inner_deps: JobInnerContext = inner_deps
-        self._func_injected: Callable[..., Awaitable[_R] | _R] = func_injected
-        self._on_success_callback: list[Callable[[_R], None]] = []
-        self._on_error_callback: list[Callable[[Exception], None]] = []
+        self._inner_ctx: JobInnerContext = inner_ctx
+        self._func_injected: functools.partial[_R] = func_injected
+        self._on_success_hooks: list[Callable[[_R], None]] = on_success_hooks
+        self._on_error_hooks: list[Callable[[Exception], None]] = (
+            on_error_hooks
+        )
         self._jobs_registered: Final = jobs_registered
         self._cron_parser: CronParser = EMPTY
 
@@ -177,7 +181,7 @@ class JobRunner(ABC, Generic[_R]):
         now: datetime | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_R]:
-        now = now or datetime.now(tz=self._inner_deps.tz)
+        now = now or datetime.now(tz=self._inner_ctx.tz)
         cron_parser = CronParser(expression=expression)
         next_at = cron_parser.next_run(now=now)
         return await self._at(
@@ -197,7 +201,7 @@ class JobRunner(ABC, Generic[_R]):
         job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_R]:
-        now = now or datetime.now(tz=self._inner_deps.tz)
+        now = now or datetime.now(tz=self._inner_ctx.tz)
         at = now + timedelta(seconds=delay_seconds)
         return await self._at(
             now=now,
@@ -246,7 +250,7 @@ class JobRunner(ABC, Generic[_R]):
             cron_parser=cron_parser,
             execution_mode=exec_mode,
         )
-        loop = self._inner_deps.loop
+        loop = self._inner_ctx.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._execute, runner_ctx)
         job._timer_handler = time_handler
@@ -283,17 +287,17 @@ class JobRunner(ABC, Generic[_R]):
         if exec_mode is ExecutionMode.MAIN:
             return SyncRunner(func_injected)
         executor = (
-            self._inner_deps.executors.processpool
+            self._inner_ctx.executors.processpool
             if exec_mode is ExecutionMode.PROCESS
-            else self._inner_deps.executors.threadpool
+            else self._inner_ctx.executors.threadpool
         )
-        loop = self._inner_deps.loop
+        loop = self._inner_ctx.loop
         return ExecutorPoolRunner(func_injected, executor, loop)
 
     def _execute(self, runner_ctx: RunnerContext[_R]) -> None:
         task = asyncio.create_task(self._runner(runner_ctx=runner_ctx))
         runner_ctx.asyncio_task = task
-        self._inner_deps.asyncio_tasks.add(task)
+        self._inner_ctx.asyncio_tasks.add(task)
 
     async def _runner(self, *, runner_ctx: RunnerContext[_R]) -> _R:
         job = runner_ctx.job
@@ -315,17 +319,17 @@ class JobRunner(ABC, Generic[_R]):
             return result
         finally:
             _ = self._jobs_registered.pop(job.id)
-            self._inner_deps.asyncio_tasks.discard(task)
+            self._inner_ctx.asyncio_tasks.discard(task)
             job._event.set()
             if runner_ctx.cron_parser:
                 await self._reschedule_cron(runner_ctx)
 
     async def _reschedule_cron(self, runner_ctx: RunnerContext[_R]) -> None:
         cron_parser = cast("CronParser", runner_ctx.cron_parser)
-        now = datetime.now(tz=self._inner_deps.tz)
+        now = datetime.now(tz=self._inner_ctx.tz)
         next_at = cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
-        loop = self._inner_deps.loop
+        loop = self._inner_ctx.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._execute, runner_ctx)
         job = runner_ctx.job
@@ -337,26 +341,15 @@ class JobRunner(ABC, Generic[_R]):
         )
         self._jobs_registered[job.id] = job
 
-    def on_success(self, *callbacks: Callable[[_R], None]) -> JobRunner[_R]:
-        self._on_success_callback.extend(callbacks)
-        return self
-
-    def on_error(
-        self,
-        *callbacks: Callable[[Exception], None],
-    ) -> JobRunner[_R]:
-        self._on_error_callback.extend(callbacks)
-        return self
-
     def _run_hooks_success(self, result: _R) -> None:
-        for call_success in self._on_success_callback:
+        for call_success in self._on_success_hooks:
             try:
                 call_success(result)
             except Exception:  # noqa: BLE001, PERF203
                 traceback.print_exc()
 
     def _run_hooks_error(self, exc: Exception) -> None:
-        for call_error in self._on_error_callback:
+        for call_error in self._on_error_hooks:
             try:
                 call_error(exc)
             except Exception:  # noqa: BLE001, PERF203

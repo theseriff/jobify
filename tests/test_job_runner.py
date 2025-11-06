@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 from iojobs import JobScheduler
-from iojobs._internal.enums import JobStatus
+from iojobs._internal.constants import JobStatus
 from iojobs._internal.exceptions import JobFailedError
 
 
@@ -30,10 +30,6 @@ async def test_job(scheduler: JobScheduler) -> None:
 
 
 async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
-    @scheduler.register(func_name="t")
-    def t(num: int) -> int:
-        return 10 // num
-
     expected_on_success = 0
     msg_or_error: Exception = Exception()
 
@@ -45,8 +41,14 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
         nonlocal msg_or_error
         msg_or_error = exc
 
-    job1 = await t.schedule(1).on_success(on_success).delay(0)
-    job2 = await t.schedule(0).on_error(on_error).delay(0)
+    @scheduler.register_on_success_hooks(hooks=[on_success])
+    @scheduler.register_on_error_hooks(hooks=[on_error])
+    @scheduler.register(func_name="t")
+    def t(num: int) -> int:
+        return 10 // num
+
+    job1 = await t.schedule(1).delay(0)
+    job2 = await t.schedule(0).delay(0)
     await job1.wait()
     await job2.wait()
 
@@ -58,18 +60,24 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
 
 
 async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:
-    @scheduler.register(func_name="t")
-    def t(num: int) -> int:
-        return 10 // num
-
     def on_success(_num: int) -> None:
         raise ValueError
 
     def on_error(_exc: Exception) -> None:
         raise TypeError
 
-    job1 = await t.schedule(1).on_success(on_success).delay(0)
-    job2 = await t.schedule(0).on_error(on_error).delay(0)
+    @scheduler.register_on_success_hooks(hooks=[on_success])
+    @scheduler.register_on_error_hooks(hooks=[on_error])
+    @scheduler.register(func_name="t")
+    def t(num: int) -> int:
+        return 10 // num
+
+    t_reg = scheduler.register(t, func_name="t")
+    _ = scheduler.register_on_success_hooks(t_reg, hooks=[on_success])
+    _ = scheduler.register_on_error_hooks(t_reg, hooks=[on_error])
+
+    job1 = await t.schedule(1).delay(0)
+    job2 = await t.schedule(0).delay(0)
     with mock.patch("traceback.print_exc") as mock_print_exc:
         await job1.wait()
         await job2.wait()

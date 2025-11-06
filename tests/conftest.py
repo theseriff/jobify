@@ -16,4 +16,4 @@ def now() -> datetime:
 def scheduler() -> Iterable[JobScheduler]:
     scheduler = JobScheduler()
     yield scheduler
-    scheduler.shutdown()
+    scheduler.close()

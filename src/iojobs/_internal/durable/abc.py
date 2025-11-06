@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from iojobs._internal.enums import ExecutionMode, JobStatus
+from iojobs._internal.constants import ExecutionMode, JobStatus
 
 
 @dataclass(slots=True, kw_only=True)

@@ -7,7 +7,7 @@ form the basis of the iojobs asynchronous job scheduling system.
 
 from importlib.metadata import version as get_version
 
-from iojobs._internal.enums import ExecutionMode, JobStatus
+from iojobs._internal.constants import ExecutionMode, JobStatus
 from iojobs._internal.job_runner import Job, JobRunner
 from iojobs._internal.scheduler import JobScheduler
 
