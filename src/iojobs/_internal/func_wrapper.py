@@ -46,30 +46,38 @@ class FuncWrapper(Generic[_P, _R]):
         self._on_success_hooks: list[Callable[[_R], None]] = []
         self._on_error_hooks: list[Callable[[Exception], None]] = []
         self._original_func: Callable[_P, _R] = original_func
-        # This is a hack to make ProcessPoolExecutor work
-        # with decorated functions.
+
+        # --------------------------------------------------------------------
+        # HACK: ProcessPoolExecutor / Multiprocessing
         #
-        # The problem is that when we decorate a function
-        # it becomes a new class. This class has the same
-        # name as the original function.
+        # Problem: `ProcessPoolExecutor` (used for ExecutionMode.PROCESS)
+        # serializes the function by its name. When we use `@register`
+        # as a decorator, the function's name in the module (`my_func`)
+        # now points to the `FuncWrapper` object, not the original function.
+        # This breaks `pickle`.
         #
-        # When receiver sends original function to another
-        # process, it will have the same name as the decorated
-        # class. This will cause an error, because ProcessPoolExecutor
-        # uses `__name__` and `__qualname__` attributes to
-        # import functions from other processes and then it verifies
-        # that the function is the same as the original one.
+        # Solution: We rename the *original* function (adding a suffix)
+        # and "inject" it back into its own module under this new
+        # name. This way, `ProcessPoolExecutor` can find and pickle it.
         #
-        # This hack renames the original function and injects
-        # it back to the module where it was defined.
-        # This way ProcessPoolExecutor will be able to import
-        # the function by it's name and verify its correctness.
+        # We DO NOT apply this hack in two cases (Guard Clauses):
+        # 1. If `register` is used as a direct function call (`reg(my_func)`),
+        #    because `my_func` in the module still points to the original.
+        # 2. If the function has already been renamed (protects from re-entry).
+        # --------------------------------------------------------------------
+
+        # Guard 1: Protect against double-renaming
         if original_func.__name__.endswith("iojobs_original"):
             return
+
+        # Guard 2: Check if `register` is used as a decorator (@)
+        # or as a direct function call.
         module = sys.modules[original_func.__module__]
         module_attr = getattr(module, original_func.__name__, None)
         if module_attr is original_func:
             return
+
+        # Apply the hack: rename and inject back into the module
         new_name = f"{original_func.__name__}__iojobs_original"
         original_func.__name__ = new_name
         if hasattr(original_func, "__qualname__"):  # pragma: no cover
