@@ -15,5 +15,6 @@ def now() -> datetime:
 @pytest.fixture
 def scheduler() -> Iterable[JobScheduler]:
     scheduler = JobScheduler()
+    scheduler.startup()
     yield scheduler
-    scheduler.close()
+    scheduler.shutdown()

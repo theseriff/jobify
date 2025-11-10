@@ -7,13 +7,14 @@ from zoneinfo import ZoneInfo
 from iojobs._internal._inner_context import ExecutorsPool, JobInnerContext
 from iojobs._internal.durable.sqlite import SQLiteJobRepository
 from iojobs._internal.func_wrapper import FuncWrapper, create_default_name
-from iojobs._internal.serializers.ast_literal import AstLiteralSerializer
+from iojobs._internal.serializers.json import JSONSerializer
 
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable, Iterable
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
+    from iojobs._internal._types import Lifespan
     from iojobs._internal.durable.abc import JobRepository
     from iojobs._internal.job_runner import Job
     from iojobs._internal.serializers.abc import JobsSerializer
@@ -35,11 +36,13 @@ class JobScheduler:
         *,
         tz: ZoneInfo | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
-        serializer: JobsSerializer | None = None,
         durable: JobRepository | None = None,
+        lifespan: Lifespan | None = None,
+        serializer: JobsSerializer | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
     ) -> None:
+        _ = lifespan
         self._inner_ctx: JobInnerContext = JobInnerContext(
             _loop=loop,
             tz=tz or ZoneInfo("UTC"),
@@ -48,7 +51,7 @@ class JobScheduler:
                 _threadpool=threadpool_executor,
                 _processpool=processpool_executor,
             ),
-            serializer=serializer or AstLiteralSerializer(),
+            serializer=serializer or JSONSerializer(),
             asyncio_tasks=set(),
             extras={},
         )
@@ -185,5 +188,8 @@ class JobScheduler:
 
         return wrapper
 
-    def close(self) -> None:
+    def startup(self) -> None:
+        pass
+
+    def shutdown(self) -> None:
         self._inner_ctx.close()

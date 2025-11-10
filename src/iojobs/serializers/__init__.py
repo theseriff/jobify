@@ -32,16 +32,13 @@ Examples:
 
 """  # noqa: E501
 
-from iojobs._internal.serializers import (
-    AstLiteralSerializer,
-    JobsSerializer,
-    UnsafePickleSerializer,
-)
-from iojobs._internal.serializers.ast_literal import AstLiteralTypes
+from iojobs._internal.serializers.abc import JobsSerializer, SerializableTypes
+from iojobs._internal.serializers.json import JSONSerializer
+from iojobs._internal.serializers.pickle_unsafe import UnsafePickleSerializer
 
 __all__ = (
-    "AstLiteralSerializer",
-    "AstLiteralTypes",
+    "JSONSerializer",
     "JobsSerializer",
+    "SerializableTypes",
     "UnsafePickleSerializer",
 )
