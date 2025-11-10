@@ -1,9 +1,9 @@
 import pytest
 
 from iojobs.serializers import (
-    AstLiteralSerializer,
-    AstLiteralTypes,
     JobsSerializer,
+    JSONSerializer,
+    SerializableTypes,
     UnsafePickleSerializer,
 )
 
@@ -11,8 +11,8 @@ from iojobs.serializers import (
 @pytest.mark.parametrize(
     "serializer",
     [
-        pytest.param(AstLiteralSerializer()),
         pytest.param(UnsafePickleSerializer()),
+        pytest.param(JSONSerializer()),
     ],
 )
 @pytest.mark.parametrize(
@@ -33,7 +33,7 @@ from iojobs.serializers import (
 )
 def test_serialization_all(
     serializer: JobsSerializer,
-    data: AstLiteralTypes,
+    data: SerializableTypes,
 ) -> None:
     """Tests that all serializers can [de]serialize basic Python types."""
     serialized = serializer.dumpb(data)

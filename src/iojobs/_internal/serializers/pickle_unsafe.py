@@ -1,17 +1,17 @@
-# ruff: noqa: ANN401, ERA001
+# ruff: noqa: ERA001
 # pyright: reportExplicitAny=false
 
 import pickle  # nosec B403
-from typing import Any
 
-from iojobs._internal.serializers.abc import JobsSerializer
+from iojobs._internal.serializers.abc import JobsSerializer, SerializableTypes
 
 
 class UnsafePickleSerializer(JobsSerializer):
-    def dumpb(self, value: Any) -> bytes:
+    def dumpb(self, data: SerializableTypes) -> bytes:
         # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
-        return pickle.dumps(value)
+        return pickle.dumps(data)
 
-    def loadb(self, value: bytes) -> Any:
+    def loadb(self, data: bytes) -> SerializableTypes:
         # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
-        return pickle.loads(value)  # noqa: S301 # nosec B301
+        decoded: SerializableTypes = pickle.loads(data)  # noqa: S301 # nosec B301
+        return decoded
