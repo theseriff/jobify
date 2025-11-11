@@ -12,16 +12,17 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
 
-    from iojobs._internal._inner_context import JobInnerContext
+    from iojobs._internal._inner_scope import JobInnerScope
+    from iojobs._internal.annotations import AnyDict
     from iojobs._internal.job_runner import Job
 
 
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
+_FuncParams = ParamSpec("_FuncParams")
+_ReturnType = TypeVar("_ReturnType")
 _T = TypeVar("_T")
 
 
-def create_default_name(func: Callable[_P, _R], /) -> str:
+def create_default_name(func: Callable[_FuncParams, _ReturnType], /) -> str:
     fname = func.__name__
     fmodule = func.__module__
     if fname == "<lambda>":
@@ -31,21 +32,23 @@ def create_default_name(func: Callable[_P, _R], /) -> str:
     return f"{fmodule}:{fname}"
 
 
-class FuncWrapper(Generic[_P, _R]):
+class FuncWrapper(Generic[_FuncParams, _ReturnType]):
     def __init__(
         self,
         *,
         func_name: str,
-        inner_ctx: JobInnerContext,
-        original_func: Callable[_P, _R],
-        jobs_registered: dict[str, Job[_R]],
+        inner_scope: JobInnerScope,
+        original_func: Callable[_FuncParams, _ReturnType],
+        jobs_registered: dict[str, Job[_ReturnType]],
+        extra: AnyDict,
     ) -> None:
         self._func_name: str = func_name
-        self._inner_ctx: JobInnerContext = inner_ctx
-        self._jobs_registered: dict[str, Job[_R]] = jobs_registered
-        self._on_success_hooks: list[Callable[[_R], None]] = []
+        self._inner_scope: JobInnerScope = inner_scope
+        self._jobs_registered: dict[str, Job[_ReturnType]] = jobs_registered
+        self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
         self._on_error_hooks: list[Callable[[Exception], None]] = []
-        self._original_func: Callable[_P, _R] = original_func
+        self._original_func: Callable[_FuncParams, _ReturnType] = original_func
+        self._extra: AnyDict = extra
 
         # --------------------------------------------------------------------
         # HACK: ProcessPoolExecutor / Multiprocessing
@@ -87,37 +90,46 @@ class FuncWrapper(Generic[_P, _R]):
             original_func.__qualname__ = new_qualname
         setattr(module, new_name, original_func)
 
-    def __call__(self, *args: _P.args, **kwargs: _P.kwargs) -> _R:
+    def __call__(
+        self,
+        *args: _FuncParams.args,
+        **kwargs: _FuncParams.kwargs,
+    ) -> _ReturnType:
         return self._original_func(*args, **kwargs)
 
     @overload
     def schedule(
-        self: FuncWrapper[_P, CoroutineType[object, object, _T]],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
+        self: FuncWrapper[_FuncParams, CoroutineType[object, object, _T]],
+        *args: _FuncParams.args,
+        **kwargs: _FuncParams.kwargs,
     ) -> JobRunner[_T]: ...
 
     @overload
     def schedule(
-        self: FuncWrapper[_P, Coroutine[object, object, _T]],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
+        self: FuncWrapper[_FuncParams, Coroutine[object, object, _T]],
+        *args: _FuncParams.args,
+        **kwargs: _FuncParams.kwargs,
     ) -> JobRunner[_T]: ...
 
     @overload
     def schedule(
-        self: FuncWrapper[_P, _R],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
-    ) -> JobRunner[_R]: ...
+        self: FuncWrapper[_FuncParams, _ReturnType],
+        *args: _FuncParams.args,
+        **kwargs: _FuncParams.kwargs,
+    ) -> JobRunner[_ReturnType]: ...
 
-    def schedule(self, *args: _P.args, **kwargs: _P.kwargs) -> JobRunner[Any]:  # pyright: ignore[reportExplicitAny]
+    def schedule(
+        self,
+        *args: _FuncParams.args,
+        **kwargs: _FuncParams.kwargs,
+    ) -> JobRunner[Any]:  # pyright: ignore[reportExplicitAny]
         func_injected = functools.partial(self._original_func, *args, **kwargs)
         return JobRunner(
             func_name=self._func_name,
-            inner_ctx=self._inner_ctx,
+            inner_scope=self._inner_scope,
             func_injected=func_injected,
             jobs_registered=self._jobs_registered,
             on_success_hooks=self._on_success_hooks,
             on_error_hooks=self._on_error_hooks,
+            extra=self._extra,
         )

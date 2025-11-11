@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import AsyncIterator
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -13,8 +13,6 @@ def now() -> datetime:
 
 
 @pytest.fixture
-def scheduler() -> Iterable[JobScheduler]:
-    scheduler = JobScheduler()
-    scheduler.startup()
-    yield scheduler
-    scheduler.shutdown()
+async def scheduler() -> AsyncIterator[JobScheduler]:
+    async with JobScheduler() as jobber:
+        yield jobber

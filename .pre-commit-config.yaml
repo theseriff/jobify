@@ -29,6 +29,10 @@ repos:
       - id: check-case-conflict
       - id: debug-statements
       - id: end-of-file-fixer
+        exclude: |
+          (?x)^(
+              benchmarks/benches.json
+          )$
       - id: mixed-line-ending
       - id: trailing-whitespace
 

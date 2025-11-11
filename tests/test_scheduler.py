@@ -79,5 +79,5 @@ async def test_scheduler(  # noqa: PLR0913
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
-    assert scheduler._inner_ctx.asyncio_tasks == set()
+    assert scheduler._inner_scope.asyncio_tasks == set()
     assert scheduler._jobs_registered == {}

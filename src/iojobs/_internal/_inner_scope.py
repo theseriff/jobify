@@ -39,14 +39,13 @@ class ExecutorsPool:
 
 
 @dataclass(slots=True, kw_only=True)
-class JobInnerContext:
+class JobInnerScope:
     _loop: asyncio.AbstractEventLoop | None
     tz: ZoneInfo
     durable: JobRepository
     executors: ExecutorsPool
     serializer: JobsSerializer
     asyncio_tasks: set[asyncio.Task[Any]]  # pyright: ignore[reportExplicitAny]
-    extras: dict[str, Any]  # pyright: ignore[reportExplicitAny]
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:

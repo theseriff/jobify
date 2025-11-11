@@ -28,7 +28,8 @@ if TYPE_CHECKING:
     import functools
     from collections.abc import Callable
 
-    from iojobs._internal._inner_context import JobInnerContext
+    from iojobs._internal._inner_scope import JobInnerScope
+    from iojobs._internal.annotations import AnyDict
     from iojobs._internal.command_runner import CommandRunner
 
 
@@ -38,10 +39,10 @@ Use it only with synchronous functions. \
 Async functions are already executed in the event loop.
 """
 
-_R = TypeVar("_R")
+_ReturnType = TypeVar("_ReturnType")
 
 
-class Job(Generic[_R]):
+class Job(Generic[_ReturnType]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_exception",
@@ -61,12 +62,12 @@ class Job(Generic[_R]):
         job_id: str,
         exec_at: datetime,
         func_name: str,
-        job_registered: dict[str, Job[_R]],
+        job_registered: dict[str, Job[_ReturnType]],
         job_status: JobStatus,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
-        self._job_registered: dict[str, Job[_R]] = job_registered
-        self._result: _R = EMPTY
+        self._job_registered: dict[str, Job[_ReturnType]] = job_registered
+        self._result: _ReturnType = EMPTY
         self._exception: Exception = EMPTY
         self._is_was_waiting: bool = False
         self._timer_handler: asyncio.TimerHandle = EMPTY
@@ -83,14 +84,14 @@ class Job(Generic[_R]):
             f"func_name={self.func_name}, job_id={self.id})"
         )
 
-    def result(self) -> _R:
+    def result(self) -> _ReturnType:
         if self._result is FAILED:
             raise JobFailedError(self.id, reason=str(self._exception))
         if self._result is EMPTY:
             raise JobNotCompletedError
         return self._result
 
-    def set_result(self, val: _R) -> None:
+    def set_result(self, val: _ReturnType) -> None:
         self._result = val
 
     def set_exception(self, exc: Exception) -> None:
@@ -134,20 +135,21 @@ class Job(Generic[_R]):
 
 
 @dataclass(slots=True, kw_only=True)
-class RunnerContext(Generic[_R]):
-    job: Job[_R]
-    cmd: CommandRunner[_R]
+class RunnerContext(Generic[_ReturnType]):
+    job: Job[_ReturnType]
+    cmd: CommandRunner[_ReturnType]
     execution_mode: ExecutionMode
     cron_parser: CronParser | None
-    asyncio_task: asyncio.Task[_R] = EMPTY
+    asyncio_task: asyncio.Task[_ReturnType] = EMPTY
 
 
-class JobRunner(ABC, Generic[_R]):
+class JobRunner(ABC, Generic[_ReturnType]):
     __slots__: tuple[str, ...] = (
         "_cron_parser",
+        "_extra",
         "_func_injected",
         "_func_name",
-        "_inner_ctx",
+        "_inner_scope",
         "_jobs_registered",
         "_on_error_hooks",
         "_on_success_hooks",
@@ -157,21 +159,25 @@ class JobRunner(ABC, Generic[_R]):
         self,
         *,
         func_name: str,
-        inner_ctx: JobInnerContext,
-        func_injected: functools.partial[_R],
-        jobs_registered: dict[str, Job[_R]],
-        on_success_hooks: list[Callable[[_R], None]],
+        inner_scope: JobInnerScope,
+        func_injected: functools.partial[_ReturnType],
+        jobs_registered: dict[str, Job[_ReturnType]],
+        on_success_hooks: list[Callable[[_ReturnType], None]],
         on_error_hooks: list[Callable[[Exception], None]],
+        extra: AnyDict,
     ) -> None:
         self._func_name: str = func_name
-        self._inner_ctx: JobInnerContext = inner_ctx
-        self._func_injected: functools.partial[_R] = func_injected
-        self._on_success_hooks: list[Callable[[_R], None]] = on_success_hooks
+        self._inner_scope: JobInnerScope = inner_scope
+        self._func_injected: functools.partial[_ReturnType] = func_injected
+        self._on_success_hooks: list[Callable[[_ReturnType], None]] = (
+            on_success_hooks
+        )
         self._on_error_hooks: list[Callable[[Exception], None]] = (
             on_error_hooks
         )
         self._jobs_registered: Final = jobs_registered
         self._cron_parser: CronParser = EMPTY
+        self._extra: AnyDict = extra
 
     async def cron(
         self,
@@ -180,8 +186,8 @@ class JobRunner(ABC, Generic[_R]):
         *,
         now: datetime | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
-    ) -> Job[_R]:
-        now = now or datetime.now(tz=self._inner_ctx.tz)
+    ) -> Job[_ReturnType]:
+        now = now or datetime.now(tz=self._inner_scope.tz)
         cron_parser = CronParser(expression=expression)
         next_at = cron_parser.next_run(now=now)
         return await self._at(
@@ -200,8 +206,8 @@ class JobRunner(ABC, Generic[_R]):
         now: datetime | None = None,
         job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
-    ) -> Job[_R]:
-        now = now or datetime.now(tz=self._inner_ctx.tz)
+    ) -> Job[_ReturnType]:
+        now = now or datetime.now(tz=self._inner_scope.tz)
         at = now + timedelta(seconds=delay_seconds)
         return await self._at(
             now=now,
@@ -218,7 +224,7 @@ class JobRunner(ABC, Generic[_R]):
         now: datetime | None = None,
         job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
-    ) -> Job[_R]:
+    ) -> Job[_ReturnType]:
         return await self._at(
             now=now or datetime.now(tz=at.tzinfo),
             at=at,
@@ -234,7 +240,7 @@ class JobRunner(ABC, Generic[_R]):
         job_id: str,
         exec_mode: ExecutionMode,
         cron_parser: CronParser | None = None,
-    ) -> Job[_R]:
+    ) -> Job[_ReturnType]:
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         cmd = self._get_runner_cmd(exec_mode)
         job = Job(
@@ -250,7 +256,7 @@ class JobRunner(ABC, Generic[_R]):
             cron_parser=cron_parser,
             execution_mode=exec_mode,
         )
-        loop = self._inner_ctx.loop
+        loop = self._inner_scope.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._execute, runner_ctx)
         job._timer_handler = time_handler
@@ -269,8 +275,11 @@ class JobRunner(ABC, Generic[_R]):
             raise NegativeDelayError(delay_seconds)
         return delay_seconds
 
-    def _get_runner_cmd(self, exec_mode: ExecutionMode) -> CommandRunner[_R]:
-        cmd: CommandRunner[_R]
+    def _get_runner_cmd(
+        self,
+        exec_mode: ExecutionMode,
+    ) -> CommandRunner[_ReturnType]:
+        cmd: CommandRunner[_ReturnType]
         if asyncio.iscoroutinefunction(self._func_injected):
             cmd = AsyncRunner(self._func_injected)
             if exec_mode is ExecutionMode.MAIN:
@@ -282,24 +291,28 @@ class JobRunner(ABC, Generic[_R]):
             warnings.warn(warn, category=RuntimeWarning, stacklevel=2)
             return cmd
 
-        func_injected = cast("Callable[..., _R]", self._func_injected)
+        func_injected = cast("Callable[..., _ReturnType]", self._func_injected)
 
         if exec_mode is ExecutionMode.MAIN:
             return SyncRunner(func_injected)
         executor = (
-            self._inner_ctx.executors.processpool
+            self._inner_scope.executors.processpool
             if exec_mode is ExecutionMode.PROCESS
-            else self._inner_ctx.executors.threadpool
+            else self._inner_scope.executors.threadpool
         )
-        loop = self._inner_ctx.loop
+        loop = self._inner_scope.loop
         return ExecutorPoolRunner(func_injected, executor, loop)
 
-    def _execute(self, runner_ctx: RunnerContext[_R]) -> None:
+    def _execute(self, runner_ctx: RunnerContext[_ReturnType]) -> None:
         task = asyncio.create_task(self._runner(runner_ctx=runner_ctx))
         runner_ctx.asyncio_task = task
-        self._inner_ctx.asyncio_tasks.add(task)
+        self._inner_scope.asyncio_tasks.add(task)
 
-    async def _runner(self, *, runner_ctx: RunnerContext[_R]) -> _R:
+    async def _runner(
+        self,
+        *,
+        runner_ctx: RunnerContext[_ReturnType],
+    ) -> _ReturnType:
         job = runner_ctx.job
         cmd = runner_ctx.cmd
         task = runner_ctx.asyncio_task
@@ -319,17 +332,20 @@ class JobRunner(ABC, Generic[_R]):
             return result
         finally:
             _ = self._jobs_registered.pop(job.id)
-            self._inner_ctx.asyncio_tasks.discard(task)
+            self._inner_scope.asyncio_tasks.discard(task)
             job._event.set()
             if runner_ctx.cron_parser:
                 await self._reschedule_cron(runner_ctx)
 
-    async def _reschedule_cron(self, runner_ctx: RunnerContext[_R]) -> None:
+    async def _reschedule_cron(
+        self,
+        runner_ctx: RunnerContext[_ReturnType],
+    ) -> None:
         cron_parser = cast("CronParser", runner_ctx.cron_parser)
-        now = datetime.now(tz=self._inner_ctx.tz)
+        now = datetime.now(tz=self._inner_scope.tz)
         next_at = cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
-        loop = self._inner_ctx.loop
+        loop = self._inner_scope.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._execute, runner_ctx)
         job = runner_ctx.job
@@ -341,7 +357,7 @@ class JobRunner(ABC, Generic[_R]):
         )
         self._jobs_registered[job.id] = job
 
-    def _run_hooks_success(self, result: _R) -> None:
+    def _run_hooks_success(self, result: _ReturnType) -> None:
         for call_success in self._on_success_hooks:
             try:
                 call_success(result)
