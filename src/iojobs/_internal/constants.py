@@ -15,6 +15,8 @@ class ExecutionMode(str, Enum):
 @unique
 class JobStatus(str, Enum):
     SCHEDULED = "scheduled"
+    RUNNING = "running"
+    ABORTED = "aborted"
     CANCELED = "canceled"
     SUCCESS = "success"
     FAILED = "failed"

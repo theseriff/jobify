@@ -22,7 +22,7 @@ async def test_job(scheduler: JobScheduler) -> None:
     with pytest.warns(RuntimeWarning, match="Job is already done"):
         await job1.wait()
 
-    job2.cancel()
+    await job2.cancel()
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELED
     assert job2.id not in job2._job_registered
@@ -31,15 +31,15 @@ async def test_job(scheduler: JobScheduler) -> None:
 
 async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
     expected_on_success = 0
-    msg_or_error: Exception = Exception()
+    expected_on_error: Exception = Exception()
 
     def on_success(num: int) -> None:
         nonlocal expected_on_success
         expected_on_success = num
 
     def on_error(exc: Exception) -> None:
-        nonlocal msg_or_error
-        msg_or_error = exc
+        nonlocal expected_on_error
+        expected_on_error = exc
 
     @scheduler.register_on_success_hooks(hooks=[on_success])
     @scheduler.register_on_error_hooks(hooks=[on_error])
@@ -56,7 +56,7 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
         assert job2.result()
 
     assert job1.result() == expected_on_success
-    assert type(msg_or_error) is ZeroDivisionError
+    assert isinstance(expected_on_error, ZeroDivisionError)
 
 
 async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:

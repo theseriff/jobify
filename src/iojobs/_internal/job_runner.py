@@ -50,13 +50,14 @@ class Job(Generic[_ReturnType]):
         "_job_registered",
         "_result",
         "_timer_handler",
+        "cron_expression",
         "exec_at",
         "func_name",
         "id",
         "status",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         job_id: str,
@@ -64,6 +65,7 @@ class Job(Generic[_ReturnType]):
         func_name: str,
         job_registered: dict[str, Job[_ReturnType]],
         job_status: JobStatus,
+        cron_expression: str | None,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
         self._job_registered: dict[str, Job[_ReturnType]] = job_registered
@@ -71,6 +73,7 @@ class Job(Generic[_ReturnType]):
         self._exception: Exception = EMPTY
         self._is_was_waiting: bool = False
         self._timer_handler: asyncio.TimerHandle = EMPTY
+        self.cron_expression: str | None = cron_expression
         self.exec_at: datetime = exec_at
         self.func_name: str = func_name
         self.status: JobStatus = job_status
@@ -86,7 +89,10 @@ class Job(Generic[_ReturnType]):
 
     def result(self) -> _ReturnType:
         if self._result is FAILED:
-            raise JobFailedError(self.id, reason=str(self._exception))
+            raise JobFailedError(
+                self.id,
+                reason=str(self._exception),
+            ) from self._exception
         if self._result is EMPTY:
             raise JobNotCompletedError
         return self._result
@@ -100,17 +106,14 @@ class Job(Generic[_ReturnType]):
     def _update(
         self,
         *,
-        job_id: str,
         exec_at: datetime,
         job_status: JobStatus,
         time_handler: asyncio.TimerHandle,
     ) -> None:
-        self._event = asyncio.Event()
-        self._is_was_waiting = False
         self._timer_handler = time_handler
-        self.id = job_id
         self.exec_at = exec_at
         self.status = job_status
+        self._event = asyncio.Event()
 
     def is_done(self) -> bool:
         return self._event.is_set()
@@ -122,12 +125,12 @@ class Job(Generic[_ReturnType]):
                 category=RuntimeWarning,
                 stacklevel=2,
             )
-            return
+        else:
+            if not self.cron_expression:
+                self._is_was_waiting = True
+            _ = await self._event.wait()
 
-        _ = await self._event.wait()
-        self._is_was_waiting = True
-
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         _ = self._job_registered.pop(self.id, None)
         self.status = JobStatus.CANCELED
         self._timer_handler.cancel()
@@ -140,7 +143,6 @@ class RunnerContext(Generic[_ReturnType]):
     cmd: CommandRunner[_ReturnType]
     execution_mode: ExecutionMode
     cron_parser: CronParser | None
-    asyncio_task: asyncio.Task[_ReturnType] = EMPTY
 
 
 class JobRunner(ABC, Generic[_ReturnType]):
@@ -185,6 +187,7 @@ class JobRunner(ABC, Generic[_ReturnType]):
         /,
         *,
         now: datetime | None = None,
+        job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_ReturnType]:
         now = now or datetime.now(tz=self._inner_scope.tz)
@@ -193,7 +196,7 @@ class JobRunner(ABC, Generic[_ReturnType]):
         return await self._at(
             now=now,
             at=next_at,
-            job_id=uuid4().hex,
+            job_id=job_id or uuid4().hex,
             exec_mode=execution_mode,
             cron_parser=cron_parser,
         )
@@ -249,6 +252,7 @@ class JobRunner(ABC, Generic[_ReturnType]):
             job_id=job_id,
             job_registered=self._jobs_registered,
             job_status=JobStatus.SCHEDULED,
+            cron_expression=cron_parser._expression if cron_parser else None,
         )
         runner_ctx = RunnerContext(
             job=job,
@@ -303,21 +307,16 @@ class JobRunner(ABC, Generic[_ReturnType]):
         loop = self._inner_scope.loop
         return ExecutorPoolRunner(func_injected, executor, loop)
 
-    def _execute(self, runner_ctx: RunnerContext[_ReturnType]) -> None:
-        task = asyncio.create_task(self._runner(runner_ctx=runner_ctx))
-        runner_ctx.asyncio_task = task
+    def _execute(self, ctx: RunnerContext[_ReturnType]) -> None:
+        task = asyncio.create_task(self._runner(ctx=ctx))
         self._inner_scope.asyncio_tasks.add(task)
+        task.add_done_callback(self._inner_scope.asyncio_tasks.discard)
 
-    async def _runner(
-        self,
-        *,
-        runner_ctx: RunnerContext[_ReturnType],
-    ) -> _ReturnType:
-        job = runner_ctx.job
-        cmd = runner_ctx.cmd
-        task = runner_ctx.asyncio_task
+    async def _runner(self, *, ctx: RunnerContext[_ReturnType]) -> _ReturnType:
+        job = ctx.job
         try:
-            result = await cmd.run()
+            job.status = JobStatus.RUNNING
+            result = await ctx.cmd.run()
         except Exception as exc:
             traceback.print_exc()
             job.status = JobStatus.FAILED
@@ -331,11 +330,12 @@ class JobRunner(ABC, Generic[_ReturnType]):
             self._run_hooks_success(result)
             return result
         finally:
-            _ = self._jobs_registered.pop(job.id)
-            self._inner_scope.asyncio_tasks.discard(task)
-            job._event.set()
-            if runner_ctx.cron_parser:
-                await self._reschedule_cron(runner_ctx)
+            event = job._event
+            if ctx.cron_parser:
+                await self._reschedule_cron(ctx)
+            else:
+                _ = self._jobs_registered.pop(job.id)
+            event.set()
 
     async def _reschedule_cron(
         self,
@@ -350,12 +350,10 @@ class JobRunner(ABC, Generic[_ReturnType]):
         time_handler = loop.call_at(when, self._execute, runner_ctx)
         job = runner_ctx.job
         job._update(
-            job_id=uuid4().hex,
             exec_at=next_at,
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,
         )
-        self._jobs_registered[job.id] = job
 
     def _run_hooks_success(self, result: _ReturnType) -> None:
         for call_success in self._on_success_hooks:

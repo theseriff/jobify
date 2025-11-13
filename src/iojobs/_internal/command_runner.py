@@ -1,8 +1,12 @@
-import asyncio
-import concurrent.futures
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Callable
-from typing import Protocol, TypeVar, final
+from typing import TYPE_CHECKING, Protocol, TypeVar, final
+
+if TYPE_CHECKING:
+    import asyncio
+    import concurrent.futures
+    from collections.abc import Awaitable, Callable
 
 _ReturnType = TypeVar("_ReturnType")
 _Return_co = TypeVar("_Return_co", covariant=True)

@@ -74,8 +74,8 @@ async def test_scheduler(  # noqa: PLR0913
 
     _ = await asyncio.gather(job_sync.wait(), job_async.wait())
     if method == "cron":
-        job_sync.cancel()
-        job_async.cancel()
+        await job_sync.cancel()
+        await job_async.cancel()
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
