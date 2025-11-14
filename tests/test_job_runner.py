@@ -9,7 +9,7 @@ from iojobs._internal.exceptions import JobFailedError
 
 
 async def test_job(scheduler: JobScheduler) -> None:
-    @scheduler.register(func_name="t")
+    @scheduler.register(job_name="t")
     def t(num: int) -> int:
         return num + 1
 
@@ -43,7 +43,7 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
 
     @scheduler.register_on_success_hooks(hooks=[on_success])
     @scheduler.register_on_error_hooks(hooks=[on_error])
-    @scheduler.register(func_name="t")
+    @scheduler.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
@@ -68,11 +68,11 @@ async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:
 
     @scheduler.register_on_success_hooks(hooks=[on_success])
     @scheduler.register_on_error_hooks(hooks=[on_error])
-    @scheduler.register(func_name="t")
+    @scheduler.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
-    t_reg = scheduler.register(t, func_name="t")
+    t_reg = scheduler.register(t, job_name="t")
     _ = scheduler.register_on_success_hooks(t_reg, hooks=[on_success])
     _ = scheduler.register_on_error_hooks(t_reg, hooks=[on_error])
 

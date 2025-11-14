@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from iojobs._internal.annotations import AnyDict, Lifespan
     from iojobs._internal.durable.abc import JobRepository
-    from iojobs._internal.job_runner import Job
+    from iojobs._internal.runner.job import Job
     from iojobs._internal.serializers.abc import JobsSerializer
 
 
@@ -38,7 +38,7 @@ _AppType = TypeVar("_AppType", bound="JobScheduler")
 
 
 @asynccontextmanager
-async def default_lifespan(_: object) -> AsyncIterator[None]:
+async def default_lifespan(_: JobScheduler) -> AsyncIterator[None]:
     yield None
 
 
@@ -88,7 +88,7 @@ class JobScheduler:
     def register(
         self,
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
         FuncWrapper[_FuncParams, _ReturnType],
@@ -99,14 +99,14 @@ class JobScheduler:
         self,
         func: Callable[_FuncParams, _ReturnType],
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
 
     def register(
         self,
         func: Callable[_FuncParams, _ReturnType] | None = None,
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> (
         FuncWrapper[_FuncParams, _ReturnType]
         | Callable[
@@ -114,7 +114,7 @@ class JobScheduler:
             FuncWrapper[_FuncParams, _ReturnType],
         ]
     ):
-        wrapper = self._register(func_name=func_name)
+        wrapper = self._register(job_name=job_name)
         if callable(func):
             return wrapper(func)
         return wrapper  # pragma: no cover
@@ -122,7 +122,7 @@ class JobScheduler:
     def _register(
         self,
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
         FuncWrapper[_FuncParams, _ReturnType],
@@ -130,11 +130,11 @@ class JobScheduler:
         def wrapper(
             func: Callable[_FuncParams, _ReturnType],
         ) -> FuncWrapper[_FuncParams, _ReturnType]:
-            fname = func_name or create_default_name(func)
+            fname = job_name or create_default_name(func)
             if fwrapper := self._func_registered.get(fname):
                 return cast("FuncWrapper[_FuncParams, _ReturnType]", fwrapper)
             fwrapper = FuncWrapper(
-                func_name=fname,
+                job_name=fname,
                 inner_scope=self._inner_scope,
                 original_func=func,
                 jobs_registered=self._jobs_registered,

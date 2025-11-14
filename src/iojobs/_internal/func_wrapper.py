@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import functools
 import os
 import sys
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
-from iojobs._internal.job_runner import JobRunner
+from iojobs._internal.func_original import Callback
+from iojobs._internal.runner.runner import JobRunner
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
     from iojobs._internal._inner_scope import JobInnerScope
     from iojobs._internal.annotations import AnyDict
-    from iojobs._internal.job_runner import Job
+    from iojobs._internal.runner.job import Job
 
 
 _FuncParams = ParamSpec("_FuncParams")
@@ -36,13 +36,13 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
     def __init__(
         self,
         *,
-        func_name: str,
+        job_name: str,
         inner_scope: JobInnerScope,
         original_func: Callable[_FuncParams, _ReturnType],
         jobs_registered: dict[str, Job[_ReturnType]],
         extra: AnyDict,
     ) -> None:
-        self._func_name: str = func_name
+        self._job_name: str = job_name
         self._inner_scope: JobInnerScope = inner_scope
         self._jobs_registered: dict[str, Job[_ReturnType]] = jobs_registered
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
@@ -102,32 +102,32 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         self: FuncWrapper[_FuncParams, CoroutineType[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_T]: ...
+    ) -> JobRunner[_FuncParams, _T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_FuncParams, Coroutine[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_T]: ...
+    ) -> JobRunner[_FuncParams, _T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_FuncParams, _ReturnType],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_ReturnType]: ...
+    ) -> JobRunner[_FuncParams, _ReturnType]: ...
 
     def schedule(
         self,
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[Any]:  # pyright: ignore[reportExplicitAny]
-        func_injected = functools.partial(self._original_func, *args, **kwargs)
+    ) -> JobRunner[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
+        fn = self._original_func
+        callback = Callback(self._job_name, fn, *args, **kwargs)
         return JobRunner(
-            func_name=self._func_name,
+            callback=callback,
             inner_scope=self._inner_scope,
-            func_injected=func_injected,
             jobs_registered=self._jobs_registered,
             on_success_hooks=self._on_success_hooks,
             on_error_hooks=self._on_error_hooks,
