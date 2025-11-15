@@ -171,7 +171,6 @@ select = ["ALL"]
 typing-extensions = false
 
 [tool.ruff.lint.per-file-ignores]
-"./*" = ["D"]
 "benchmarks/**" = ["D", "S101"]
 "tests/**" = ["S101", "D", "SLF001"]
 "src/iojobs/_internal/func_wrapper.py" = ["ERA001", "FIX004"]

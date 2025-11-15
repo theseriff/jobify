@@ -36,3 +36,21 @@ class NegativeDelayError(IOJobsBaseError):
     ) -> None:
         super().__init__(message.format(delay_seconds=delay_seconds))
         self.delay_seconds: float = delay_seconds
+
+
+class CallbackSkippedError(IOJobsBaseError):
+    """Raised when middleware chain completes without calling the job callback.
+
+    This occurs when one of middleware in the chain decides to
+    short-circuit the execution and returns early without calling `call_next`,
+    preventing the actual job handler from being executed.
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "Job callback was not executed. A middleware in the chain "
+            "short-circuited without calling call_next."
+        ),
+    ) -> None:
+        super().__init__(message)

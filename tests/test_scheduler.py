@@ -50,8 +50,8 @@ async def test_scheduler(  # noqa: PLR0913
     execution_mode: ExecutionMode,
 ) -> None:
     common_kwargs = CommonKwargs(now=now, execution_mode=execution_mode)
-    f1_reg = scheduler.register(f1, func_name="f1_reg")
-    f2_reg = scheduler.register(f2, func_name="f2_reg")
+    f1_reg = scheduler.register(f1, job_name="f1_reg")
+    f2_reg = scheduler.register(f2, job_name="f2_reg")
     if method == "at":
         job_sync = await f1_reg.schedule(num).at(now, **common_kwargs)
         job_async = await f2_reg.schedule(num).at(now, **common_kwargs)
@@ -74,8 +74,8 @@ async def test_scheduler(  # noqa: PLR0913
 
     _ = await asyncio.gather(job_sync.wait(), job_async.wait())
     if method == "cron":
-        job_sync.cancel()
-        job_async.cancel()
+        await job_sync.cancel()
+        await job_async.cancel()
 
     assert job_sync.result() == expected
     assert job_async.result() == expected

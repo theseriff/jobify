@@ -18,17 +18,19 @@ from iojobs._internal.datastructures import State
 from iojobs._internal.durable.dummy import DummyRepository
 from iojobs._internal.durable.sqlite import SQLiteJobRepository
 from iojobs._internal.func_wrapper import FuncWrapper, create_default_name
+from iojobs._internal.middleware.resolver import MiddlewareResolver
 from iojobs._internal.serializers.json import JSONSerializer
 
 if TYPE_CHECKING:
     import asyncio
-    from collections.abc import AsyncIterator, Callable, Iterable
+    from collections.abc import AsyncIterator, Callable, Iterable, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
 
     from iojobs._internal.annotations import AnyDict, Lifespan
     from iojobs._internal.durable.abc import JobRepository
-    from iojobs._internal.job_runner import Job
+    from iojobs._internal.middleware.base import BaseMiddleware
+    from iojobs._internal.runner.job import Job
     from iojobs._internal.serializers.abc import JobsSerializer
 
 
@@ -38,7 +40,7 @@ _AppType = TypeVar("_AppType", bound="JobScheduler")
 
 
 @asynccontextmanager
-async def default_lifespan(_: object) -> AsyncIterator[None]:
+async def default_lifespan(_: JobScheduler) -> AsyncIterator[None]:
     yield None
 
 
@@ -51,11 +53,13 @@ class JobScheduler:
         durable: JobRepository | Literal[False] | None = None,
         lifespan: Lifespan[_AppType] | None = None,
         serializer: JobsSerializer | None = None,
+        middleware: Sequence[BaseMiddleware] | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
         **extra: AnyDict,
     ) -> None:
         self.state: State = State()
+        self.middleware: MiddlewareResolver = MiddlewareResolver(middleware)
         if durable is False:
             durable = DummyRepository()
         elif durable is None:
@@ -88,7 +92,7 @@ class JobScheduler:
     def register(
         self,
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
         FuncWrapper[_FuncParams, _ReturnType],
@@ -99,14 +103,14 @@ class JobScheduler:
         self,
         func: Callable[_FuncParams, _ReturnType],
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
 
     def register(
         self,
         func: Callable[_FuncParams, _ReturnType] | None = None,
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> (
         FuncWrapper[_FuncParams, _ReturnType]
         | Callable[
@@ -114,7 +118,7 @@ class JobScheduler:
             FuncWrapper[_FuncParams, _ReturnType],
         ]
     ):
-        wrapper = self._register(func_name=func_name)
+        wrapper = self._register(job_name=job_name)
         if callable(func):
             return wrapper(func)
         return wrapper  # pragma: no cover
@@ -122,7 +126,7 @@ class JobScheduler:
     def _register(
         self,
         *,
-        func_name: str | None = None,
+        job_name: str | None = None,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
         FuncWrapper[_FuncParams, _ReturnType],
@@ -130,14 +134,16 @@ class JobScheduler:
         def wrapper(
             func: Callable[_FuncParams, _ReturnType],
         ) -> FuncWrapper[_FuncParams, _ReturnType]:
-            fname = func_name or create_default_name(func)
+            fname = job_name or create_default_name(func)
             if fwrapper := self._func_registered.get(fname):
                 return cast("FuncWrapper[_FuncParams, _ReturnType]", fwrapper)
             fwrapper = FuncWrapper(
-                func_name=fname,
+                state=self.state,
+                job_name=fname,
                 inner_scope=self._inner_scope,
                 original_func=func,
                 jobs_registered=self._jobs_registered,
+                middleware=self.middleware,
                 extra=self._extra,
             )
             _ = functools.update_wrapper(fwrapper, func)

@@ -1,6 +1,4 @@
 # pyright: reportPrivateUsage=false
-from unittest import mock
-
 import pytest
 
 from iojobs import JobScheduler
@@ -9,7 +7,7 @@ from iojobs._internal.exceptions import JobFailedError
 
 
 async def test_job(scheduler: JobScheduler) -> None:
-    @scheduler.register(func_name="t")
+    @scheduler.register(job_name="t")
     def t(num: int) -> int:
         return num + 1
 
@@ -22,7 +20,7 @@ async def test_job(scheduler: JobScheduler) -> None:
     with pytest.warns(RuntimeWarning, match="Job is already done"):
         await job1.wait()
 
-    job2.cancel()
+    await job2.cancel()
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELED
     assert job2.id not in job2._job_registered
@@ -31,19 +29,19 @@ async def test_job(scheduler: JobScheduler) -> None:
 
 async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
     expected_on_success = 0
-    msg_or_error: Exception = Exception()
+    expected_on_error: Exception = Exception()
 
     def on_success(num: int) -> None:
         nonlocal expected_on_success
         expected_on_success = num
 
     def on_error(exc: Exception) -> None:
-        nonlocal msg_or_error
-        msg_or_error = exc
+        nonlocal expected_on_error
+        expected_on_error = exc
 
     @scheduler.register_on_success_hooks(hooks=[on_success])
     @scheduler.register_on_error_hooks(hooks=[on_error])
-    @scheduler.register(func_name="t")
+    @scheduler.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
@@ -56,10 +54,10 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
         assert job2.result()
 
     assert job1.result() == expected_on_success
-    assert type(msg_or_error) is ZeroDivisionError
+    assert isinstance(expected_on_error, ZeroDivisionError)
 
 
-async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:
+async def test_job_runner_hooks_fail_usage(scheduler: JobScheduler) -> None:
     def on_success(_num: int) -> None:
         raise ValueError
 
@@ -68,19 +66,19 @@ async def test_job_runner_hooks_wrong_usage(scheduler: JobScheduler) -> None:
 
     @scheduler.register_on_success_hooks(hooks=[on_success])
     @scheduler.register_on_error_hooks(hooks=[on_error])
-    @scheduler.register(func_name="t")
+    @scheduler.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
-    t_reg = scheduler.register(t, func_name="t")
+    t_reg = scheduler.register(t, job_name="t")
     _ = scheduler.register_on_success_hooks(t_reg, hooks=[on_success])
     _ = scheduler.register_on_error_hooks(t_reg, hooks=[on_error])
 
     job1 = await t.schedule(1).delay(0)
     job2 = await t.schedule(0).delay(0)
-    with mock.patch("traceback.print_exc") as mock_print_exc:
-        await job1.wait()
-        await job2.wait()
 
-    total_calls = 3
-    mock_print_exc.assert_has_calls([mock.call() for _ in range(total_calls)])
+    await job1.wait()
+    await job2.wait()
+
+    assert job1.status is JobStatus.SUCCESS
+    assert job2.status is JobStatus.FAILED

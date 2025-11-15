@@ -28,13 +28,17 @@ def write_results(results: Results) -> None:
     logger.info("Results saved to: %s", benches_file)
 
 
+def main() -> None:
+    results: Results = {}
+    with timer():
+        results |= serializers_measure()
+    write_results(results)
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="[%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler()],
     )
-    results: Results = {}
-    with timer():
-        results |= serializers_measure()
-    write_results(results)
+    main()

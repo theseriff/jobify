@@ -20,13 +20,13 @@ def test_create_default_name(func: Callable[..., None]) -> None:
     if func.__name__ == "main":
         main.__module__ = "__main__"
 
-    func_name = create_default_name(func)
+    job_name = create_default_name(func)
     if func.__module__ == "__main__":
-        assert func_name.endswith(f"pytest:{main.__name__}")
+        assert job_name.endswith(f"pytest:{main.__name__}")
     elif func.__name__ == "<lambda>":
-        assert func_name.startswith("tests.test_func_wrapper:lambda")
+        assert job_name.startswith("tests.test_func_wrapper:lambda")
     else:
-        assert func_name == f"tests.test_func_wrapper:{somefunc.__name__}"
+        assert job_name == f"tests.test_func_wrapper:{somefunc.__name__}"
 
 
 async def test_original_func_call(scheduler: JobScheduler) -> None:
@@ -43,7 +43,7 @@ async def test_original_func_call(scheduler: JobScheduler) -> None:
     assert await t2(1) == expected_val
 
 
-def test_patch_func_name(scheduler: JobScheduler) -> None:
+def test_patch_job_name(scheduler: JobScheduler) -> None:
     @scheduler.register
     @scheduler.register
     def t() -> None:
@@ -53,7 +53,7 @@ def test_patch_func_name(scheduler: JobScheduler) -> None:
     t2_reg = scheduler.register(t)
 
     new_name = "t__iojobs_original"
-    new_qualname = f"test_patch_func_name.<locals>.{new_name}"
+    new_qualname = f"test_patch_job_name.<locals>.{new_name}"
 
     assert t._original_func.__name__ == new_name
     assert t1_reg._original_func.__name__ == new_name

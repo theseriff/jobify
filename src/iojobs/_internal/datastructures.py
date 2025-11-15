@@ -1,6 +1,10 @@
 # pyright: reportExplicitAny=false
-from collections.abc import Mapping
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 class EmptyPlaceholder:
@@ -18,8 +22,7 @@ class EmptyPlaceholder:
 
 
 class State:
-    """
-    An object that can be used to store arbitrary state.
+    """An object that can be used to store arbitrary state.
 
     Used for `request.state` and `app.state`.
     """

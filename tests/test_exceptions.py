@@ -19,7 +19,7 @@ class CommonKwargs(TypedDict):
 scheduler = JobScheduler()
 
 
-@scheduler.register(func_name="f1")
+@scheduler.register(job_name="f1")
 def f1(num: int) -> int:
     return num + 1
 
