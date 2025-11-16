@@ -2,9 +2,9 @@
 # pyright: reportExplicitAny=false
 from typing import Any
 
-from iojobs import Job, JobStatus, State
-from iojobs._internal.scheduler import JobScheduler
-from iojobs.middleware import BaseMiddleware, CallNextChain
+from jobber import Job, JobStatus, State
+from jobber._internal.jobber import Jobber
+from jobber.middleware import BaseMiddleware, CallNext
 
 
 class MyMiddleware(BaseMiddleware):
@@ -13,7 +13,7 @@ class MyMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        call_next: CallNextChain[Any],
+        call_next: CallNext[Any],
         job: Job[Any],
         state: State,
     ) -> Any:
@@ -22,10 +22,10 @@ class MyMiddleware(BaseMiddleware):
         return await call_next(job, state)
 
 
-async def test_middleware(scheduler: JobScheduler) -> None:
-    scheduler.middleware.add(MyMiddleware())
+async def test_middleware(jobber: Jobber) -> None:
+    jobber.middleware.use(MyMiddleware())
 
-    @scheduler.register
+    @jobber.register
     def t1(num: int) -> int:
         return num + 1
 
@@ -33,7 +33,7 @@ async def test_middleware(scheduler: JobScheduler) -> None:
     await job.wait()
     assert job.status is JobStatus.SUCCESS
 
-    scheduler.middleware.add(MyMiddleware(skip=True))
+    jobber.middleware.use(MyMiddleware(skip=True))
     job = await t1.schedule(2).delay(0)
     await job.wait()
     assert job.status is JobStatus.SKIPPED

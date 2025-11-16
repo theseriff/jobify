@@ -3,8 +3,8 @@ from typing import TypedDict
 
 import pytest
 
-from iojobs import JobScheduler
-from iojobs._internal.exceptions import (
+from jobber import Jobber
+from jobber._internal.exceptions import (
     JobNotCompletedError,
     NegativeDelayError,
 )
@@ -16,10 +16,10 @@ class CommonKwargs(TypedDict):
     to_process: bool
 
 
-scheduler = JobScheduler()
+jobber = Jobber()
 
 
-@scheduler.register(job_name="f1")
+@jobber.register(job_name="f1")
 def f1(num: int) -> int:
     return num + 1
 

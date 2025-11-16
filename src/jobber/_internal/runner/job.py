@@ -5,11 +5,8 @@ import asyncio
 import warnings
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-from iojobs._internal.constants import EMPTY, JobStatus
-from iojobs._internal.exceptions import (
-    JobFailedError,
-    JobNotCompletedError,
-)
+from jobber._internal.common.constants import EMPTY, JobStatus
+from jobber._internal.exceptions import JobFailedError, JobNotCompletedError
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -27,7 +24,7 @@ class Job(Generic[_ReturnType]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_exception",
-        "_is_was_waiting",
+        "_has_waited",
         "_job_registered",
         "_result",
         "_timer_handler",
@@ -52,7 +49,7 @@ class Job(Generic[_ReturnType]):
         self._job_registered: dict[str, Job[_ReturnType]] = job_registered
         self._result: _ReturnType = EMPTY
         self._exception: Exception = EMPTY
-        self._is_was_waiting: bool = False
+        self._has_waited: bool = False
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self.cron_expression: str | None = cron_expression
         self.exec_at: datetime = exec_at
@@ -100,7 +97,7 @@ class Job(Generic[_ReturnType]):
         return self._event.is_set()
 
     async def wait(self) -> None:
-        if self._is_was_waiting:
+        if self._has_waited:
             warnings.warn(
                 "Job is already done - waiting for completion is unnecessary",
                 category=RuntimeWarning,
@@ -108,7 +105,7 @@ class Job(Generic[_ReturnType]):
             )
         else:
             if not self.cron_expression:
-                self._is_was_waiting = True
+                self._has_waited = True
             _ = await self._event.wait()
 
     async def cancel(self) -> None:

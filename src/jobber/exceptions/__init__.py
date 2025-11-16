@@ -1,19 +1,19 @@
-"""Custom exceptions for the iojobs library.
+"""Custom exceptions for the jobber library.
 
-This module defines specific exceptions that the iojobs scheduling
+This module defines specific exceptions that the jobber scheduling
 system can raise. These exceptions provide more detailed information
 about errors and guidance on how to handle common scheduling scenarios.
 """
 
-from iojobs._internal.exceptions import (
-    IOJobsBaseError,
+from jobber._internal.exceptions import (
+    BaseJobberError,
     JobFailedError,
     JobNotCompletedError,
     NegativeDelayError,
 )
 
 __all__ = (
-    "IOJobsBaseError",
+    "BaseJobberError",
     "JobFailedError",
     "JobNotCompletedError",
     "NegativeDelayError",

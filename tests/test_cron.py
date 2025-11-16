@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from unittest import mock
 from zoneinfo import ZoneInfo
 
-from iojobs import JobScheduler
-from iojobs._internal.cron_parser import CronParser
+from jobber import Jobber
+from jobber._internal.common.cron_parser import CronParser
 
 
 def test_cronparser() -> None:
@@ -19,8 +19,8 @@ def test_cronparser() -> None:
     assert next_run == expected_run
 
 
-async def test_cron_reschedule(scheduler: JobScheduler, now: datetime) -> None:
-    @scheduler.register
+async def test_cron_reschedule(jobber: Jobber, now: datetime) -> None:
+    @jobber.register
     def t(name: str) -> str:
         return f"hello, {name}!"
 

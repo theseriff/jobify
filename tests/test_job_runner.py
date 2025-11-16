@@ -1,13 +1,13 @@
 # pyright: reportPrivateUsage=false
 import pytest
 
-from iojobs import JobScheduler
-from iojobs._internal.constants import JobStatus
-from iojobs._internal.exceptions import JobFailedError
+from jobber import Jobber
+from jobber._internal.common.constants import JobStatus
+from jobber._internal.exceptions import JobFailedError
 
 
-async def test_job(scheduler: JobScheduler) -> None:
-    @scheduler.register(job_name="t")
+async def test_job(jobber: Jobber) -> None:
+    @jobber.register(job_name="t")
     def t(num: int) -> int:
         return num + 1
 
@@ -27,7 +27,7 @@ async def test_job(scheduler: JobScheduler) -> None:
     assert job2._timer_handler.cancelled()
 
 
-async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
+async def test_job_runner_hooks(jobber: Jobber) -> None:
     expected_on_success = 0
     expected_on_error: Exception = Exception()
 
@@ -39,9 +39,9 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
         nonlocal expected_on_error
         expected_on_error = exc
 
-    @scheduler.register_on_success_hooks(hooks=[on_success])
-    @scheduler.register_on_error_hooks(hooks=[on_error])
-    @scheduler.register(job_name="t")
+    @jobber.register_on_success_hooks(hooks=[on_success])
+    @jobber.register_on_error_hooks(hooks=[on_error])
+    @jobber.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
@@ -57,22 +57,22 @@ async def test_job_runner_hooks(scheduler: JobScheduler) -> None:
     assert isinstance(expected_on_error, ZeroDivisionError)
 
 
-async def test_job_runner_hooks_fail_usage(scheduler: JobScheduler) -> None:
+async def test_job_runner_hooks_fail_usage(jobber: Jobber) -> None:
     def on_success(_num: int) -> None:
         raise ValueError
 
     def on_error(_exc: Exception) -> None:
         raise TypeError
 
-    @scheduler.register_on_success_hooks(hooks=[on_success])
-    @scheduler.register_on_error_hooks(hooks=[on_error])
-    @scheduler.register(job_name="t")
+    @jobber.register_on_success_hooks(hooks=[on_success])
+    @jobber.register_on_error_hooks(hooks=[on_error])
+    @jobber.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
-    t_reg = scheduler.register(t, job_name="t")
-    _ = scheduler.register_on_success_hooks(t_reg, hooks=[on_success])
-    _ = scheduler.register_on_error_hooks(t_reg, hooks=[on_error])
+    t_reg = jobber.register(t, job_name="t")
+    _ = jobber.register_on_success_hooks(t_reg, hooks=[on_success])
+    _ = jobber.register_on_error_hooks(t_reg, hooks=[on_error])
 
     job1 = await t.schedule(1).delay(0)
     job2 = await t.schedule(0).delay(0)

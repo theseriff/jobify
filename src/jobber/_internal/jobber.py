@@ -13,13 +13,13 @@ from typing import (
 )
 from zoneinfo import ZoneInfo
 
-from iojobs._internal._inner_scope import ExecutorsPool, JobInnerScope
-from iojobs._internal.datastructures import State
-from iojobs._internal.durable.dummy import DummyRepository
-from iojobs._internal.durable.sqlite import SQLiteJobRepository
-from iojobs._internal.func_wrapper import FuncWrapper, create_default_name
-from iojobs._internal.middleware.resolver import MiddlewareResolver
-from iojobs._internal.serializers.json import JSONSerializer
+from jobber._internal.common.datastructures import State
+from jobber._internal.context import ExecutorsPool, JobberContext
+from jobber._internal.durable.dummy import DummyRepository
+from jobber._internal.durable.sqlite import SQLiteJobRepository
+from jobber._internal.func_wrapper import FuncWrapper, create_default_name
+from jobber._internal.middleware.pipeline import MiddlewarePipeline
+from jobber._internal.serializers.json import JSONSerializer
 
 if TYPE_CHECKING:
     import asyncio
@@ -27,24 +27,24 @@ if TYPE_CHECKING:
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
 
-    from iojobs._internal.annotations import AnyDict, Lifespan
-    from iojobs._internal.durable.abc import JobRepository
-    from iojobs._internal.middleware.base import BaseMiddleware
-    from iojobs._internal.runner.job import Job
-    from iojobs._internal.serializers.abc import JobsSerializer
+    from jobber._internal.common.annotations import AnyDict, Lifespan
+    from jobber._internal.durable.abc import JobRepository
+    from jobber._internal.middleware.base import BaseMiddleware
+    from jobber._internal.runner.job import Job
+    from jobber._internal.serializers.abc import JobsSerializer
 
 
 _FuncParams = ParamSpec("_FuncParams")
 _ReturnType = TypeVar("_ReturnType")
-_AppType = TypeVar("_AppType", bound="JobScheduler")
+_AppType = TypeVar("_AppType", bound="Jobber")
 
 
 @asynccontextmanager
-async def default_lifespan(_: JobScheduler) -> AsyncIterator[None]:
+async def default_lifespan(_: Jobber) -> AsyncIterator[None]:
     yield None
 
 
-class JobScheduler:
+class Jobber:
     def __init__(  # noqa: PLR0913
         self,
         *,
@@ -59,12 +59,12 @@ class JobScheduler:
         **extra: AnyDict,
     ) -> None:
         self.state: State = State()
-        self.middleware: MiddlewareResolver = MiddlewareResolver(middleware)
+        self.middleware: MiddlewarePipeline = MiddlewarePipeline(middleware)
         if durable is False:
             durable = DummyRepository()
         elif durable is None:
             durable = SQLiteJobRepository()
-        self._inner_scope: JobInnerScope = JobInnerScope(
+        self._jobber_ctx: JobberContext = JobberContext(
             _loop=loop,
             tz=tz or ZoneInfo("UTC"),
             durable=durable,
@@ -140,7 +140,7 @@ class JobScheduler:
             fwrapper = FuncWrapper(
                 state=self.state,
                 job_name=fname,
-                inner_scope=self._inner_scope,
+                job_context=self._jobber_ctx,
                 original_func=func,
                 jobs_registered=self._jobs_registered,
                 middleware=self.middleware,
@@ -261,7 +261,7 @@ class JobScheduler:
                 self.state.update(maybe_state)
             yield None
 
-    async def __aenter__(self) -> JobScheduler:
+    async def __aenter__(self) -> Jobber:
         await self.startup()
         return self
 
@@ -277,5 +277,5 @@ class JobScheduler:
         await anext(self._lifespan)
 
     async def shutdown(self) -> None:
-        self._inner_scope.close()
+        self._jobber_ctx.close()
         await anext(self._lifespan, None)

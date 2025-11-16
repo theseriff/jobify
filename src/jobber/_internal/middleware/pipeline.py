@@ -3,35 +3,35 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING, TypeVar, final
 
-from iojobs._internal.exceptions import CallbackSkippedError
+from jobber._internal.exceptions import HandlerSkippedError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
-    from iojobs._internal.datastructures import State
-    from iojobs._internal.middleware.base import BaseMiddleware, CallNextChain
-    from iojobs._internal.runner.job import Job
+    from jobber._internal.common.datastructures import State
+    from jobber._internal.middleware.base import BaseMiddleware, CallNext
+    from jobber._internal.runner.job import Job
 
 _ReturnT = TypeVar("_ReturnT")
 
 
 @final
-class MiddlewareResolver:
+class MiddlewarePipeline:
     def __init__(
         self,
         middlewares: Sequence[BaseMiddleware] | None = None,
     ) -> None:
         self._middlewares = list(middlewares) if middlewares else []
 
-    def add(self, *middlewares: BaseMiddleware) -> None:
+    def use(self, *middlewares: BaseMiddleware) -> None:
         self._middlewares.extend(middlewares)
 
-    def chain(
+    def compose(
         self,
         callback: Callable[..., Awaitable[_ReturnT]],
         *,
         raise_if_skipped: bool = False,
-    ) -> CallNextChain[_ReturnT]:
+    ) -> CallNext[_ReturnT]:
         has_called = False
 
         def target(_job: Job[_ReturnT], _state: State) -> Awaitable[_ReturnT]:
@@ -46,7 +46,7 @@ class MiddlewareResolver:
         async def executor(_job: Job[_ReturnT], state: State) -> _ReturnT:
             result = await chain_of_middlewares(_job, state)
             if raise_if_skipped is True and has_called is False:
-                raise CallbackSkippedError
+                raise HandlerSkippedError
             return result
 
         return executor

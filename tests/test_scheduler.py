@@ -6,8 +6,8 @@ from unittest import mock
 
 import pytest
 
-from iojobs import ExecutionMode, JobScheduler
-from iojobs._internal.cron_parser import CronParser
+from jobber import ExecutionMode, Jobber
+from jobber._internal.common.cron_parser import CronParser
 
 
 class CommonKwargs(TypedDict):
@@ -40,8 +40,8 @@ async def f2(num: int) -> int:
     ],
 )
 @pytest.mark.filterwarnings("ignore:.*(to_thread|to_process).*:RuntimeWarning")
-async def test_scheduler(  # noqa: PLR0913
-    scheduler: JobScheduler,
+async def test_jobber(  # noqa: PLR0913
+    jobber: Jobber,
     now: datetime,
     *,
     method: str,
@@ -50,8 +50,8 @@ async def test_scheduler(  # noqa: PLR0913
     execution_mode: ExecutionMode,
 ) -> None:
     common_kwargs = CommonKwargs(now=now, execution_mode=execution_mode)
-    f1_reg = scheduler.register(f1, job_name="f1_reg")
-    f2_reg = scheduler.register(f2, job_name="f2_reg")
+    f1_reg = jobber.register(f1, job_name="f1_reg")
+    f2_reg = jobber.register(f2, job_name="f2_reg")
     if method == "at":
         job_sync = await f1_reg.schedule(num).at(now, **common_kwargs)
         job_async = await f2_reg.schedule(num).at(now, **common_kwargs)
@@ -79,5 +79,5 @@ async def test_scheduler(  # noqa: PLR0913
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
-    assert scheduler._inner_scope.asyncio_tasks == set()
-    assert scheduler._jobs_registered == {}
+    assert jobber._jobber_ctx.asyncio_tasks == set()
+    assert jobber._jobs_registered == {}

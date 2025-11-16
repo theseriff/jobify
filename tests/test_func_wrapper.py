@@ -3,8 +3,8 @@ from collections.abc import Callable
 
 import pytest
 
-from iojobs import JobScheduler
-from iojobs._internal.func_wrapper import create_default_name
+from jobber import Jobber
+from jobber._internal.func_wrapper import create_default_name
 
 
 def somefunc() -> None:
@@ -29,12 +29,12 @@ def test_create_default_name(func: Callable[..., None]) -> None:
         assert job_name == f"tests.test_func_wrapper:{somefunc.__name__}"
 
 
-async def test_original_func_call(scheduler: JobScheduler) -> None:
-    @scheduler.register
+async def test_original_func_call(jobber: Jobber) -> None:
+    @jobber.register
     def t1(num: int) -> int:
         return num + 1
 
-    @scheduler.register
+    @jobber.register
     async def t2(num: int) -> int:
         return num + 1
 
@@ -43,16 +43,16 @@ async def test_original_func_call(scheduler: JobScheduler) -> None:
     assert await t2(1) == expected_val
 
 
-def test_patch_job_name(scheduler: JobScheduler) -> None:
-    @scheduler.register
-    @scheduler.register
+def test_patch_job_name(jobber: Jobber) -> None:
+    @jobber.register
+    @jobber.register
     def t() -> None:
         pass
 
-    t1_reg = scheduler.register(t)
-    t2_reg = scheduler.register(t)
+    t1_reg = jobber.register(t)
+    t2_reg = jobber.register(t)
 
-    new_name = "t__iojobs_original"
+    new_name = "t__jobber_original"
     new_qualname = f"test_patch_job_name.<locals>.{new_name}"
 
     assert t._original_func.__name__ == new_name

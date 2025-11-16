@@ -3,7 +3,7 @@
 
 import pickle  # nosec B403
 
-from iojobs._internal.serializers.abc import JobsSerializer, SerializableTypes
+from jobber._internal.serializers.abc import JobsSerializer, SerializableTypes
 
 
 class UnsafePickleSerializer(JobsSerializer):

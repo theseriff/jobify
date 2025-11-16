@@ -5,18 +5,18 @@ import sys
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
-from iojobs._internal.func_original import Callback
-from iojobs._internal.runner.runner import JobRunner
+from jobber._internal.handler import Handler
+from jobber._internal.runner.scheduler import JobScheduler
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
 
-    from iojobs._internal._inner_scope import JobInnerScope
-    from iojobs._internal.annotations import AnyDict
-    from iojobs._internal.datastructures import State
-    from iojobs._internal.middleware.resolver import MiddlewareResolver
-    from iojobs._internal.runner.job import Job
+    from jobber._internal.common.annotations import AnyDict
+    from jobber._internal.common.datastructures import State
+    from jobber._internal.context import JobberContext
+    from jobber._internal.middleware.pipeline import MiddlewarePipeline
+    from jobber._internal.runner.job import Job
 
 
 _FuncParams = ParamSpec("_FuncParams")
@@ -40,20 +40,20 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         *,
         state: State,
         job_name: str,
-        inner_scope: JobInnerScope,
+        job_context: JobberContext,
         original_func: Callable[_FuncParams, _ReturnType],
         jobs_registered: dict[str, Job[_ReturnType]],
-        middleware: MiddlewareResolver,
+        middleware: MiddlewarePipeline,
         extra: AnyDict,
     ) -> None:
         self._state: State = state
         self._job_name: str = job_name
-        self._inner_scope: JobInnerScope = inner_scope
+        self._jobber_ctx: JobberContext = job_context
         self._jobs_registered: dict[str, Job[_ReturnType]] = jobs_registered
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
         self._on_error_hooks: list[Callable[[Exception], None]] = []
         self._original_func: Callable[_FuncParams, _ReturnType] = original_func
-        self._middleware: MiddlewareResolver = middleware
+        self._middleware: MiddlewarePipeline = middleware
         self._extra: AnyDict = extra
 
         # --------------------------------------------------------------------
@@ -76,7 +76,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         # --------------------------------------------------------------------
 
         # Guard 1: Protect against double-renaming
-        if original_func.__name__.endswith("iojobs_original"):
+        if original_func.__name__.endswith("jobber_original"):
             return
 
         # Guard 2: Check if `register` is used as a decorator (@)
@@ -87,7 +87,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
             return
 
         # Apply the hack: rename and inject back into the module
-        new_name = f"{original_func.__name__}__iojobs_original"
+        new_name = f"{original_func.__name__}__jobber_original"
         original_func.__name__ = new_name
         if hasattr(original_func, "__qualname__"):  # pragma: no cover
             original_qualname = original_func.__qualname__.rsplit(".", 1)
@@ -108,33 +108,33 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         self: FuncWrapper[_FuncParams, CoroutineType[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, _T]: ...
+    ) -> JobScheduler[_FuncParams, _T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_FuncParams, Coroutine[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, _T]: ...
+    ) -> JobScheduler[_FuncParams, _T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_FuncParams, _ReturnType],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, _ReturnType]: ...
+    ) -> JobScheduler[_FuncParams, _ReturnType]: ...
 
     def schedule(
         self,
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
+    ) -> JobScheduler[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
         fn = self._original_func
-        callback = Callback(self._job_name, fn, *args, **kwargs)
-        return JobRunner(
+        handler = Handler(self._job_name, fn, *args, **kwargs)
+        return JobScheduler(
             state=self._state,
-            callback=callback,
-            inner_scope=self._inner_scope,
+            handler=handler,
+            jobber_ctx=self._jobber_ctx,
             jobs_registered=self._jobs_registered,
             on_success_hooks=self._on_success_hooks,
             on_error_hooks=self._on_error_hooks,

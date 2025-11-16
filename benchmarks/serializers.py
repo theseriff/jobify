@@ -1,6 +1,6 @@
 from timeit import timeit
 
-from iojobs.serializers import (
+from jobber.serializers import (
     JobsSerializer,
     JSONSerializer,
     SerializableTypes,

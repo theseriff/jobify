@@ -1,14 +1,14 @@
 from collections.abc import Callable
 from typing import Generic, ParamSpec, TypeVar, final
 
-from iojobs._internal.constants import EMPTY
+from jobber._internal.common.constants import EMPTY
 
 _ReturnType = TypeVar("_ReturnType")
 _FuncParams = ParamSpec("_FuncParams")
 
 
 @final
-class Callback(Generic[_FuncParams, _ReturnType]):
+class Handler(Generic[_FuncParams, _ReturnType]):
     def __init__(
         self,
         job_name: str,
