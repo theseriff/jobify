@@ -3,7 +3,7 @@ from unittest import mock
 from zoneinfo import ZoneInfo
 
 from jobber import Jobber
-from jobber._internal.cron_parser import CronParser
+from jobber._internal.common.cron_parser import CronParser
 
 
 def test_cronparser() -> None:

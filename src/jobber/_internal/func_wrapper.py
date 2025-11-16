@@ -6,15 +6,15 @@ from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
 from jobber._internal.handler import Handler
-from jobber._internal.runner.runner import JobRunner
+from jobber._internal.runner.scheduler import JobScheduler
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
 
-    from jobber._internal._inner_scope import JobInnerScope
-    from jobber._internal.annotations import AnyDict
-    from jobber._internal.datastructures import State
+    from jobber._internal.common.annotations import AnyDict
+    from jobber._internal.common.datastructures import State
+    from jobber._internal.context import JobberContext
     from jobber._internal.middleware.pipeline import MiddlewarePipeline
     from jobber._internal.runner.job import Job
 
@@ -40,7 +40,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         *,
         state: State,
         job_name: str,
-        inner_scope: JobInnerScope,
+        job_context: JobberContext,
         original_func: Callable[_FuncParams, _ReturnType],
         jobs_registered: dict[str, Job[_ReturnType]],
         middleware: MiddlewarePipeline,
@@ -48,7 +48,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
     ) -> None:
         self._state: State = state
         self._job_name: str = job_name
-        self._inner_scope: JobInnerScope = inner_scope
+        self._jobber_ctx: JobberContext = job_context
         self._jobs_registered: dict[str, Job[_ReturnType]] = jobs_registered
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
         self._on_error_hooks: list[Callable[[Exception], None]] = []
@@ -108,33 +108,33 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         self: FuncWrapper[_FuncParams, CoroutineType[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, _T]: ...
+    ) -> JobScheduler[_FuncParams, _T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_FuncParams, Coroutine[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, _T]: ...
+    ) -> JobScheduler[_FuncParams, _T]: ...
 
     @overload
     def schedule(
         self: FuncWrapper[_FuncParams, _ReturnType],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, _ReturnType]: ...
+    ) -> JobScheduler[_FuncParams, _ReturnType]: ...
 
     def schedule(
         self,
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobRunner[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
+    ) -> JobScheduler[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
         fn = self._original_func
-        callback = Handler(self._job_name, fn, *args, **kwargs)
-        return JobRunner(
+        handler = Handler(self._job_name, fn, *args, **kwargs)
+        return JobScheduler(
             state=self._state,
-            callback=callback,
-            inner_scope=self._inner_scope,
+            handler=handler,
+            jobber_ctx=self._jobber_ctx,
             jobs_registered=self._jobs_registered,
             on_success_hooks=self._on_success_hooks,
             on_error_hooks=self._on_error_hooks,

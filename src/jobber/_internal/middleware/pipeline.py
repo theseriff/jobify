@@ -8,7 +8,7 @@ from jobber._internal.exceptions import HandlerSkippedError
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
-    from jobber._internal.datastructures import State
+    from jobber._internal.common.datastructures import State
     from jobber._internal.middleware.base import BaseMiddleware, CallNext
     from jobber._internal.runner.job import Job
 

@@ -5,62 +5,48 @@ from __future__ import annotations
 import asyncio
 import logging
 import traceback
-import warnings
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar, cast
 from uuid import uuid4
 
-from jobber._internal.constants import EMPTY, ExecutionMode, JobStatus
-from jobber._internal.cron_parser import CronParser
-from jobber._internal.datastructures import State
-from jobber._internal.exceptions import (
-    HandlerSkippedError,
-    NegativeDelayError,
-)
-from jobber._internal.runner.command import (
-    AsyncRunner,
-    ExecutorPoolRunner,
-    SyncRunner,
-)
+from jobber._internal.common.constants import EMPTY, ExecutionMode, JobStatus
+from jobber._internal.common.cron_parser import CronParser
+from jobber._internal.common.datastructures import State
+from jobber._internal.exceptions import HandlerSkippedError, NegativeDelayError
+from jobber._internal.runner.executor import Executor, create_executor
 from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable
 
-    from jobber._internal._inner_scope import JobInnerScope
-    from jobber._internal.annotations import AnyDict
+    from jobber._internal.common.annotations import AnyDict
+    from jobber._internal.context import JobberContext
     from jobber._internal.handler import Handler
     from jobber._internal.middleware.pipeline import MiddlewarePipeline
-    from jobber._internal.runner.command import Runner
 
 
 logger = logging.getLogger("jobber.runner")
 
-ASYNC_FUNC_IGNORED_WARNING = """\
-Method {fname!r} is ignored for async functions. \
-Use it only with synchronous functions. \
-Async functions are already executed in the event loop.
-"""
 _ReturnType = TypeVar("_ReturnType")
 _FuncParams = ParamSpec("_FuncParams")
 
 
 @dataclass(slots=True, kw_only=True)
-class RunnerContext(Generic[_ReturnType]):
+class ExecutionContext(Generic[_ReturnType]):
     job: Job[_ReturnType]
-    cmd: Runner[_ReturnType]
-    execution_mode: ExecutionMode
+    executor: Executor[_ReturnType]
     cron_parser: CronParser | None
+    execution_mode: ExecutionMode
 
 
-class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
+class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
     __slots__: tuple[str, ...] = (
-        "_callback",
         "_cron_parser",
         "_extra",
-        "_inner_scope",
+        "_handler",
+        "_jobber_ctx",
         "_jobs_registered",
         "_middleware",
         "_on_error_hooks",
@@ -72,8 +58,8 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         self,
         *,
         state: State,
-        callback: Handler[_FuncParams, _ReturnType],
-        inner_scope: JobInnerScope,
+        handler: Handler[_FuncParams, _ReturnType],
+        jobber_ctx: JobberContext,
         jobs_registered: dict[str, Job[_ReturnType]],
         on_success_hooks: list[Callable[[_ReturnType], None]],
         on_error_hooks: list[Callable[[Exception], None]],
@@ -81,8 +67,8 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         extra: AnyDict,
     ) -> None:
         self._state: State = state
-        self._callback: Handler[_FuncParams, _ReturnType] = callback
-        self._inner_scope: JobInnerScope = inner_scope
+        self._handler: Handler[_FuncParams, _ReturnType] = handler
+        self._jobber_ctx: JobberContext = jobber_ctx
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = (
             on_success_hooks
         )
@@ -103,7 +89,7 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_ReturnType]:
-        now = now or datetime.now(tz=self._inner_scope.tz)
+        now = now or datetime.now(tz=self._jobber_ctx.tz)
         cron_parser = CronParser(expression=expression)
         next_at = cron_parser.next_run(now=now)
         return await self._at(
@@ -123,7 +109,7 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         job_id: str | None = None,
         execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_ReturnType]:
-        now = now or datetime.now(tz=self._inner_scope.tz)
+        now = now or datetime.now(tz=self._jobber_ctx.tz)
         at = now + timedelta(seconds=delay_seconds)
         return await self._at(
             now=now,
@@ -157,26 +143,26 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         exec_mode: ExecutionMode,
         cron_parser: CronParser | None = None,
     ) -> Job[_ReturnType]:
-        self._callback.job_id = job_id
+        self._handler.job_id = job_id
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
-        cmd = self._get_runner_cmd(exec_mode)
+        executor = create_executor(self._handler, exec_mode, self._jobber_ctx)
         job = Job(
             exec_at=at,
-            job_name=self._callback.job_name,
+            job_name=self._handler.job_name,
             job_id=job_id,
             job_registered=self._jobs_registered,
             job_status=JobStatus.SCHEDULED,
             cron_expression=cron_parser._expression if cron_parser else None,
         )
-        runner_ctx = RunnerContext(
+        runner_ctx = ExecutionContext(
             job=job,
-            cmd=cmd,
+            executor=executor,
             cron_parser=cron_parser,
             execution_mode=exec_mode,
         )
-        loop = self._inner_scope.loop
+        loop = self._jobber_ctx.loop
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._execute, runner_ctx)
+        time_handler = loop.call_at(when, self._schedule_execution, runner_ctx)
         job._timer_handler = time_handler
         self._jobs_registered[job_id] = job
         return job
@@ -193,47 +179,23 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
             raise NegativeDelayError(delay_seconds)
         return delay_seconds
 
-    def _get_runner_cmd(self, exec_mode: ExecutionMode) -> Runner[_ReturnType]:
-        cmd: Runner[_ReturnType]
-        if asyncio.iscoroutinefunction(self._callback.original_func):
-            c = cast(
-                "Handler[_FuncParams, Awaitable[_ReturnType]]",
-                self._callback,
-            )
-            cmd = AsyncRunner(c)
-            if exec_mode is ExecutionMode.MAIN:
-                return cmd
-            if exec_mode is ExecutionMode.PROCESS:
-                warn = ASYNC_FUNC_IGNORED_WARNING.format(fname="to_process")
-            else:
-                warn = ASYNC_FUNC_IGNORED_WARNING.format(fname="to_thread")
-            warnings.warn(warn, category=RuntimeWarning, stacklevel=2)
-            return cmd
+    def _schedule_execution(self, ctx: ExecutionContext[_ReturnType]) -> None:
+        task = asyncio.create_task(self._exec_job(ctx=ctx))
+        self._jobber_ctx.asyncio_tasks.add(task)
+        task.add_done_callback(self._jobber_ctx.asyncio_tasks.discard)
 
-        if exec_mode is ExecutionMode.MAIN:
-            return SyncRunner(self._callback)
-        executor = (
-            self._inner_scope.executors.processpool
-            if exec_mode is ExecutionMode.PROCESS
-            else self._inner_scope.executors.threadpool
-        )
-        loop = self._inner_scope.loop
-        return ExecutorPoolRunner(self._callback, executor, loop)
-
-    def _execute(self, ctx: RunnerContext[_ReturnType]) -> None:
-        task = asyncio.create_task(self._run_job(ctx=ctx))
-        self._inner_scope.asyncio_tasks.add(task)
-        task.add_done_callback(self._inner_scope.asyncio_tasks.discard)
-
-    async def _run_job(self, *, ctx: RunnerContext[_ReturnType]) -> None:
+    async def _exec_job(self, *, ctx: ExecutionContext[_ReturnType]) -> None:
         job = ctx.job
         job.status = JobStatus.RUNNING
         self._state.request = State()
-        chain = self._middleware.compose(ctx.cmd.run, raise_if_skipped=True)
+        middleware_chain = self._middleware.compose(
+            ctx.executor.run,
+            raise_if_skipped=True,
+        )
         try:
-            result = await chain(job, self._state)
+            result = await middleware_chain(job, self._state)
         except HandlerSkippedError:
-            logger.debug("Job %s callback was skipped by middleware", job.id)
+            logger.debug("Job %s execution was skipped by middleware", job.id)
             job.status = JobStatus.SKIPPED
         except Exception as exc:
             logger.exception("Job %s failed with unexpected error", job.id)
@@ -254,15 +216,15 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
 
     async def _reschedule_cron(
         self,
-        runner_ctx: RunnerContext[_ReturnType],
+        runner_ctx: ExecutionContext[_ReturnType],
     ) -> None:
         cron_parser = cast("CronParser", runner_ctx.cron_parser)
-        now = datetime.now(tz=self._inner_scope.tz)
+        now = datetime.now(tz=self._jobber_ctx.tz)
         next_at = cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
-        loop = self._inner_scope.loop
+        loop = self._jobber_ctx.loop
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._execute, runner_ctx)
+        time_handler = loop.call_at(when, self._schedule_execution, runner_ctx)
         job = runner_ctx.job
         job._update(
             exec_at=next_at,

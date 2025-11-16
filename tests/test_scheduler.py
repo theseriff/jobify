@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 from jobber import ExecutionMode, Jobber
-from jobber._internal.cron_parser import CronParser
+from jobber._internal.common.cron_parser import CronParser
 
 
 class CommonKwargs(TypedDict):
@@ -79,5 +79,5 @@ async def test_jobber(  # noqa: PLR0913
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
-    assert jobber._inner_scope.asyncio_tasks == set()
+    assert jobber._jobber_ctx.asyncio_tasks == set()
     assert jobber._jobs_registered == {}

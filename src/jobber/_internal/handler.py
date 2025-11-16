@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Generic, ParamSpec, TypeVar, final
 
-from jobber._internal.constants import EMPTY
+from jobber._internal.common.constants import EMPTY
 
 _ReturnType = TypeVar("_ReturnType")
 _FuncParams = ParamSpec("_FuncParams")

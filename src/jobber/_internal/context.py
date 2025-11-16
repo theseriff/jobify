@@ -39,7 +39,7 @@ class ExecutorsPool:
 
 
 @dataclass(slots=True, kw_only=True)
-class JobInnerScope:
+class JobberContext:
     _loop: asyncio.AbstractEventLoop | None
     tz: ZoneInfo
     durable: JobRepository

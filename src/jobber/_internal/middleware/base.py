@@ -10,7 +10,7 @@ from typing import (
     runtime_checkable,
 )
 
-from jobber._internal.datastructures import State
+from jobber._internal.common.datastructures import State
 from jobber._internal.runner.job import Job
 
 _ReturnType = TypeVar("_ReturnType")

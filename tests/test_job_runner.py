@@ -2,7 +2,7 @@
 import pytest
 
 from jobber import Jobber
-from jobber._internal.constants import JobStatus
+from jobber._internal.common.constants import JobStatus
 from jobber._internal.exceptions import JobFailedError
 
 
