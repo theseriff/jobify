@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
-from iojobs._internal.constants import ExecutionMode, JobStatus
+from jobber._internal.constants import ExecutionMode, JobStatus
 
 
 @dataclass(slots=True, kw_only=True)

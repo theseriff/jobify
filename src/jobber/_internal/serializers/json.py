@@ -2,7 +2,7 @@ import base64
 import json
 from typing import Any, TypeAlias
 
-from iojobs._internal.serializers.abc import JobsSerializer, SerializableTypes
+from jobber._internal.serializers.abc import JobsSerializer, SerializableTypes
 
 _JsonCompat: TypeAlias = (
     dict[str, "_JsonCompat"]

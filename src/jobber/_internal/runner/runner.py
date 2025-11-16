@@ -12,31 +12,31 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar, cast
 from uuid import uuid4
 
-from iojobs._internal.constants import EMPTY, ExecutionMode, JobStatus
-from iojobs._internal.cron_parser import CronParser
-from iojobs._internal.datastructures import State
-from iojobs._internal.exceptions import (
-    CallbackSkippedError,
+from jobber._internal.constants import EMPTY, ExecutionMode, JobStatus
+from jobber._internal.cron_parser import CronParser
+from jobber._internal.datastructures import State
+from jobber._internal.exceptions import (
+    HandlerSkippedError,
     NegativeDelayError,
 )
-from iojobs._internal.runner.command import (
+from jobber._internal.runner.command import (
     AsyncRunner,
     ExecutorPoolRunner,
     SyncRunner,
 )
-from iojobs._internal.runner.job import Job
+from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from iojobs._internal._inner_scope import JobInnerScope
-    from iojobs._internal.annotations import AnyDict
-    from iojobs._internal.func_original import Callback
-    from iojobs._internal.middleware.resolver import MiddlewareResolver
-    from iojobs._internal.runner.command import Runner
+    from jobber._internal._inner_scope import JobInnerScope
+    from jobber._internal.annotations import AnyDict
+    from jobber._internal.handler import Handler
+    from jobber._internal.middleware.pipeline import MiddlewarePipeline
+    from jobber._internal.runner.command import Runner
 
 
-logger = logging.getLogger("iojobs.runner")
+logger = logging.getLogger("jobber.runner")
 
 ASYNC_FUNC_IGNORED_WARNING = """\
 Method {fname!r} is ignored for async functions. \
@@ -72,16 +72,16 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         self,
         *,
         state: State,
-        callback: Callback[_FuncParams, _ReturnType],
+        callback: Handler[_FuncParams, _ReturnType],
         inner_scope: JobInnerScope,
         jobs_registered: dict[str, Job[_ReturnType]],
         on_success_hooks: list[Callable[[_ReturnType], None]],
         on_error_hooks: list[Callable[[Exception], None]],
-        middleware: MiddlewareResolver,
+        middleware: MiddlewarePipeline,
         extra: AnyDict,
     ) -> None:
         self._state: State = state
-        self._callback: Callback[_FuncParams, _ReturnType] = callback
+        self._callback: Handler[_FuncParams, _ReturnType] = callback
         self._inner_scope: JobInnerScope = inner_scope
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = (
             on_success_hooks
@@ -91,7 +91,7 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         )
         self._jobs_registered: Final = jobs_registered
         self._cron_parser: CronParser = EMPTY
-        self._middleware: MiddlewareResolver = middleware
+        self._middleware: MiddlewarePipeline = middleware
         self._extra: AnyDict = extra
 
     async def cron(
@@ -197,7 +197,7 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         cmd: Runner[_ReturnType]
         if asyncio.iscoroutinefunction(self._callback.original_func):
             c = cast(
-                "Callback[_FuncParams, Awaitable[_ReturnType]]",
+                "Handler[_FuncParams, Awaitable[_ReturnType]]",
                 self._callback,
             )
             cmd = AsyncRunner(c)
@@ -221,18 +221,18 @@ class JobRunner(ABC, Generic[_FuncParams, _ReturnType]):
         return ExecutorPoolRunner(self._callback, executor, loop)
 
     def _execute(self, ctx: RunnerContext[_ReturnType]) -> None:
-        task = asyncio.create_task(self._runner(ctx=ctx))
+        task = asyncio.create_task(self._run_job(ctx=ctx))
         self._inner_scope.asyncio_tasks.add(task)
         task.add_done_callback(self._inner_scope.asyncio_tasks.discard)
 
-    async def _runner(self, *, ctx: RunnerContext[_ReturnType]) -> None:
+    async def _run_job(self, *, ctx: RunnerContext[_ReturnType]) -> None:
         job = ctx.job
         job.status = JobStatus.RUNNING
         self._state.request = State()
-        chain = self._middleware.chain(ctx.cmd.run, raise_if_skipped=True)
+        chain = self._middleware.compose(ctx.cmd.run, raise_if_skipped=True)
         try:
             result = await chain(job, self._state)
-        except CallbackSkippedError:
+        except HandlerSkippedError:
             logger.debug("Job %s callback was skipped by middleware", job.id)
             job.status = JobStatus.SKIPPED
         except Exception as exc:

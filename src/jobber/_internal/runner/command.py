@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     import concurrent.futures
     from collections.abc import Awaitable
 
-    from iojobs._internal.func_original import Callback
+    from jobber._internal.handler import Handler
 
 _ReturnType = TypeVar("_ReturnType")
 _Return_co = TypeVar("_Return_co", covariant=True)
@@ -24,7 +24,7 @@ class Runner(Protocol[_Return_co], metaclass=ABCMeta):
 class SyncRunner(Runner[_ReturnType]):
     __slots__: tuple[str, ...] = ("_callback",)
 
-    def __init__(self, callback: Callback[..., _ReturnType]) -> None:
+    def __init__(self, callback: Handler[..., _ReturnType]) -> None:
         self._callback = callback
 
     async def run(self) -> _ReturnType:
@@ -37,7 +37,7 @@ class AsyncRunner(Runner[_ReturnType]):
 
     def __init__(
         self,
-        callback: Callback[..., Awaitable[_ReturnType]],
+        callback: Handler[..., Awaitable[_ReturnType]],
     ) -> None:
         self._callback = callback
 
@@ -51,7 +51,7 @@ class ExecutorPoolRunner(Runner[_ReturnType]):
 
     def __init__(
         self,
-        callback: Callback[..., _ReturnType],
+        callback: Handler[..., _ReturnType],
         executor: concurrent.futures.Executor,
         loop: asyncio.AbstractEventLoop,
     ) -> None:

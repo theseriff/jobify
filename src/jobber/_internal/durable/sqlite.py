@@ -1,4 +1,4 @@
-from iojobs._internal.durable.abc import JobPersisted, JobRepository
+from jobber._internal.durable.abc import JobPersisted, JobRepository
 
 
 class SQLiteJobRepository(JobRepository):

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from iojobs._internal.scheduler import JobScheduler
+from jobber._internal.jobber import Jobber
 
 
 @pytest.fixture(scope="session")
@@ -13,6 +13,6 @@ def now() -> datetime:
 
 
 @pytest.fixture
-async def scheduler() -> AsyncIterator[JobScheduler]:
-    async with JobScheduler() as jobber:
+async def jobber() -> AsyncIterator[Jobber]:
+    async with Jobber() as jobber:
         yield jobber

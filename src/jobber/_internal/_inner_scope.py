@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
 
-    from iojobs._internal.durable.abc import JobRepository
-    from iojobs._internal.serializers.abc import JobsSerializer
+    from jobber._internal.durable.abc import JobRepository
+    from jobber._internal.serializers.abc import JobsSerializer
 
 
 @dataclass(slots=True, kw_only=True)

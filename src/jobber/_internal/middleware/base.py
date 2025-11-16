@@ -10,11 +10,11 @@ from typing import (
     runtime_checkable,
 )
 
-from iojobs._internal.datastructures import State
-from iojobs._internal.runner.job import Job
+from jobber._internal.datastructures import State
+from jobber._internal.runner.job import Job
 
 _ReturnType = TypeVar("_ReturnType")
-CallNextChain = Callable[[Job[_ReturnType], State], Awaitable[_ReturnType]]
+CallNext = Callable[[Job[_ReturnType], State], Awaitable[_ReturnType]]
 
 
 @runtime_checkable
@@ -22,7 +22,7 @@ class BaseMiddleware(Protocol, metaclass=ABCMeta):
     @abstractmethod
     async def __call__(
         self,
-        call_next: CallNextChain[Any],
+        call_next: CallNext[Any],
         job: Job[Any],
         state: State,
     ) -> Any: ...  # noqa: ANN401

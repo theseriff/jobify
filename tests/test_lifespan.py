@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from typing import TypedDict
 from unittest.mock import AsyncMock
 
-from iojobs._internal.scheduler import JobScheduler
+from jobber._internal.jobber import Jobber
 
 
 async def test_lifespan_with_state() -> None:
@@ -13,11 +13,11 @@ async def test_lifespan_with_state() -> None:
         client: AsyncMock
 
     @asynccontextmanager
-    async def lifespan(_: JobScheduler) -> AsyncIterator[State]:
+    async def lifespan(_: Jobber) -> AsyncIterator[State]:
         async with client:
             yield {"client": client}
 
-    jobber = JobScheduler(lifespan=lifespan)
+    jobber = Jobber(lifespan=lifespan)
 
     assert not hasattr(jobber.state, "client")
 

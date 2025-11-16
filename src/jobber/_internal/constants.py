@@ -2,7 +2,7 @@
 from enum import Enum, unique
 from typing import Any
 
-from iojobs._internal.datastructures import EmptyPlaceholder
+from jobber._internal.datastructures import EmptyPlaceholder
 
 
 @unique

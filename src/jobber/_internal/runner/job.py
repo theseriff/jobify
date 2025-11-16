@@ -5,8 +5,8 @@ import asyncio
 import warnings
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-from iojobs._internal.constants import EMPTY, JobStatus
-from iojobs._internal.exceptions import (
+from jobber._internal.constants import EMPTY, JobStatus
+from jobber._internal.exceptions import (
     JobFailedError,
     JobNotCompletedError,
 )

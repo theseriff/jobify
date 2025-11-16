@@ -1,8 +1,8 @@
-class IOJobsBaseError(Exception):
+class BaseJobberError(Exception):
     pass
 
 
-class JobNotCompletedError(IOJobsBaseError):
+class JobNotCompletedError(BaseJobberError):
     """Raised when trying to access result of incomplete job."""
 
     def __init__(
@@ -15,7 +15,7 @@ class JobNotCompletedError(IOJobsBaseError):
         super().__init__(message)
 
 
-class JobFailedError(IOJobsBaseError):
+class JobFailedError(BaseJobberError):
     def __init__(self, job_id: str, reason: str) -> None:
         self.job_id: str = job_id
         self.reason: str = reason
@@ -23,7 +23,7 @@ class JobFailedError(IOJobsBaseError):
         super().__init__(message)
 
 
-class NegativeDelayError(IOJobsBaseError):
+class NegativeDelayError(BaseJobberError):
     """Exception raised when negative delay_seconds is provided."""
 
     def __init__(
@@ -38,7 +38,7 @@ class NegativeDelayError(IOJobsBaseError):
         self.delay_seconds: float = delay_seconds
 
 
-class CallbackSkippedError(IOJobsBaseError):
+class HandlerSkippedError(BaseJobberError):
     """Raised when middleware chain completes without calling the job callback.
 
     This occurs when one of middleware in the chain decides to

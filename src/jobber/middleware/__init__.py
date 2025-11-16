@@ -12,6 +12,6 @@ where each piece of middleware can:
 - Break out of the chain by skipping the `call_next()` method
 """
 
-from iojobs._internal.middleware.base import BaseMiddleware, CallNextChain
+from jobber._internal.middleware.base import BaseMiddleware, CallNext
 
-__all__ = ("BaseMiddleware", "CallNextChain")
+__all__ = ("BaseMiddleware", "CallNext")
