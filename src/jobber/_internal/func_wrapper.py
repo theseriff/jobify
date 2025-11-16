@@ -42,14 +42,14 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         job_name: str,
         job_context: JobberContext,
         original_func: Callable[_FuncParams, _ReturnType],
-        jobs_registered: dict[str, Job[_ReturnType]],
+        job_registry: dict[str, Job[_ReturnType]],
         middleware: MiddlewarePipeline,
         extra: AnyDict,
     ) -> None:
         self._state: State = state
         self._job_name: str = job_name
         self._jobber_ctx: JobberContext = job_context
-        self._jobs_registered: dict[str, Job[_ReturnType]] = jobs_registered
+        self._job_registry: dict[str, Job[_ReturnType]] = job_registry
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
         self._on_error_hooks: list[Callable[[Exception], None]] = []
         self._original_func: Callable[_FuncParams, _ReturnType] = original_func
@@ -135,7 +135,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
             state=self._state,
             handler=handler,
             jobber_ctx=self._jobber_ctx,
-            jobs_registered=self._jobs_registered,
+            job_registry=self._job_registry,
             on_success_hooks=self._on_success_hooks,
             on_error_hooks=self._on_error_hooks,
             middleware=self._middleware,

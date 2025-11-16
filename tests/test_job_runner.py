@@ -23,7 +23,7 @@ async def test_job(jobber: Jobber) -> None:
     await job2.cancel()
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELED
-    assert job2.id not in job2._job_registered
+    assert job2.id not in job2._job_registry
     assert job2._timer_handler.cancelled()
 
 
@@ -39,8 +39,8 @@ async def test_job_runner_hooks(jobber: Jobber) -> None:
         nonlocal expected_on_error
         expected_on_error = exc
 
-    @jobber.register_on_success_hooks(hooks=[on_success])
-    @jobber.register_on_error_hooks(hooks=[on_error])
+    @jobber.on_complete(hooks=[on_success])
+    @jobber.on_error(hooks=[on_error])
     @jobber.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
@@ -64,15 +64,15 @@ async def test_job_runner_hooks_fail_usage(jobber: Jobber) -> None:
     def on_error(_exc: Exception) -> None:
         raise TypeError
 
-    @jobber.register_on_success_hooks(hooks=[on_success])
-    @jobber.register_on_error_hooks(hooks=[on_error])
+    @jobber.on_complete(hooks=[on_success])
+    @jobber.on_error(hooks=[on_error])
     @jobber.register(job_name="t")
     def t(num: int) -> int:
         return 10 // num
 
     t_reg = jobber.register(t, job_name="t")
-    _ = jobber.register_on_success_hooks(t_reg, hooks=[on_success])
-    _ = jobber.register_on_error_hooks(t_reg, hooks=[on_error])
+    _ = jobber.on_complete(t_reg, hooks=[on_success])
+    _ = jobber.on_error(t_reg, hooks=[on_error])
 
     job1 = await t.schedule(1).delay(0)
     job2 = await t.schedule(0).delay(0)

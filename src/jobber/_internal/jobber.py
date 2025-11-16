@@ -58,7 +58,7 @@ class Jobber:
         processpool_executor: ProcessPoolExecutor | None = None,
         **extra: AnyDict,
     ) -> None:
-        self.state: State = State()
+        self.state: State = State({"app": self})
         self.middleware: MiddlewarePipeline = MiddlewarePipeline(middleware)
         if durable is False:
             durable = DummyRepository()
@@ -75,11 +75,11 @@ class Jobber:
             serializer=serializer or JSONSerializer(),
             asyncio_tasks=set(),
         )
-        self._lifespan: AsyncIterator[None] = self._lifespan_wrapper(
+        self._lifespan: AsyncIterator[None] = self._run_lifespan(
             lifespan or default_lifespan,
         )
-        self._func_registered: dict[str, FuncWrapper[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
-        self._jobs_registered: dict[str, Job[Any]] = {}  # pyright: ignore[reportExplicitAny]
+        self._function_registry: dict[str, FuncWrapper[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
+        self._job_registry: dict[str, Job[Any]] = {}  # pyright: ignore[reportExplicitAny]
         self._extra: AnyDict = extra
 
     @overload
@@ -135,25 +135,25 @@ class Jobber:
             func: Callable[_FuncParams, _ReturnType],
         ) -> FuncWrapper[_FuncParams, _ReturnType]:
             fname = job_name or create_default_name(func)
-            if fwrapper := self._func_registered.get(fname):
+            if fwrapper := self._function_registry.get(fname):
                 return cast("FuncWrapper[_FuncParams, _ReturnType]", fwrapper)
             fwrapper = FuncWrapper(
                 state=self.state,
                 job_name=fname,
                 job_context=self._jobber_ctx,
                 original_func=func,
-                jobs_registered=self._jobs_registered,
+                job_registry=self._job_registry,
                 middleware=self.middleware,
                 extra=self._extra,
             )
             _ = functools.update_wrapper(fwrapper, func)
-            self._func_registered[fname] = fwrapper
+            self._function_registry[fname] = fwrapper
             return fwrapper
 
         return wrapper
 
     @overload
-    def register_on_success_hooks(
+    def on_complete(
         self,
         fwrap: FuncWrapper[_FuncParams, _ReturnType],
         *,
@@ -161,7 +161,7 @@ class Jobber:
     ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
 
     @overload
-    def register_on_success_hooks(
+    def on_complete(
         self,
         *,
         hooks: Iterable[Callable[[_ReturnType], None]],
@@ -170,7 +170,7 @@ class Jobber:
         FuncWrapper[_FuncParams, _ReturnType],
     ]: ...
 
-    def register_on_success_hooks(
+    def on_complete(
         self,
         fwrap: FuncWrapper[_FuncParams, _ReturnType] | None = None,
         *,
@@ -203,7 +203,7 @@ class Jobber:
         return wrapper
 
     @overload
-    def register_on_error_hooks(
+    def on_error(
         self,
         fwrap: FuncWrapper[_FuncParams, _ReturnType],
         *,
@@ -211,7 +211,7 @@ class Jobber:
     ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
 
     @overload
-    def register_on_error_hooks(
+    def on_error(
         self,
         *,
         hooks: Iterable[Callable[[Exception], None]],
@@ -220,7 +220,7 @@ class Jobber:
         FuncWrapper[_FuncParams, _ReturnType],
     ]: ...
 
-    def register_on_error_hooks(
+    def on_error(
         self,
         fwrap: FuncWrapper[_FuncParams, _ReturnType] | None = None,
         *,
@@ -252,7 +252,7 @@ class Jobber:
 
         return wrapper
 
-    async def _lifespan_wrapper(
+    async def _run_lifespan(
         self,
         user_lifespan: Lifespan[Any],  # pyright: ignore[reportExplicitAny]
     ) -> AsyncIterator[None]:

@@ -9,6 +9,14 @@ _FuncParams = ParamSpec("_FuncParams")
 
 @final
 class Handler(Generic[_FuncParams, _ReturnType]):
+    __slots__: tuple[str, ...] = (
+        "job_id",
+        "job_name",
+        "original_args",
+        "original_func",
+        "original_kwargs",
+    )
+
     def __init__(
         self,
         job_name: str,

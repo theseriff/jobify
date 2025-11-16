@@ -25,7 +25,7 @@ class Job(Generic[_ReturnType]):
         "_event",
         "_exception",
         "_has_waited",
-        "_job_registered",
+        "_job_registry",
         "_result",
         "_timer_handler",
         "cron_expression",
@@ -41,12 +41,12 @@ class Job(Generic[_ReturnType]):
         job_id: str,
         exec_at: datetime,
         job_name: str,
-        job_registered: dict[str, Job[_ReturnType]],
+        job_registry: dict[str, Job[_ReturnType]],
         job_status: JobStatus,
         cron_expression: str | None,
     ) -> None:
         self._event: asyncio.Event = asyncio.Event()
-        self._job_registered: dict[str, Job[_ReturnType]] = job_registered
+        self._job_registry: dict[str, Job[_ReturnType]] = job_registry
         self._result: _ReturnType = EMPTY
         self._exception: Exception = EMPTY
         self._has_waited: bool = False
@@ -109,7 +109,7 @@ class Job(Generic[_ReturnType]):
             _ = await self._event.wait()
 
     async def cancel(self) -> None:
-        _ = self._job_registered.pop(self.id, None)
+        _ = self._job_registry.pop(self.id, None)
         self.status = JobStatus.CANCELED
         self._timer_handler.cancel()
         self._event.set()

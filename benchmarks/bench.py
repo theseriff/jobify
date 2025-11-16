@@ -16,9 +16,10 @@ Results: TypeAlias = dict[str, "float | dict[str, float]"]
 @contextmanager
 def timer() -> Iterator[None]:
     logger.info("Running benchmarks...")
-    start = time.monotonic()
+    start = time.perf_counter()
     yield None
-    logger.info("Benchmarks completed in: %.2fs.", time.monotonic() - start)
+    end = time.perf_counter() - start
+    logger.info("Benchmarks completed in: %.2fs.", end)
 
 
 def write_results(results: Results) -> None:

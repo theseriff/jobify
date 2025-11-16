@@ -27,6 +27,8 @@ class State:
     Used for `request.state` and `app.state`.
     """
 
+    __slots__: tuple[str, ...] = ("_state",)
+
     _state: dict[str, Any]  # pyright: ignore[reportUninitializedInstanceVariable]
 
     def __init__(self, state: dict[str, Any] | None = None) -> None:
@@ -48,6 +50,9 @@ class State:
 
     def __delattr__(self, key: Any) -> None:  # noqa: ANN401
         del self._state[key]
+
+    def __str__(self) -> str:
+        return str(self._state)
 
     def update(self, state: Mapping[str, Any]) -> None:
         self._state.update(state)

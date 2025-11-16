@@ -46,8 +46,8 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         "_cron_parser",
         "_extra",
         "_handler",
+        "_job_registry",
         "_jobber_ctx",
-        "_jobs_registered",
         "_middleware",
         "_on_error_hooks",
         "_on_success_hooks",
@@ -60,7 +60,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         state: State,
         handler: Handler[_FuncParams, _ReturnType],
         jobber_ctx: JobberContext,
-        jobs_registered: dict[str, Job[_ReturnType]],
+        job_registry: dict[str, Job[_ReturnType]],
         on_success_hooks: list[Callable[[_ReturnType], None]],
         on_error_hooks: list[Callable[[Exception], None]],
         middleware: MiddlewarePipeline,
@@ -75,7 +75,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         self._on_error_hooks: list[Callable[[Exception], None]] = (
             on_error_hooks
         )
-        self._jobs_registered: Final = jobs_registered
+        self._job_registry: Final = job_registry
         self._cron_parser: CronParser = EMPTY
         self._middleware: MiddlewarePipeline = middleware
         self._extra: AnyDict = extra
@@ -150,7 +150,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             exec_at=at,
             job_name=self._handler.job_name,
             job_id=job_id,
-            job_registered=self._jobs_registered,
+            job_registry=self._job_registry,
             job_status=JobStatus.SCHEDULED,
             cron_expression=cron_parser._expression if cron_parser else None,
         )
@@ -164,7 +164,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._schedule_execution, runner_ctx)
         job._timer_handler = time_handler
-        self._jobs_registered[job_id] = job
+        self._job_registry[job_id] = job
         return job
 
     def _calculate_delay_seconds(
@@ -211,7 +211,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             if ctx.cron_parser:
                 await self._reschedule_cron(ctx)
             else:
-                _ = self._jobs_registered.pop(job.id)
+                _ = self._job_registry.pop(job.id)
             event.set()
 
     async def _reschedule_cron(

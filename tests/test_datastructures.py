@@ -27,3 +27,4 @@ async def test_state() -> None:
 
     del state.new_client
     assert not hasattr(state, "new_client")
+    assert "client" in str(state)
