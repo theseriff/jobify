@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import functools
 import os
 import sys
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
-from jobber._internal.handler import Handler
 from jobber._internal.runner.scheduler import JobScheduler
 
 if TYPE_CHECKING:
@@ -126,14 +126,14 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
     ) -> JobScheduler[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
-        fn = self._original_func
-        handler = Handler(self._job_name, fn, *args, **kwargs)
+        func_injected = functools.partial(self._original_func, *args, **kwargs)
         return JobScheduler(
-            state=self._state,
-            handler=handler,
-            jobber_ctx=self._jobber_ctx,
+            func_injected=func_injected,
+            job_name=self._job_name,
             job_registry=self._job_registry,
-            on_success_hooks=self._on_success_hooks,
-            on_error_hooks=self._on_error_hooks,
+            jobber_ctx=self._jobber_ctx,
             middleware=self._middleware,
+            on_error_hooks=self._on_error_hooks,
+            on_success_hooks=self._on_success_hooks,
+            state=self._state,
         )

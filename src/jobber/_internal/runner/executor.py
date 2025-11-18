@@ -1,126 +1,46 @@
-from __future__ import annotations
-
 import asyncio
-import warnings
-from abc import ABCMeta, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Protocol,
-    TypeVar,
-    final,
-    overload,
-    runtime_checkable,
-)
+import functools
+from typing import Generic, TypeVar, cast, final
 
 from jobber._internal.common.constants import ExecutionMode
-
-if TYPE_CHECKING:
-    import concurrent.futures
-    from collections.abc import Awaitable
-
-    from jobber._internal.context import JobberContext
-    from jobber._internal.handler import Handler
+from jobber._internal.context import JobberContext
 
 _ReturnType = TypeVar("_ReturnType")
-_Return_co = TypeVar("_Return_co", covariant=True)
-
-
-@runtime_checkable
-class Executor(Protocol[_Return_co], metaclass=ABCMeta):
-    @abstractmethod
-    async def run(self) -> _Return_co:
-        raise NotImplementedError
 
 
 @final
-class SyncExecutor(Executor[_ReturnType]):
-    __slots__: tuple[str, ...] = ("_handler",)
-
-    def __init__(self, handler: Handler[..., _ReturnType]) -> None:
-        self._handler = handler
-
-    async def run(self) -> _ReturnType:
-        return self._handler()
-
-
-@final
-class AsyncExecutor(Executor[_ReturnType]):
-    __slots__: tuple[str, ...] = ("_handler",)
-
-    def __init__(
-        self,
-        handler: Handler[..., Awaitable[_ReturnType]],
-    ) -> None:
-        self._handler = handler
-
-    async def run(self) -> _ReturnType:
-        return await self._handler()
-
-
-@final
-class PoolExecutor(Executor[_ReturnType]):
-    __slots__: tuple[str, ...] = ("_executor", "_handler", "_loop")
-
-    def __init__(
-        self,
-        handler: Handler[..., _ReturnType],
-        pool: concurrent.futures.Executor,
-        loop: asyncio.AbstractEventLoop,
-    ) -> None:
-        self._handler = handler
-        self._executor = pool
-        self._loop = loop
-
-    async def run(self) -> _ReturnType:
-        return await self._loop.run_in_executor(self._executor, self._handler)
-
-
-ASYNC_FUNC_EXECUTION_WARNING = """\
-Method {fname!r} is ignored for async functions. \
-Use it only with synchronous functions. \
-Async functions are already executed in the event loop.
-"""
-
-
-@overload
-def create_executor(
-    handler: Handler[..., Awaitable[_ReturnType]],
-    exec_mode: ExecutionMode,
-    jobber_ctx: JobberContext,
-) -> Executor[_ReturnType]: ...
-
-
-@overload
-def create_executor(
-    handler: Handler[..., _ReturnType],
-    exec_mode: ExecutionMode,
-    jobber_ctx: JobberContext,
-) -> Executor[_ReturnType]: ...
-
-
-def create_executor(
-    handler: Handler[..., Any],  # pyright: ignore[reportExplicitAny]
-    exec_mode: ExecutionMode,
-    jobber_ctx: JobberContext,
-) -> Executor[_ReturnType]:
-    if asyncio.iscoroutinefunction(handler.original_func):
-        executor = AsyncExecutor(handler)
-        if exec_mode is ExecutionMode.MAIN:
-            return executor
-        if exec_mode is ExecutionMode.PROCESS:
-            warn = ASYNC_FUNC_EXECUTION_WARNING.format(fname="to_process")
-        else:
-            warn = ASYNC_FUNC_EXECUTION_WARNING.format(fname="to_thread")
-        warnings.warn(warn, category=RuntimeWarning, stacklevel=2)
-        return executor
-
-    if exec_mode is ExecutionMode.MAIN:
-        return SyncExecutor(handler)
-    pool = (
-        jobber_ctx.executors.processpool
-        if exec_mode is ExecutionMode.PROCESS
-        else jobber_ctx.executors.threadpool
+class Executor(Generic[_ReturnType]):
+    __slots__: tuple[str, ...] = (
+        "execution_mode",
+        "func_injected",
+        "jobber_ctx",
     )
-    loop = jobber_ctx.loop
-    return PoolExecutor(handler, pool, loop)
+
+    def __init__(
+        self,
+        *,
+        execution_mode: ExecutionMode,
+        func_injected: functools.partial[_ReturnType],
+        jobber_ctx: JobberContext,
+    ) -> None:
+        self.jobber_ctx = jobber_ctx
+        self.func_injected = func_injected
+        self.execution_mode = execution_mode
+
+    async def __call__(self) -> _ReturnType:
+        handler = self.func_injected
+        if asyncio.iscoroutinefunction(handler):
+            return cast("_ReturnType", await handler())
+        match self.execution_mode:
+            case ExecutionMode.THREAD:
+                return await self.jobber_ctx.loop.run_in_executor(
+                    self.jobber_ctx.executors.threadpool,
+                    handler,
+                )
+            case ExecutionMode.PROCESS:
+                return await self.jobber_ctx.loop.run_in_executor(
+                    self.jobber_ctx.executors.processpool,
+                    handler,
+                )
+            case _:
+                return handler()
