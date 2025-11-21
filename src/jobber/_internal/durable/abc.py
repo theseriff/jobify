@@ -15,7 +15,7 @@ class JobPersisted:
     status: JobStatus
     func_args: bytes
     func_kwargs: bytes
-    execution_mode: ExecutionMode
+    exec_mode: ExecutionMode
     created_at: datetime
     updated_at: datetime
     cron_expression: str | None = None

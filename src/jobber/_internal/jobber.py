@@ -13,6 +13,7 @@ from typing import (
 )
 from zoneinfo import ZoneInfo
 
+from jobber._internal.common.constants import ExecutionMode
 from jobber._internal.common.datastructures import State
 from jobber._internal.context import AppContext, ExecutorsPool
 from jobber._internal.durable.dummy import DummyRepository
@@ -68,8 +69,8 @@ class Jobber:
             tz=tz or ZoneInfo("UTC"),
             durable=durable,
             executors=ExecutorsPool(
-                _threadpool=threadpool_executor,
                 _processpool=processpool_executor,
+                threadpool=threadpool_executor,
             ),
             serializer=serializer or JSONSerializer(),
             asyncio_tasks=set(),
@@ -91,6 +92,7 @@ class Jobber:
         self,
         *,
         job_name: str | None = None,
+        exec_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
         FuncWrapper[_FuncParams, _ReturnType],
@@ -102,6 +104,7 @@ class Jobber:
         func: Callable[_FuncParams, _ReturnType],
         *,
         job_name: str | None = None,
+        exec_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
 
     def register(
@@ -109,6 +112,7 @@ class Jobber:
         func: Callable[_FuncParams, _ReturnType] | None = None,
         *,
         job_name: str | None = None,
+        exec_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> (
         FuncWrapper[_FuncParams, _ReturnType]
         | Callable[
@@ -116,7 +120,7 @@ class Jobber:
             FuncWrapper[_FuncParams, _ReturnType],
         ]
     ):
-        wrapper = self._register(job_name=job_name)
+        wrapper = self._register(job_name=job_name, exec_mode=exec_mode)
         if callable(func):
             return wrapper(func)
         return wrapper  # pragma: no cover
@@ -124,7 +128,8 @@ class Jobber:
     def _register(
         self,
         *,
-        job_name: str | None = None,
+        job_name: str | None,
+        exec_mode: ExecutionMode,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
         FuncWrapper[_FuncParams, _ReturnType],
@@ -141,6 +146,7 @@ class Jobber:
                 app_context=self._app_ctx,
                 original_func=func,
                 job_registry=self._job_registry,
+                exec_mode=exec_mode,
                 middleware=self.middleware,
             )
             _ = functools.update_wrapper(fwrapper, func)

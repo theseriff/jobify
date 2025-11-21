@@ -33,10 +33,10 @@ class MiddlewarePipeline:
     ) -> CallNext[_ReturnT]:
         has_called = False
 
-        async def target(_context: JobContext) -> _ReturnT:
+        async def target(context: JobContext) -> _ReturnT:
             nonlocal has_called
             has_called = True
-            return await callback()
+            return await callback(context)
 
         chain_of_middlewares = target
         for m in reversed(self._middlewares):

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing
+import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -18,27 +19,25 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True, kw_only=True)
 class ExecutorsPool:
-    _threadpool: ThreadPoolExecutor | None
     _processpool: ProcessPoolExecutor | None
-
-    @property
-    def threadpool(self) -> ThreadPoolExecutor:  # pragma: no cover
-        if self._threadpool is None:
-            self._threadpool = ThreadPoolExecutor()
-        return self._threadpool
+    threadpool: ThreadPoolExecutor | None = None
 
     @property
     def processpool(self) -> ProcessPoolExecutor:  # pragma: no cover
         if self._processpool is None:
-            mp_ctx = multiprocessing.get_context("spawn")
+            if sys.platform in ("win32", "darwin"):
+                start_method = "spawn"
+            elif "forkserver" in multiprocessing.get_all_start_methods():
+                start_method = "forkserver"
+            else:
+                start_method = "spawn"
+            mp_ctx = multiprocessing.get_context(start_method)
             self._processpool = ProcessPoolExecutor(mp_context=mp_ctx)
         return self._processpool
 
     def close(self) -> None:
         if self._processpool is not None:
             self._processpool.shutdown(wait=True, cancel_futures=True)
-        if self._threadpool is not None:
-            self._threadpool.shutdown(wait=True, cancel_futures=True)
 
 
 @dataclass(slots=True, kw_only=True)

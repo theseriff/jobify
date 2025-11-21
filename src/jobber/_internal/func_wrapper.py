@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
 
+    from jobber._internal.common.constants import ExecutionMode
     from jobber._internal.common.datastructures import State
     from jobber._internal.context import AppContext
     from jobber._internal.middleware.pipeline import MiddlewarePipeline
@@ -42,6 +43,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         app_context: AppContext,
         original_func: Callable[_FuncParams, _ReturnType],
         job_registry: dict[str, Job[_ReturnType]],
+        exec_mode: ExecutionMode,
         middleware: MiddlewarePipeline,
     ) -> None:
         self._state: State = state
@@ -51,6 +53,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
         self._on_error_hooks: list[Callable[[Exception], None]] = []
         self._original_func: Callable[_FuncParams, _ReturnType] = original_func
+        self._exec_mode: ExecutionMode = exec_mode
         self._middleware: MiddlewarePipeline = middleware
 
         # --------------------------------------------------------------------
@@ -128,10 +131,11 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
     ) -> JobScheduler[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
         func_injected = functools.partial(self._original_func, *args, **kwargs)
         return JobScheduler(
+            app_ctx=self._app_ctx,
+            exec_mode=self._exec_mode,
             func_injected=func_injected,
             job_name=self._job_name,
             job_registry=self._job_registry,
-            app_ctx=self._app_ctx,
             middleware=self._middleware,
             on_error_hooks=self._on_error_hooks,
             on_success_hooks=self._on_success_hooks,
