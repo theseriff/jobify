@@ -1,9 +1,9 @@
 import asyncio
 import functools
-from typing import Generic, TypeVar, cast, final
+from typing import Generic, TypeVar, final
 
 from jobber._internal.common.constants import ExecutionMode
-from jobber._internal.context import AppContext
+from jobber._internal.context import ExecutorsPool, JobContext
 
 _ReturnType = TypeVar("_ReturnType")
 
@@ -11,36 +11,36 @@ _ReturnType = TypeVar("_ReturnType")
 @final
 class Executor(Generic[_ReturnType]):
     __slots__: tuple[str, ...] = (
-        "app_ctx",
-        "execution_mode",
+        "exec_mode",
+        "exeutors_pool",
         "func_injected",
+        "loop",
     )
 
     def __init__(
         self,
         *,
-        execution_mode: ExecutionMode,
+        exec_mode: ExecutionMode,
         func_injected: functools.partial[_ReturnType],
-        app_ctx: AppContext,
+        executors_pool: ExecutorsPool,
+        loop: asyncio.AbstractEventLoop,
     ) -> None:
-        self.app_ctx = app_ctx
+        self.exec_mode = exec_mode
+        self.exeutors_pool = executors_pool
         self.func_injected = func_injected
-        self.execution_mode = execution_mode
+        self.loop = loop
 
-    async def __call__(self) -> _ReturnType:
+    async def __call__(self, _context: JobContext) -> _ReturnType:
         handler = self.func_injected
         if asyncio.iscoroutinefunction(handler):
-            return cast("_ReturnType", await handler())
-        match self.execution_mode:
+            result: _ReturnType = await handler()
+            return result
+        match self.exec_mode:
             case ExecutionMode.THREAD:
-                return await self.app_ctx.loop.run_in_executor(
-                    self.app_ctx.executors.threadpool,
-                    handler,
-                )
+                threadpool = self.exeutors_pool.threadpool
+                return await self.loop.run_in_executor(threadpool, handler)
             case ExecutionMode.PROCESS:
-                return await self.app_ctx.loop.run_in_executor(
-                    self.app_ctx.executors.processpool,
-                    handler,
-                )
+                processpool = self.exeutors_pool.processpool
+                return await self.loop.run_in_executor(processpool, handler)
             case _:
                 return handler()

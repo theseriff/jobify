@@ -8,7 +8,7 @@ import warnings
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Generic, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Generic, ParamSpec, TypeVar, cast, final
 from uuid import uuid4
 
 from jobber._internal.common.constants import ExecutionMode, JobStatus
@@ -37,12 +37,13 @@ _FuncParams = ParamSpec("_FuncParams")
 class ScheduleContext(Generic[_ReturnType]):
     job: Job[_ReturnType]
     cron_parser: CronParser | None
-    execution_mode: ExecutionMode
 
 
+@final
 class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
     __slots__: tuple[str, ...] = (
         "_app_ctx",
+        "_exec_mode",
         "_func_injected",
         "_job_name",
         "_job_registry",
@@ -55,26 +56,24 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
     def __init__(  # noqa: PLR0913
         self,
         *,
+        app_ctx: AppContext,
+        exec_mode: ExecutionMode,
         func_injected: functools.partial[_ReturnType],
         job_name: str,
         job_registry: dict[str, Job[_ReturnType]],
-        app_ctx: AppContext,
         middleware: MiddlewarePipeline,
         on_error_hooks: list[Callable[[Exception], None]],
         on_success_hooks: list[Callable[[_ReturnType], None]],
         state: State,
     ) -> None:
-        self._app_ctx: AppContext = app_ctx
-        self._func_injected: functools.partial[_ReturnType] = func_injected
-        self._job_name: str = job_name
-        self._job_registry: dict[str, Job[_ReturnType]] = job_registry
-        self._middleware: MiddlewarePipeline = middleware
-        self._on_error_hooks: list[Callable[[Exception], None]] = (
-            on_error_hooks
-        )
-        self._on_success_hooks: list[Callable[[_ReturnType], None]] = (
-            on_success_hooks
-        )
+        self._app_ctx = app_ctx
+        self._exec_mode = exec_mode
+        self._func_injected = func_injected
+        self._job_name = job_name
+        self._job_registry = job_registry
+        self._middleware = middleware
+        self._on_error_hooks = on_error_hooks
+        self._on_success_hooks = on_success_hooks
         self._state: State = state
 
     async def cron(
@@ -84,7 +83,6 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         *,
         now: datetime | None = None,
         job_id: str | None = None,
-        execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_ReturnType]:
         now = now or datetime.now(tz=self._app_ctx.tz)
         cron_parser = CronParser(expression=expression)
@@ -93,7 +91,6 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             now=now,
             at=next_at,
             job_id=job_id or uuid4().hex,
-            exec_mode=execution_mode,
             cron_parser=cron_parser,
         )
 
@@ -104,7 +101,6 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         *,
         now: datetime | None = None,
         job_id: str | None = None,
-        execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_ReturnType]:
         now = now or datetime.now(tz=self._app_ctx.tz)
         at = now + timedelta(seconds=delay_seconds)
@@ -112,7 +108,6 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             now=now,
             at=at,
             job_id=job_id or uuid4().hex,
-            exec_mode=execution_mode,
         )
 
     async def at(
@@ -122,13 +117,11 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         *,
         now: datetime | None = None,
         job_id: str | None = None,
-        execution_mode: ExecutionMode = ExecutionMode.MAIN,
     ) -> Job[_ReturnType]:
         return await self._at(
             now=now or datetime.now(tz=at.tzinfo),
             at=at,
             job_id=job_id or uuid4().hex,
-            exec_mode=execution_mode,
         )
 
     async def _at(
@@ -137,11 +130,10 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         now: datetime,
         at: datetime,
         job_id: str,
-        exec_mode: ExecutionMode,
         cron_parser: CronParser | None = None,
     ) -> Job[_ReturnType]:
         is_async = asyncio.iscoroutinefunction(self._func_injected)
-        if is_async and exec_mode is not ExecutionMode.MAIN:
+        if is_async and self._exec_mode is not ExecutionMode.MAIN:
             msg = (
                 "to_thread / to_process is ignored for async functions — "
                 "they are executed in the main event loop anyway"
@@ -156,11 +148,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             job_status=JobStatus.SCHEDULED,
             cron_expression=cron_parser._expression if cron_parser else None,
         )
-        ctx = ScheduleContext(
-            job=job,
-            cron_parser=cron_parser,
-            execution_mode=exec_mode,
-        )
+        ctx = ScheduleContext(job=job, cron_parser=cron_parser)
         loop = self._app_ctx.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._schedule_execution, ctx)
@@ -190,9 +178,10 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         job.status = JobStatus.RUNNING
         job_ctx = JobContext(job=job, state=self._state, request=State())
         executor = Executor(
-            execution_mode=ctx.execution_mode,
+            exec_mode=self._exec_mode,
             func_injected=self._func_injected,
-            app_ctx=self._app_ctx,
+            executors_pool=self._app_ctx.executors,
+            loop=self._app_ctx.loop,
         )
         middleware_chain = self._middleware.compose(executor)
         try:
