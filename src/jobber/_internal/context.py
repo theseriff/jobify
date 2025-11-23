@@ -1,20 +1,16 @@
 # pyright: reportExplicitAny=false
-from __future__ import annotations
-
 import asyncio
 import multiprocessing
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
+from zoneinfo import ZoneInfo
 
-if TYPE_CHECKING:
-    from zoneinfo import ZoneInfo
-
-    from jobber._internal.common.datastructures import State
-    from jobber._internal.durable.abc import JobRepository
-    from jobber._internal.runner.job import Job
-    from jobber._internal.serializers.abc import JobsSerializer
+from jobber._internal.common.datastructures import RequestState, State
+from jobber._internal.durable.abc import JobRepository
+from jobber._internal.runner.job import Job
+from jobber._internal.serializers.abc import JobsSerializer
 
 
 @dataclass(slots=True, kw_only=True)
@@ -44,7 +40,7 @@ class ExecutorsPool:
 class JobContext:
     job: Job[Any]
     state: State
-    request: State
+    request_state: RequestState
 
 
 @dataclass(slots=True, kw_only=True)

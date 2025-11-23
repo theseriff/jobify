@@ -4,6 +4,7 @@ from typing import Generic, TypeVar, final
 
 from jobber._internal.common.constants import ExecutionMode
 from jobber._internal.context import ExecutorsPool, JobContext
+from jobber._internal.injection import inject_context
 
 _ReturnType = TypeVar("_ReturnType")
 
@@ -30,8 +31,9 @@ class Executor(Generic[_ReturnType]):
         self.func_injected = func_injected
         self.loop = loop
 
-    async def __call__(self, _context: JobContext) -> _ReturnType:
+    async def __call__(self, context: JobContext) -> _ReturnType:
         handler = self.func_injected
+        inject_context(handler, context)
         if asyncio.iscoroutinefunction(handler):
             result: _ReturnType = await handler()
             return result

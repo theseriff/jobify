@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from jobber._internal.common.constants import ExecutionMode, JobStatus
 from jobber._internal.common.cron_parser import CronParser
-from jobber._internal.common.datastructures import State
+from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.context import JobContext
 from jobber._internal.exceptions import HandlerSkippedError, NegativeDelayError
 from jobber._internal.runner.executor import Executor
@@ -176,7 +176,11 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
     async def _exec_job(self, *, ctx: ScheduleContext[_ReturnType]) -> None:
         job = ctx.job
         job.status = JobStatus.RUNNING
-        job_ctx = JobContext(job=job, state=self._state, request=State())
+        job_context = JobContext(
+            job=job,
+            state=self._state,
+            request_state=RequestState(),
+        )
         executor = Executor(
             exec_mode=self._exec_mode,
             func_injected=self._func_injected,
@@ -185,7 +189,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         )
         middleware_chain = self._middleware.compose(executor)
         try:
-            result = await middleware_chain(job_ctx)
+            result = await middleware_chain(job_context)
         except HandlerSkippedError:
             logger.debug("Job %s execution was skipped by middleware", job.id)
             job.status = JobStatus.SKIPPED

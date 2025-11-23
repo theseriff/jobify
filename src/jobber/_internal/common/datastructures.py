@@ -45,4 +45,9 @@ class State(UserDict[str, Any]):
         del self[key]
 
     def __str__(self) -> str:
-        return f"State({super().__str__()})"
+        cls_name = type(self).__name__
+        return f"{cls_name}({super().__str__()})"
+
+
+class RequestState(State):
+    pass
