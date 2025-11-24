@@ -142,7 +142,7 @@ class Jobber:
 
             is_async = asyncio.iscoroutinefunction(func)
             if is_async:
-                if exec_mode is not ExecutionMode.MAIN:
+                if exec_mode in (ExecutionMode.PROCESS, ExecutionMode.THREAD):
                     msg = (
                         "to_thread / to_process is ignored for async functions"
                         " — they are executed in the main event loop anyway"
