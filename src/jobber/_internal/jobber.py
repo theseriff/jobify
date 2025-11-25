@@ -22,6 +22,7 @@ from jobber._internal.durable.dummy import DummyRepository
 from jobber._internal.durable.sqlite import SQLiteJobRepository
 from jobber._internal.func_wrapper import FuncWrapper, create_default_name
 from jobber._internal.middleware.base import MiddlewarePipeline
+from jobber._internal.middleware.exceptions import ExceptionMiddleware
 from jobber._internal.serializers.json import JSONSerializer
 
 if TYPE_CHECKING:
@@ -29,7 +30,10 @@ if TYPE_CHECKING:
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
 
-    from jobber._internal.common.annotations import Lifespan
+    from jobber._internal.common.types import (
+        Lifespan,
+        MappingExceptionHandlers,
+    )
     from jobber._internal.durable.abc import JobRepository
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.runner.job import Job
@@ -56,14 +60,10 @@ class Jobber:
         lifespan: Lifespan[_AppType] | None = None,
         serializer: JobsSerializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
+        exception_handlers: MappingExceptionHandlers | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
     ) -> None:
-        user_middlewares = middleware or []
-        self.middleware: MiddlewarePipeline = MiddlewarePipeline(
-            [*user_middlewares]
-        )
-        self.state: State = State()
         if durable is False:
             durable = DummyRepository()
         elif durable is None:
@@ -82,8 +82,19 @@ class Jobber:
         self._lifespan: AsyncIterator[None] = self._run_lifespan(
             lifespan or _lifespan_stub,
         )
-        self._function_registry: dict[str, FuncWrapper[..., Any]] = {}  # pyright: ignore[reportExplicitAny]
-        self._job_registry: dict[str, Job[Any]] = {}  # pyright: ignore[reportExplicitAny]
+        self._function_registry: dict[str, FuncWrapper[..., Any]] = {}
+        self._job_registry: dict[str, Job[Any]] = {}
+        user_exception_handlers = exception_handlers or {}
+        self.exception_handler: ExceptionMiddleware = ExceptionMiddleware(
+            {**user_exception_handlers},
+            threadpool_executor,
+            self._app_ctx.getloop,
+        )
+        user_middlewares = middleware or []
+        self.middleware: MiddlewarePipeline = MiddlewarePipeline(
+            [*user_middlewares, self.exception_handler]
+        )
+        self.state: State = State()
 
     @overload
     def register(
@@ -176,7 +187,7 @@ class Jobber:
 
     async def _run_lifespan(
         self,
-        user_lifespan: Lifespan[Any],  # pyright: ignore[reportExplicitAny]
+        user_lifespan: Lifespan[Any],
     ) -> AsyncIterator[None]:
         async with user_lifespan(self) as maybe_state:
             if maybe_state is not None:

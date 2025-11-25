@@ -120,7 +120,7 @@ exclude_also = [
 ]
 omit = [
     "*/__init__.py",
-    '*/annotations.py',
+    '*/types.py',
 ]
 
 # Static Analysis
@@ -130,6 +130,7 @@ ignore = ["**/__pycache__", "**/alembic"]
 pythonVersion = "3.10"
 reportImplicitOverride = false
 reportAny = false
+reportExplicitAny = false
 
 [tool.mypy]
 mypy_path = "src"

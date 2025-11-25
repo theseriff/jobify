@@ -19,8 +19,8 @@ class _MyMiddleware(BaseMiddleware):
         return await call_next(context)
 
 
-async def test_injection(jobber: Jobber) -> None:
-    jobber.middleware.use(_MyMiddleware())
+async def test_injection() -> None:
+    jobber = Jobber(middleware=[_MyMiddleware()])
 
     job_id: str | None = None
     request_test_num: int | None = None
@@ -41,15 +41,16 @@ async def test_injection(jobber: Jobber) -> None:
         state = app_state
         ctx = context
 
-    job = await some_func.schedule().delay(0)
-    await job.wait()
+    async with jobber:
+        job = await some_func.schedule().delay(0)
+        await job.wait()
 
-    assert ctx.job is job
-    assert ctx.state is jobber.state
-    assert ctx.request_state.test == 1
-    assert state is jobber.state
-    assert job_id == job.id
-    assert request_test_num == 1
+        assert ctx.job is job
+        assert ctx.state is jobber.state
+        assert ctx.request_state.test == 1
+        assert state is jobber.state
+        assert job_id == job.id
+        assert request_test_num == 1
 
 
 async def test_injection_wrong_usage(jobber: Jobber) -> None:

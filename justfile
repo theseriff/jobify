@@ -4,6 +4,8 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 # Use sh on Unix-like systems
 set shell := ["sh", "-c"]
 
+export VIRTUAL_ENV := ".venv"
+
 [private]
 default:
   @just --list --unsorted --list-heading $'commands…\n'
@@ -17,13 +19,16 @@ init:
 # Pre-commit
 [doc("Install pre-commit hooks")]
 [group("pre-commit")]
+_pre-commit *params:
+  uv run --frozen pre-commit {{params}}
+
 pre-commit-install:
-  uv run --frozen pre-commit install
+  just _pre-commit install
 
 [doc("Pre-commit all files")]
 [group("pre-commit")]
 pre-commit-all:
-  uv run --frozen pre-commit run --show-diff-on-failure --color=always --all-files
+  just _pre-commit run --show-diff-on-failure --color=always --all-files
 
 
 # Linter

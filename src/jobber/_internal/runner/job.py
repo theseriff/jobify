@@ -6,7 +6,11 @@ import warnings
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 from jobber._internal.common.constants import EMPTY, JobStatus
-from jobber._internal.exceptions import JobFailedError, JobNotCompletedError
+from jobber._internal.exceptions import (
+    JobFailedError,
+    JobNotCompletedError,
+    JobSkippedError,
+)
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -66,6 +70,8 @@ class Job(Generic[_ReturnType]):
         )
 
     def result(self) -> _ReturnType:
+        if self.status is JobStatus.SKIPPED:
+            raise JobSkippedError
         if self.status is JobStatus.SUCCESS or self._result is not EMPTY:
             return self._result
         if self.status is JobStatus.FAILED:

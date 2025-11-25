@@ -34,7 +34,7 @@ class ExtendedEncoder(json.JSONEncoder):
         return o
 
 
-def extended_decoder(dct: dict[str, Any]) -> SerializableTypes:  # pyright: ignore[reportExplicitAny]
+def extended_decoder(dct: dict[str, Any]) -> SerializableTypes:
     if "__tuple__" in dct:
         return tuple(dct["__tuple__"])
     if "__bytes__" in dct:

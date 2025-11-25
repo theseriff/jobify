@@ -141,7 +141,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             cron_expression=cron_parser._expression if cron_parser else None,
         )
         ctx = ScheduleContext(job=job, cron_parser=cron_parser)
-        loop = self._app_ctx.loop
+        loop = self._app_ctx.getloop()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._schedule_execution, ctx)
         job._timer_handler = time_handler
@@ -177,7 +177,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
             exec_mode=self._exec_mode,
             func_injected=self._func_injected,
             executors_pool=self._app_ctx.executors,
-            loop=self._app_ctx.loop,
+            getloop=self._app_ctx.getloop,
         )
         middleware_chain = self._middleware.compose(executor)
         try:
@@ -209,7 +209,7 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         now = datetime.now(tz=self._app_ctx.tz)
         next_at = cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
-        loop = self._app_ctx.loop
+        loop = self._app_ctx.getloop()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(
             when,

@@ -52,8 +52,7 @@ class AppContext:
     serializer: JobsSerializer
     asyncio_tasks: set[asyncio.Task[Any]]
 
-    @property
-    def loop(self) -> asyncio.AbstractEventLoop:
+    def getloop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
             self._loop = asyncio.get_running_loop()
         return self._loop

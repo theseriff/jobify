@@ -128,7 +128,7 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         self,
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobScheduler[_FuncParams, Any]:  # pyright: ignore[reportExplicitAny]
+    ) -> JobScheduler[_FuncParams, Any]:
         func_injected = functools.partial(self._original_func, *args, **kwargs)
         return JobScheduler(
             app_ctx=self._app_ctx,

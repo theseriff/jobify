@@ -32,9 +32,6 @@ class MiddlewarePipeline:
     def __init__(self, middlewares: list[BaseMiddleware]) -> None:
         self._middlewares = middlewares
 
-    def use(self, *middlewares: BaseMiddleware) -> None:
-        self._middlewares.extend(middlewares)
-
     def compose(
         self,
         callback: Callable[..., Awaitable[_ReturnT]],
