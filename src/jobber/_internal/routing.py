@@ -6,7 +6,7 @@ import sys
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 from uuid import uuid4
 
-from jobber._internal.runner.scheduler import JobScheduler
+from jobber._internal.runner.scheduler import ScheduleBuilder
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -34,7 +34,7 @@ def create_default_name(func: Callable[_FuncParams, _ReturnType], /) -> str:
     return f"{fmodule}:{fname}"
 
 
-class FuncWrapper(Generic[_FuncParams, _ReturnType]):
+class Route(Generic[_FuncParams, _ReturnType]):
     def __init__(  # noqa: PLR0913
         self,
         *,
@@ -50,8 +50,6 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
         self._job_name: str = job_name
         self._app_ctx: AppContext = app_context
         self._job_registry: dict[str, Job[_ReturnType]] = job_registry
-        self._on_success_hooks: list[Callable[[_ReturnType], None]] = []
-        self._on_error_hooks: list[Callable[[Exception], None]] = []
         self._original_func: Callable[_FuncParams, _ReturnType] = original_func
         self._exec_mode: ExecutionMode = exec_mode
         self._middleware: MiddlewarePipeline = middleware
@@ -105,39 +103,37 @@ class FuncWrapper(Generic[_FuncParams, _ReturnType]):
 
     @overload
     def schedule(
-        self: FuncWrapper[_FuncParams, CoroutineType[object, object, _T]],
+        self: Route[_FuncParams, CoroutineType[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobScheduler[_FuncParams, _T]: ...
+    ) -> ScheduleBuilder[_T]: ...
 
     @overload
     def schedule(
-        self: FuncWrapper[_FuncParams, Coroutine[object, object, _T]],
+        self: Route[_FuncParams, Coroutine[object, object, _T]],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobScheduler[_FuncParams, _T]: ...
+    ) -> ScheduleBuilder[_T]: ...
 
     @overload
     def schedule(
-        self: FuncWrapper[_FuncParams, _ReturnType],
+        self: Route[_FuncParams, _ReturnType],
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobScheduler[_FuncParams, _ReturnType]: ...
+    ) -> ScheduleBuilder[_ReturnType]: ...
 
     def schedule(
         self,
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
-    ) -> JobScheduler[_FuncParams, Any]:
-        func_injected = functools.partial(self._original_func, *args, **kwargs)
-        return JobScheduler(
+    ) -> ScheduleBuilder[Any]:
+        runnable = functools.partial(self._original_func, *args, **kwargs)
+        return ScheduleBuilder(
             app_ctx=self._app_ctx,
             exec_mode=self._exec_mode,
-            func_injected=func_injected,
+            runnable=runnable,
             job_name=self._job_name,
             job_registry=self._job_registry,
             middleware=self._middleware,
-            on_error_hooks=self._on_error_hooks,
-            on_success_hooks=self._on_success_hooks,
             state=self._state,
         )

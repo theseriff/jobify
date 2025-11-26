@@ -17,13 +17,13 @@ from zoneinfo import ZoneInfo
 
 from jobber._internal.common.constants import EMPTY, ExecutionMode
 from jobber._internal.common.datastructures import State
-from jobber._internal.context import AppContext, ExecutorsPool
-from jobber._internal.durable.dummy import DummyRepository
-from jobber._internal.durable.sqlite import SQLiteJobRepository
-from jobber._internal.func_wrapper import FuncWrapper, create_default_name
+from jobber._internal.context import AppContext, WorkerPools
 from jobber._internal.middleware.base import MiddlewarePipeline
 from jobber._internal.middleware.exceptions import ExceptionMiddleware
+from jobber._internal.routing import Route, create_default_name
 from jobber._internal.serializers.json import JSONSerializer
+from jobber._internal.storage.dummy import DummyRepository
+from jobber._internal.storage.sqlite import SQLiteJobRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Sequence
@@ -34,10 +34,10 @@ if TYPE_CHECKING:
         Lifespan,
         MappingExceptionHandlers,
     )
-    from jobber._internal.durable.abc import JobRepository
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.runner.job import Job
     from jobber._internal.serializers.abc import JobsSerializer
+    from jobber._internal.storage.abc import JobRepository
 
 
 _FuncParams = ParamSpec("_FuncParams")
@@ -72,7 +72,7 @@ class Jobber:
             _loop=loop,
             tz=tz or ZoneInfo("UTC"),
             durable=durable,
-            executors=ExecutorsPool(
+            worker_pools=WorkerPools(
                 _processpool=processpool_executor,
                 threadpool=threadpool_executor,
             ),
@@ -82,7 +82,7 @@ class Jobber:
         self._lifespan: AsyncIterator[None] = self._run_lifespan(
             lifespan or _lifespan_stub,
         )
-        self._function_registry: dict[str, FuncWrapper[..., Any]] = {}
+        self._routes: dict[str, Route[..., Any]] = {}
         self._job_registry: dict[str, Job[Any]] = {}
         user_exception_handlers = exception_handlers or {}
         self.exception_handler: ExceptionMiddleware = ExceptionMiddleware(
@@ -100,7 +100,7 @@ class Jobber:
     def register(
         self,
         func: Callable[_FuncParams, _ReturnType],
-    ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
+    ) -> Route[_FuncParams, _ReturnType]: ...
 
     @overload
     def register(
@@ -110,7 +110,7 @@ class Jobber:
         exec_mode: ExecutionMode = EMPTY,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
-        FuncWrapper[_FuncParams, _ReturnType],
+        Route[_FuncParams, _ReturnType],
     ]: ...
 
     @overload
@@ -120,7 +120,7 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
-    ) -> FuncWrapper[_FuncParams, _ReturnType]: ...
+    ) -> Route[_FuncParams, _ReturnType]: ...
 
     def register(
         self,
@@ -129,10 +129,10 @@ class Jobber:
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
     ) -> (
-        FuncWrapper[_FuncParams, _ReturnType]
+        Route[_FuncParams, _ReturnType]
         | Callable[
             [Callable[_FuncParams, _ReturnType]],
-            FuncWrapper[_FuncParams, _ReturnType],
+            Route[_FuncParams, _ReturnType],
         ]
     ):
         wrapper = self._register(job_name=job_name, exec_mode=exec_mode)
@@ -147,11 +147,11 @@ class Jobber:
         exec_mode: ExecutionMode,
     ) -> Callable[
         [Callable[_FuncParams, _ReturnType]],
-        FuncWrapper[_FuncParams, _ReturnType],
+        Route[_FuncParams, _ReturnType],
     ]:
         def wrapper(
             func: Callable[_FuncParams, _ReturnType],
-        ) -> FuncWrapper[_FuncParams, _ReturnType]:
+        ) -> Route[_FuncParams, _ReturnType]:
             nonlocal exec_mode
 
             is_async = asyncio.iscoroutinefunction(func)
@@ -167,10 +167,10 @@ class Jobber:
                 exec_mode = ExecutionMode.THREAD
 
             fname = job_name or create_default_name(func)
-            if fwrapper := self._function_registry.get(fname):
-                return cast("FuncWrapper[_FuncParams, _ReturnType]", fwrapper)
+            if route := self._routes.get(fname):
+                return cast("Route[_FuncParams, _ReturnType]", route)
 
-            fwrapper = FuncWrapper(
+            route = Route(
                 state=self.state,
                 job_name=fname,
                 app_context=self._app_ctx,
@@ -179,9 +179,9 @@ class Jobber:
                 exec_mode=exec_mode,
                 middleware=self.middleware,
             )
-            _ = functools.update_wrapper(fwrapper, func)
-            self._function_registry[fname] = fwrapper
-            return fwrapper
+            _ = functools.update_wrapper(route, func)
+            self._routes[fname] = route
+            return route
 
         return wrapper
 

@@ -8,7 +8,7 @@ from jobber._internal.common.constants import ExecutionMode, JobStatus
 
 
 @dataclass(slots=True, kw_only=True)
-class JobPersisted:
+class JobStored:
     job_id: str
     func_id: str
     exec_at_timestamp: float
@@ -25,5 +25,5 @@ class JobPersisted:
 @runtime_checkable
 class JobRepository(Protocol, metaclass=ABCMeta):
     @abstractmethod
-    def load_all(self) -> Iterable[JobPersisted]:
+    def load_all(self) -> Iterable[JobStored]:
         raise NotImplementedError

@@ -4,7 +4,7 @@ from collections.abc import Callable
 import pytest
 
 from jobber import Jobber
-from jobber._internal.func_wrapper import create_default_name
+from jobber._internal.routing import create_default_name
 
 
 def somefunc() -> None:

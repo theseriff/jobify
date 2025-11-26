@@ -7,7 +7,7 @@ import logging
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Generic, ParamSpec, TypeVar, cast, final
+from typing import TYPE_CHECKING, Generic, TypeVar, cast, final
 from uuid import uuid4
 
 from jobber._internal.common.constants import ExecutionMode, JobStatus
@@ -20,7 +20,6 @@ from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
     import functools
-    from collections.abc import Callable
 
     from jobber._internal.context import AppContext
     from jobber._internal.middleware.base import MiddlewarePipeline
@@ -29,7 +28,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("jobber.runner")
 
 _ReturnType = TypeVar("_ReturnType")
-_FuncParams = ParamSpec("_FuncParams")
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
@@ -39,16 +37,14 @@ class ScheduleContext(Generic[_ReturnType]):
 
 
 @final
-class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
+class ScheduleBuilder(ABC, Generic[_ReturnType]):
     __slots__: tuple[str, ...] = (
         "_app_ctx",
         "_exec_mode",
-        "_func_injected",
         "_job_name",
         "_job_registry",
         "_middleware",
-        "_on_error_hooks",
-        "_on_success_hooks",
+        "_runnable",
         "_state",
     )
 
@@ -57,22 +53,18 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         *,
         app_ctx: AppContext,
         exec_mode: ExecutionMode,
-        func_injected: functools.partial[_ReturnType],
+        runnable: functools.partial[_ReturnType],
         job_name: str,
         job_registry: dict[str, Job[_ReturnType]],
         middleware: MiddlewarePipeline,
-        on_error_hooks: list[Callable[[Exception], None]],
-        on_success_hooks: list[Callable[[_ReturnType], None]],
         state: State,
     ) -> None:
         self._app_ctx = app_ctx
         self._exec_mode = exec_mode
-        self._func_injected = func_injected
+        self._runnable = runnable
         self._job_name = job_name
         self._job_registry = job_registry
         self._middleware = middleware
-        self._on_error_hooks = on_error_hooks
-        self._on_success_hooks = on_success_hooks
         self._state: State = state
 
     async def cron(
@@ -175,8 +167,8 @@ class JobScheduler(ABC, Generic[_FuncParams, _ReturnType]):
         )
         executor = Executor(
             exec_mode=self._exec_mode,
-            func_injected=self._func_injected,
-            executors_pool=self._app_ctx.executors,
+            runnable=self._runnable,
+            worker_pools=self._app_ctx.worker_pools,
             getloop=self._app_ctx.getloop,
         )
         middleware_chain = self._middleware.compose(executor)
