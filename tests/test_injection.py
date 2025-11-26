@@ -1,11 +1,18 @@
 # pyright: reportExplicitAny=false, reportPrivateUsage=false
-import functools
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
-from jobber import INJECT, Job, Jobber, JobContext, State
+from jobber import (
+    INJECT,
+    ExecutionMode,
+    Job,
+    Jobber,
+    JobContext,
+    Runnable,
+    State,
+)
 from jobber._internal.common.constants import EMPTY
 from jobber._internal.common.datastructures import RequestState
 from jobber._internal.injection import inject_context
@@ -75,12 +82,9 @@ async def test_injection_wrong_usage(jobber: Jobber) -> None:
 
 
 async def test_inject_context_skips_non_inject_parameters() -> None:
-    def func_without_inject(normal_param: str) -> str:
-        return normal_param
-
-    partial_func = functools.partial(func_without_inject, normal_param="test")
+    func_mock = Mock(return_value="test")
+    runnable = Runnable(func_mock, ExecutionMode.MAIN, normal_param="test")
     mock_context = Mock(spec=JobContext)
-    inject_context(partial_func, mock_context)
-    res = partial_func()
+    inject_context(runnable, mock_context)
 
-    assert partial_func.keywords.get("normal_param") == "test" == res
+    assert runnable.kwargs.get("normal_param") == "test" == runnable()

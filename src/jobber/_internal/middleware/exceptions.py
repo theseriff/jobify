@@ -13,14 +13,16 @@ from jobber._internal.middleware.base import BaseMiddleware, CallNext
 
 @final
 class ExceptionMiddleware(BaseMiddleware):
+    __slots__: tuple[str, ...] = ("exc_handlers", "getloop", "threadpool")
+
     def __init__(
         self,
-        exception_handlers: ExceptionHandlers,
+        exc_handlers: ExceptionHandlers,
         threadpool: ThreadPoolExecutor | None,
         getloop: Callable[[], asyncio.AbstractEventLoop],
     ) -> None:
+        self.exc_handlers = exc_handlers
         self.threadpool = threadpool
-        self.exc_handlers: ExceptionHandlers = exception_handlers
         self.getloop = getloop
 
     async def __call__(self, call_next: CallNext, context: JobContext) -> Any:  # noqa: ANN401

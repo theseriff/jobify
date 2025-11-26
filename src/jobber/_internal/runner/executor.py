@@ -1,50 +1,46 @@
 import asyncio
-import functools
 from collections.abc import Callable
-from typing import Generic, TypeVar, cast, final
+from typing import Generic, TypeVar, final
 
 from jobber._internal.common.constants import ExecutionMode
 from jobber._internal.context import JobContext, WorkerPools
 from jobber._internal.injection import inject_context
+from jobber._internal.runner.runnable import Runnable, iscoroutinerunnable
 
-_ReturnType = TypeVar("_ReturnType")
+_R = TypeVar("_R")
 
 
 @final
-class Executor(Generic[_ReturnType]):
+class Executor(Generic[_R]):
     __slots__: tuple[str, ...] = (
-        "exec_mode",
         "getloop",
-        "runnable",
         "worker_pools",
     )
 
     def __init__(
         self,
         *,
-        exec_mode: ExecutionMode,
-        runnable: functools.partial[_ReturnType],
         worker_pools: WorkerPools,
         getloop: Callable[[], asyncio.AbstractEventLoop],
     ) -> None:
-        self.exec_mode = exec_mode
         self.worker_pools = worker_pools
-        self.runnable = runnable
         self.getloop = getloop
 
-    async def __call__(self, context: JobContext) -> _ReturnType:
-        handler = self.runnable
-        inject_context(handler, context)
-        if asyncio.iscoroutinefunction(handler):
-            return cast("_ReturnType", await handler())
+    async def __call__(self, context: JobContext) -> _R:
+        runnable: Runnable[_R] = context.runnable
+        exec_mode = runnable.exec_mode
+        inject_context(runnable, context)
 
-        loop = self.getloop()
-        match self.exec_mode:
+        if iscoroutinerunnable(runnable):
+            return await runnable()
+
+        getloop = self.getloop
+        match exec_mode:
             case ExecutionMode.THREAD:
                 threadpool = self.worker_pools.threadpool
-                return await loop.run_in_executor(threadpool, handler)
+                return await getloop().run_in_executor(threadpool, runnable)
             case ExecutionMode.PROCESS:
                 processpool = self.worker_pools.processpool
-                return await loop.run_in_executor(processpool, handler)
+                return await getloop().run_in_executor(processpool, runnable)
             case _:
-                return handler()
+                return runnable()

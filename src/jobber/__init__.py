@@ -13,6 +13,7 @@ from jobber._internal.context import JobContext
 from jobber._internal.injection import INJECT
 from jobber._internal.jobber import Jobber
 from jobber._internal.runner.job import Job
+from jobber._internal.runner.runnable import Runnable
 from jobber._internal.runner.scheduler import ScheduleBuilder
 
 __version__ = get_version("jobber")
@@ -24,6 +25,7 @@ __all__ = (
     "JobStatus",
     "Jobber",
     "RequestState",
+    "Runnable",
     "ScheduleBuilder",
     "State",
 )

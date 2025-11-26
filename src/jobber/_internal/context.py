@@ -1,4 +1,3 @@
-# pyright: reportExplicitAny=false
 import asyncio
 import multiprocessing
 import sys
@@ -9,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.runner.job import Job
+from jobber._internal.runner.runnable import Runnable
 from jobber._internal.serializers.abc import JobsSerializer
 from jobber._internal.storage.abc import JobRepository
 
@@ -41,6 +41,7 @@ class JobContext:
     job: Job[Any]
     state: State
     request_state: RequestState
+    runnable: Runnable[Any]
 
 
 @dataclass(slots=True, kw_only=True)

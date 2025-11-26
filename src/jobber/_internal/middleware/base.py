@@ -5,6 +5,7 @@ import functools
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import (
+    TYPE_CHECKING,
     Any,
     Protocol,
     TypeVar,
@@ -14,6 +15,9 @@ from typing import (
 
 from jobber._internal.context import JobContext
 from jobber._internal.exceptions import HandlerSkippedError
+
+if TYPE_CHECKING:
+    from collections import deque
 
 CallNext = Callable[[JobContext], Awaitable[Any]]
 
@@ -29,20 +33,21 @@ class BaseMiddleware(Protocol, metaclass=ABCMeta):
 
 @final
 class MiddlewarePipeline:
-    def __init__(self, middlewares: list[BaseMiddleware]) -> None:
-        self._middlewares = middlewares
-
-    def compose(
+    def __init__(
         self,
-        callback: Callable[..., Awaitable[_ReturnT]],
+        middlewares: deque[BaseMiddleware],
         *,
         raise_if_skipped: bool = True,
-    ) -> CallNext:
-        has_called = False
+    ) -> None:
+        self._middlewares = middlewares
+        self._error_if_skipped = raise_if_skipped
 
+    def build_chain(
+        self,
+        callback: Callable[..., Awaitable[_ReturnT]],
+    ) -> CallNext:
         async def target(context: JobContext) -> _ReturnT:
-            nonlocal has_called
-            has_called = True
+            context.request_state.__has_called__ = True
             return await callback(context)
 
         chain_of_middlewares = target
@@ -51,8 +56,12 @@ class MiddlewarePipeline:
 
         async def executor(context: JobContext) -> _ReturnT:
             result = await chain_of_middlewares(context)
-            if raise_if_skipped is True and has_called is False:
-                raise HandlerSkippedError
+            self._raise_if_skipped(context)
             return result
 
         return executor
+
+    def _raise_if_skipped(self, context: JobContext) -> None:
+        has_called = getattr(context.request_state, "__has_called__", False)
+        if self._error_if_skipped is True and has_called is False:
+            raise HandlerSkippedError

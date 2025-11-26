@@ -1,21 +1,34 @@
 from __future__ import annotations
 
-import functools
 import os
 import sys
-from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    ParamSpec,
+    TypeVar,
+    final,
+    overload,
+)
 from uuid import uuid4
 
+from jobber._internal.middleware.base import (
+    BaseMiddleware,
+    MiddlewarePipeline,
+)
+from jobber._internal.runner.executor import Executor
+from jobber._internal.runner.runnable import Runnable
 from jobber._internal.runner.scheduler import ScheduleBuilder
 
 if TYPE_CHECKING:
+    from collections import deque
     from collections.abc import Callable, Coroutine
     from types import CoroutineType
 
     from jobber._internal.common.constants import ExecutionMode
     from jobber._internal.common.datastructures import State
     from jobber._internal.context import AppContext
-    from jobber._internal.middleware.base import MiddlewarePipeline
     from jobber._internal.runner.job import Job
 
 
@@ -34,25 +47,33 @@ def create_default_name(func: Callable[_FuncParams, _ReturnType], /) -> str:
     return f"{fmodule}:{fname}"
 
 
+@final
 class Route(Generic[_FuncParams, _ReturnType]):
     def __init__(  # noqa: PLR0913
         self,
         *,
         state: State,
         job_name: str,
-        app_context: AppContext,
+        app_ctx: AppContext,
         original_func: Callable[_FuncParams, _ReturnType],
-        job_registry: dict[str, Job[_ReturnType]],
         exec_mode: ExecutionMode,
-        middleware: MiddlewarePipeline,
+        job_registry: dict[str, Job[_ReturnType]],
+        user_middleware: deque[BaseMiddleware],
     ) -> None:
-        self._state: State = state
-        self._job_name: str = job_name
-        self._app_ctx: AppContext = app_context
-        self._job_registry: dict[str, Job[_ReturnType]] = job_registry
-        self._original_func: Callable[_FuncParams, _ReturnType] = original_func
-        self._exec_mode: ExecutionMode = exec_mode
-        self._middleware: MiddlewarePipeline = middleware
+        self._state = state
+        self._app_ctx = app_ctx
+        self._job_name = job_name
+        self._exec_mode = exec_mode
+        self._job_registry = job_registry
+        self._original_func = original_func
+        self._middleware_chain = MiddlewarePipeline(
+            user_middleware,
+        ).build_chain(
+            Executor[_ReturnType](
+                worker_pools=app_ctx.worker_pools,
+                getloop=app_ctx.getloop,
+            )
+        )
 
         # --------------------------------------------------------------------
         # HACK: ProcessPoolExecutor / Multiprocessing
@@ -127,13 +148,17 @@ class Route(Generic[_FuncParams, _ReturnType]):
         *args: _FuncParams.args,
         **kwargs: _FuncParams.kwargs,
     ) -> ScheduleBuilder[Any]:
-        runnable = functools.partial(self._original_func, *args, **kwargs)
+        runnable = Runnable(
+            self._original_func,
+            self._exec_mode,
+            *args,
+            **kwargs,
+        )
         return ScheduleBuilder(
             app_ctx=self._app_ctx,
-            exec_mode=self._exec_mode,
             runnable=runnable,
             job_name=self._job_name,
             job_registry=self._job_registry,
-            middleware=self._middleware,
+            middleware_chain=self._middleware_chain,
             state=self._state,
         )

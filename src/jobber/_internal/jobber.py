@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import functools
-import warnings
+from collections import deque
 from contextlib import asynccontextmanager
 from typing import (
     TYPE_CHECKING,
@@ -18,7 +17,6 @@ from zoneinfo import ZoneInfo
 from jobber._internal.common.constants import EMPTY, ExecutionMode
 from jobber._internal.common.datastructures import State
 from jobber._internal.context import AppContext, WorkerPools
-from jobber._internal.middleware.base import MiddlewarePipeline
 from jobber._internal.middleware.exceptions import ExceptionMiddleware
 from jobber._internal.routing import Route, create_default_name
 from jobber._internal.serializers.json import JSONSerializer
@@ -26,6 +24,7 @@ from jobber._internal.storage.dummy import DummyRepository
 from jobber._internal.storage.sqlite import SQLiteJobRepository
 
 if TYPE_CHECKING:
+    import asyncio
     from collections.abc import AsyncIterator, Callable, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
@@ -90,9 +89,8 @@ class Jobber:
             threadpool_executor,
             self._app_ctx.getloop,
         )
-        user_middlewares = middleware or []
-        self.middleware: MiddlewarePipeline = MiddlewarePipeline(
-            [*user_middlewares, self.exception_handler]
+        self._user_middlewares: deque[BaseMiddleware] = deque(
+            [*(middleware or []), self.exception_handler],
         )
         self.state: State = State()
 
@@ -152,20 +150,6 @@ class Jobber:
         def wrapper(
             func: Callable[_FuncParams, _ReturnType],
         ) -> Route[_FuncParams, _ReturnType]:
-            nonlocal exec_mode
-
-            is_async = asyncio.iscoroutinefunction(func)
-            if is_async:
-                if exec_mode in (ExecutionMode.PROCESS, ExecutionMode.THREAD):
-                    msg = (
-                        "Async functions are always done in the main loop."
-                        " This mode (PROCESS/THREAD) is not used."
-                    )
-                    warnings.warn(msg, category=RuntimeWarning, stacklevel=3)
-                exec_mode = ExecutionMode.MAIN
-            elif exec_mode is EMPTY:
-                exec_mode = ExecutionMode.THREAD
-
             fname = job_name or create_default_name(func)
             if route := self._routes.get(fname):
                 return cast("Route[_FuncParams, _ReturnType]", route)
@@ -173,11 +157,11 @@ class Jobber:
             route = Route(
                 state=self.state,
                 job_name=fname,
-                app_context=self._app_ctx,
+                app_ctx=self._app_ctx,
                 original_func=func,
                 job_registry=self._job_registry,
                 exec_mode=exec_mode,
-                middleware=self.middleware,
+                user_middleware=self._user_middlewares,
             )
             _ = functools.update_wrapper(route, func)
             self._routes[fname] = route

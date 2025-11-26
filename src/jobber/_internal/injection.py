@@ -1,9 +1,9 @@
 # pyright: reportExplicitAny=false
-import functools
 import inspect
 from typing import Any, TypeVar, get_origin, get_type_hints
 
 from jobber._internal.context import JobContext
+from jobber._internal.runner.runnable import Runnable
 
 _R = TypeVar("_R")
 
@@ -24,8 +24,8 @@ INJECT: Any = _MarkerInject()
 CONTEXT_TYPE_MAP = _build_context_mapping(JobContext)
 
 
-def inject_context(func: functools.partial[_R], context: JobContext) -> None:
-    sig = inspect.signature(func, eval_str=True)
+def inject_context(runnable: Runnable[_R], context: JobContext) -> None:
+    sig = inspect.signature(runnable.func)
     for name, param in sig.parameters.items():
         if param.default is not INJECT:
             continue
@@ -45,4 +45,4 @@ def inject_context(func: functools.partial[_R], context: JobContext) -> None:
                 f"Available types: {list(CONTEXT_TYPE_MAP.keys())}"
             )
             raise ValueError(msg)
-        func.keywords[name] = val
+        runnable.kwargs[name] = val
