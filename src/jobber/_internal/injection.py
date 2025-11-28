@@ -1,4 +1,3 @@
-# pyright: reportExplicitAny=false
 import inspect
 from typing import Any, TypeVar, get_origin, get_type_hints
 

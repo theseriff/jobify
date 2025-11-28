@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+from collections import deque
 from contextlib import asynccontextmanager
 from typing import (
     TYPE_CHECKING,
@@ -9,6 +10,7 @@ from typing import (
     ParamSpec,
     TypeVar,
     cast,
+    final,
     overload,
 )
 from zoneinfo import ZoneInfo
@@ -20,7 +22,7 @@ from jobber._internal.exceptions import raise_app_already_started_error
 from jobber._internal.injection import inject_context
 from jobber._internal.middleware.base import build_middleware
 from jobber._internal.middleware.exceptions import ExceptionMiddleware
-from jobber._internal.routing import Route, create_default_name
+from jobber._internal.routing import JobRoute, create_default_name
 from jobber._internal.runner.runnable import iscoroutinerunnable
 from jobber._internal.serializers.json import JSONSerializer
 from jobber._internal.storage.dummy import DummyRepository
@@ -34,7 +36,6 @@ if TYPE_CHECKING:
 
     from jobber._internal.common.types import (
         ExceptionHandler,
-        ExceptionHandlers,
         Lifespan,
         MappingExceptionHandlers,
     )
@@ -55,6 +56,7 @@ async def _lifespan_stub(_: Jobber) -> AsyncIterator[None]:
     yield None
 
 
+@final
 class Jobber:
     def __init__(  # noqa: PLR0913
         self,
@@ -73,7 +75,7 @@ class Jobber:
             durable = DummyRepository()
         elif durable is None:
             durable = SQLiteJobRepository()
-        self._app_ctx: AppContext = AppContext(
+        self._app_ctx = AppContext(
             _loop=loop,
             tz=tz or ZoneInfo("UTC"),
             durable=durable,
@@ -84,14 +86,35 @@ class Jobber:
             serializer=serializer or JSONSerializer(),
             asyncio_tasks=set(),
         )
-        self._lifespan: AsyncIterator[None] = self._run_lifespan(
-            lifespan or _lifespan_stub,
-        )
-        self._routes: dict[str, Route[..., Any]] = {}
+        self._lifespan = self._run_lifespan(lifespan or _lifespan_stub)
+        self._routes: dict[str, JobRoute[..., Any]] = {}
         self._job_registry: dict[str, Job[Any]] = {}
-        self._middleware: list[BaseMiddleware] = list(middleware or [])
-        self._exc_handlers: ExceptionHandlers = dict(exception_handlers or {})
-        self.state: State = State()
+        self._middleware = deque(middleware or [])
+        self._exc_handlers = dict(exception_handlers or {})
+        self.state = State()
+
+    def add_exception_handler(
+        self,
+        cls_exc: type[Exception],
+        handler: ExceptionHandler,
+    ) -> None:
+        if self._app_ctx.app_started is True:
+            raise_app_already_started_error("add_exception_handler")
+        self._exc_handlers[cls_exc] = handler
+
+    def add_middleware(self, middleware: BaseMiddleware) -> None:
+        if self._app_ctx.app_started is True:
+            raise_app_already_started_error("add_middleware")
+        self._middleware.appendleft(middleware)
+
+    async def _run_lifespan(
+        self,
+        user_lifespan: Lifespan[Any],
+    ) -> AsyncIterator[None]:
+        async with user_lifespan(self) as maybe_state:
+            if maybe_state is not None:
+                self.state.update(maybe_state)
+            yield None
 
     async def _entry(self, context: JobContext) -> Any:  # noqa: ANN401
         runnable: Runnable[Any] = context.runnable
@@ -112,7 +135,7 @@ class Jobber:
                 return runnable()
 
     @overload
-    def register(self, func: Callable[_P, _R]) -> Route[_P, _R]: ...
+    def register(self, func: Callable[_P, _R]) -> JobRoute[_P, _R]: ...
 
     @overload
     def register(
@@ -120,7 +143,7 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
-    ) -> Callable[[Callable[_P, _R]], Route[_P, _R]]: ...
+    ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]: ...
 
     @overload
     def register(
@@ -129,7 +152,7 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
-    ) -> Route[_P, _R]: ...
+    ) -> JobRoute[_P, _R]: ...
 
     def register(
         self,
@@ -137,7 +160,7 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
-    ) -> Route[_P, _R] | Callable[[Callable[_P, _R]], Route[_P, _R]]:
+    ) -> JobRoute[_P, _R] | Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
         if self._app_ctx.app_started is True:
             raise_app_already_started_error("register")
 
@@ -151,13 +174,13 @@ class Jobber:
         *,
         job_name: str | None,
         exec_mode: ExecutionMode,
-    ) -> Callable[[Callable[_P, _R]], Route[_P, _R]]:
-        def wrapper(func: Callable[_P, _R]) -> Route[_P, _R]:
+    ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
+        def wrapper(func: Callable[_P, _R]) -> JobRoute[_P, _R]:
             fname = job_name or create_default_name(func)
             if route := self._routes.get(fname):
-                return cast("Route[_P, _R]", route)
+                return cast("JobRoute[_P, _R]", route)
 
-            route = Route(
+            route = JobRoute(
                 state=self.state,
                 job_name=fname,
                 app_ctx=self._app_ctx,
@@ -170,41 +193,6 @@ class Jobber:
             return route
 
         return wrapper
-
-    async def _run_lifespan(
-        self,
-        user_lifespan: Lifespan[Any],
-    ) -> AsyncIterator[None]:
-        async with user_lifespan(self) as maybe_state:
-            if maybe_state is not None:
-                self.state.update(maybe_state)
-            yield None
-
-    async def __aenter__(self) -> Jobber:
-        await self.startup()
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None = None,
-        exc_val: BaseException | None = None,
-        exc_tb: TracebackType | None = None,
-    ) -> None:
-        await self.shutdown()
-
-    def add_exception_handler(
-        self,
-        cls_exc: type[Exception],
-        handler: ExceptionHandler,
-    ) -> None:
-        if self._app_ctx.app_started is True:
-            raise_app_already_started_error("add_exception_handler")
-        self._exc_handlers[cls_exc] = handler
-
-    def add_middleware(self, middleware: BaseMiddleware) -> None:
-        if self._app_ctx.app_started is True:
-            raise_app_already_started_error("add_middleware")
-        self._middleware.append(middleware)
 
     def _build_middleware_chain(self) -> None:
         self._middleware.append(
@@ -227,3 +215,15 @@ class Jobber:
         self._app_ctx.close()
         await anext(self._lifespan, None)
         self._app_ctx.app_started = False
+
+    async def __aenter__(self) -> Jobber:
+        await self.startup()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_val: BaseException | None = None,
+        exc_tb: TracebackType | None = None,
+    ) -> None:
+        await self.shutdown()

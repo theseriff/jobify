@@ -45,7 +45,7 @@ def create_default_name(func: Callable[_P, _R], /) -> str:
 
 
 @final
-class Route(Generic[_P, _R]):
+class JobRoute(Generic[_P, _R]):
     def __init__(  # noqa: PLR0913
         self,
         *,
@@ -113,21 +113,21 @@ class Route(Generic[_P, _R]):
 
     @overload
     def schedule(
-        self: Route[_P, CoroutineType[object, object, _T]],
+        self: JobRoute[_P, CoroutineType[object, object, _T]],
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> ScheduleBuilder[_T]: ...
 
     @overload
     def schedule(
-        self: Route[_P, Coroutine[object, object, _T]],
+        self: JobRoute[_P, Coroutine[object, object, _T]],
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> ScheduleBuilder[_T]: ...
 
     @overload
     def schedule(
-        self: Route[_P, _R],
+        self: JobRoute[_P, _R],
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> ScheduleBuilder[_R]: ...

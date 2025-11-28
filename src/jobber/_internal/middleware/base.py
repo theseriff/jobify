@@ -1,4 +1,3 @@
-# pyright: reportExplicitAny=false
 from __future__ import annotations
 
 import functools
@@ -7,7 +6,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import HandlerSkippedError
+from jobber._internal.exceptions import JobSkippedError
 
 CallNext = Callable[[JobContext], Awaitable[Any]]
 
@@ -37,7 +36,7 @@ def build_middleware(
     async def executor(context: JobContext) -> _R:
         result = await chain_of_middlewares(context)
         if "__has_called__" not in context.request_state:
-            raise HandlerSkippedError
+            raise JobSkippedError
         return result
 
     return executor

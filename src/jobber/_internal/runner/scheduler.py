@@ -14,7 +14,7 @@ from jobber._internal.common.constants import JobStatus
 from jobber._internal.common.cron_parser import CronParser
 from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import HandlerSkippedError, NegativeDelayError
+from jobber._internal.exceptions import JobSkippedError, NegativeDelayError
 from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
@@ -163,7 +163,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         )
         try:
             result = await self._middleware_chain(job_context)
-        except HandlerSkippedError:
+        except JobSkippedError:
             logger.debug("Job %s execution was skipped by middleware", job.id)
             job.status = JobStatus.SKIPPED
         except Exception as exc:

@@ -1,5 +1,4 @@
 # pyright: reportPrivateUsage=false
-import pytest
 
 from jobber import Jobber
 from jobber._internal.common.constants import JobStatus
@@ -19,10 +18,8 @@ async def test_job() -> None:
         assert str(job2).startswith(f"Job(instance_id={id(job2)}")
 
     await job1.wait()
-    with pytest.warns(RuntimeWarning, match="Job is already done"):
-        await job1.wait()
-
     await job2.cancel()
+
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELED
     assert job2.id not in job2._job_registry

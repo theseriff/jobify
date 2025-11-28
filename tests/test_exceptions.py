@@ -24,29 +24,22 @@ async def test_jobber_runtime_error() -> None:
     @jobber.register
     def f() -> None: ...
 
-    match = (
-        "Cannot 'schedule' - application must be 'started', "
-        "but is currently 'not started'."
-    )
-    with pytest.raises(ApplicationStateError, match=match):
+    reason = "The Jobber application is not started."
+    with pytest.raises(ApplicationStateError, match=reason):
         _ = await f.schedule().delay(0)
 
     async with jobber:
-        template = (
-            "Cannot {!r} - application must be 'not started', "
-            "but is currently 'started'."
+        reason = (
+            "The Jobber app's already running and configuration is frozen."
         )
 
-        match = template.format("register")
-        with pytest.raises(ApplicationStateError, match=match):
+        with pytest.raises(ApplicationStateError, match=reason):
             _ = jobber.register(f)
 
-        match = template.format("add_middleware")
-        with pytest.raises(ApplicationStateError, match=match):
+        with pytest.raises(ApplicationStateError, match=reason):
             jobber.add_middleware(Mock())
 
-        match = template.format("add_exception_handler")
-        with pytest.raises(ApplicationStateError, match=match):
+        with pytest.raises(ApplicationStateError, match=reason):
             jobber.add_exception_handler(Exception, Mock())
 
 

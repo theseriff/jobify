@@ -41,24 +41,6 @@ class NegativeDelayError(BaseJobberError):
         self.delay_seconds: float = delay_seconds
 
 
-class HandlerSkippedError(BaseJobberError):
-    """Raised when middleware chain completes without calling the job callback.
-
-    This occurs when one of middleware in the chain decides to
-    short-circuit the execution and returns early without calling `call_next`,
-    preventing the actual job handler from being executed.
-    """
-
-    def __init__(
-        self,
-        message: str = (
-            "Job callback was not executed. A middleware in the chain "
-            "short-circuited without calling call_next."
-        ),
-    ) -> None:
-        super().__init__(message)
-
-
 class JobSkippedError(BaseJobberError):
     """Raised when middleware chain completes without calling the job callback.
 
@@ -84,12 +66,17 @@ class ApplicationStateError(BaseJobberError):
         self,
         *,
         operation: str,
-        required_state: str,
-        actual_state: str,
+        reason: str,
+        solution: str,
     ) -> None:
+        self.operation: str = operation
+        self.reason: str = reason
+        self.solution: str = solution
+
         message = (
-            f"Cannot {operation!r} - application must be {required_state!r}, "
-            f"but is currently {actual_state!r}."
+            f"Cannot perform operation '{operation}'.\n"
+            f"  Reason: {reason}\n"
+            f"  Resolution: {solution}"
         )
         super().__init__(message)
 
@@ -97,14 +84,21 @@ class ApplicationStateError(BaseJobberError):
 def raise_app_not_started_error(operation: str) -> NoReturn:
     raise ApplicationStateError(
         operation=operation,
-        required_state="started",
-        actual_state="not started",
+        reason="The Jobber application is not started.",
+        solution=(
+            "Ensure you are calling this method inside an 'async with jobber:'"
+            "block or after calling 'await jobber.startup()'."
+        ),
     )
 
 
 def raise_app_already_started_error(operation: str) -> NoReturn:
     raise ApplicationStateError(
         operation=operation,
-        required_state="not started",
-        actual_state="started",
+        reason="The Jobber app's already running and configuration is frozen.",
+        solution=(
+            "Configuration methods (register, add_middleware, etc.)"
+            "must be called BEFORE the application starts."
+            "Move this call outside/before the 'async with jobber:' block."
+        ),
     )

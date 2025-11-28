@@ -1,4 +1,3 @@
-# pyright: reportExplicitAny=false
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import AbstractAsyncContextManager
 from typing import Any, TypeAlias, TypeVar

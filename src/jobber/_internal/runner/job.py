@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import warnings
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 from jobber._internal.common.constants import EMPTY, JobStatus
@@ -28,7 +27,6 @@ class Job(Generic[_ReturnType]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_exception",
-        "_has_waited",
         "_job_registry",
         "_result",
         "_timer_handler",
@@ -53,7 +51,6 @@ class Job(Generic[_ReturnType]):
         self._job_registry: dict[str, Job[_ReturnType]] = job_registry
         self._result: _ReturnType = EMPTY
         self._exception: Exception = EMPTY
-        self._has_waited: bool = False
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self.cron_expression: str | None = cron_expression
         self.exec_at: datetime = exec_at
@@ -103,16 +100,12 @@ class Job(Generic[_ReturnType]):
         return self._event.is_set()
 
     async def wait(self) -> None:
-        if self._has_waited:
-            warnings.warn(
-                "Job is already done - waiting for completion is unnecessary",
-                category=RuntimeWarning,
-                stacklevel=2,
-            )
-        else:
-            if not self.cron_expression:
-                self._has_waited = True
-            _ = await self._event.wait()
+        """Wait until the job is done.
+
+        If the job is already completed, this method returns immediately.
+        Safe for concurrent use by multiple coroutines.
+        """
+        _ = await self._event.wait()
 
     async def cancel(self) -> None:
         _ = self._job_registry.pop(self.id, None)

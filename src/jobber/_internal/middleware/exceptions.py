@@ -1,11 +1,19 @@
-import asyncio
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, cast, final
+from __future__ import annotations
 
-from jobber._internal.common.types import ExceptionHandler, ExceptionHandlers
-from jobber._internal.context import JobContext
+import asyncio
+from typing import TYPE_CHECKING, Any, cast, final
+
 from jobber._internal.middleware.base import BaseMiddleware, CallNext
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from concurrent.futures import ThreadPoolExecutor
+
+    from jobber._internal.common.types import (
+        ExceptionHandler,
+        ExceptionHandlers,
+    )
+    from jobber._internal.context import JobContext
 
 
 @final
@@ -36,7 +44,7 @@ class ExceptionMiddleware(BaseMiddleware):
                 await loop.run_in_executor(thread, handler, context, exc)
             raise
 
-    def _lookup_exc_handler(self, exc: Exception) -> ExceptionHandler | None:
+    def _lookup_exc_handler(self, exc: Exception) -> ExceptionHandler:
         for cls_exc in type(exc).__mro__:
             if handler := self.exc_handlers.get(cls_exc):
                 return handler

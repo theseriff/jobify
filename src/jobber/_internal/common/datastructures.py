@@ -1,5 +1,4 @@
 # ruff: noqa: ANN401
-# pyright: reportExplicitAny=false
 from __future__ import annotations
 
 from collections import UserDict

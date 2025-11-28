@@ -34,6 +34,7 @@ class WorkerPools:
     def close(self) -> None:
         if self._processpool is not None:
             self._processpool.shutdown(wait=True, cancel_futures=True)
+            self._processpool = None
 
 
 @dataclass(slots=True, kw_only=True)
