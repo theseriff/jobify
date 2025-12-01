@@ -48,5 +48,4 @@ class State(UserDict[str, Any]):
         return f"{cls_name}({super().__str__()})"
 
 
-class RequestState(State):
-    pass
+class RequestState(State): ...

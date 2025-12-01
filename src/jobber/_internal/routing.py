@@ -19,7 +19,7 @@ from jobber._internal.runner.runnable import Runnable
 from jobber._internal.runner.scheduler import ScheduleBuilder
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Callable, Coroutine, Mapping
     from types import CoroutineType
 
     from jobber._internal.common.constants import ExecutionMode
@@ -55,6 +55,8 @@ class JobRoute(Generic[_P, _R]):
         original_func: Callable[_P, _R],
         exec_mode: ExecutionMode,
         job_registry: dict[str, Job[_R]],
+        metadata: Mapping[str, Any] | None,
+        timeout: float,
     ) -> None:
         self._state = state
         self._app_ctx = app_ctx
@@ -63,6 +65,8 @@ class JobRoute(Generic[_P, _R]):
         self._job_registry = job_registry
         self._original_func = original_func
         self._middleware_chain: CallNext = EMPTY
+        self._metadata = metadata
+        self._timeout = timeout
 
         # --------------------------------------------------------------------
         # HACK: ProcessPoolExecutor / Multiprocessing
@@ -153,4 +157,6 @@ class JobRoute(Generic[_P, _R]):
             job_registry=self._job_registry,
             middleware_chain=self._middleware_chain,
             state=self._state,
+            timeout=self._timeout,
+            metadata=self._metadata,
         )

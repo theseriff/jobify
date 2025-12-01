@@ -19,6 +19,7 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
     SUCCESS = "success"
     FAILED = "failed"
+    TIMEOUT = "timeout"
 
 
 EMPTY: Any = EmptyPlaceholder()

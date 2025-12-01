@@ -11,6 +11,7 @@ from jobber._internal.exceptions import (
     JobFailedError,
     JobNotCompletedError,
     JobSkippedError,
+    JobTimeoutError,
     NegativeDelayError,
 )
 
@@ -20,5 +21,6 @@ __all__ = (
     "JobFailedError",
     "JobNotCompletedError",
     "JobSkippedError",
+    "JobTimeoutError",
     "NegativeDelayError",
 )

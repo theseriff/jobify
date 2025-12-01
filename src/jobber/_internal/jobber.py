@@ -16,7 +16,7 @@ from jobber._internal.runner.runnable import iscoroutinerunnable
 
 if TYPE_CHECKING:
     from collections import deque
-    from collections.abc import AsyncIterator, Callable
+    from collections.abc import AsyncIterator, Callable, Mapping
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
     from zoneinfo import ZoneInfo
@@ -123,6 +123,8 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
+        metadata: Mapping[str, Any] | None = None,
+        timeout: float = 600,
     ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]: ...
 
     @overload
@@ -132,6 +134,8 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
+        metadata: Mapping[str, Any] | None = None,
+        timeout: float = 600,
     ) -> JobRoute[_P, _R]: ...
 
     def register(
@@ -140,11 +144,18 @@ class Jobber:
         *,
         job_name: str | None = None,
         exec_mode: ExecutionMode = EMPTY,
+        metadata: Mapping[str, Any] | None = None,
+        timeout: float = 600,  # default 10 min.
     ) -> JobRoute[_P, _R] | Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
         if self._app_ctx.app_started is True:
             raise_app_already_started_error("register")
 
-        wrapper = self._register(job_name=job_name, exec_mode=exec_mode)
+        wrapper = self._register(
+            job_name=job_name,
+            exec_mode=exec_mode,
+            metadata=metadata,
+            timeout=timeout,
+        )
         if callable(func):
             return wrapper(func)
         return wrapper  # pragma: no cover
@@ -154,12 +165,13 @@ class Jobber:
         *,
         job_name: str | None,
         exec_mode: ExecutionMode,
+        metadata: Mapping[str, Any] | None,
+        timeout: float,
     ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
         def wrapper(func: Callable[_P, _R]) -> JobRoute[_P, _R]:
             fname = job_name or create_default_name(func)
             if route := self._routes.get(fname):
                 return cast("JobRoute[_P, _R]", route)
-
             route = JobRoute(
                 state=self.state,
                 job_name=fname,
@@ -167,6 +179,8 @@ class Jobber:
                 original_func=func,
                 job_registry=self._job_registry,
                 exec_mode=exec_mode,
+                metadata=metadata,
+                timeout=timeout,
             )
             _ = functools.update_wrapper(route, func)
             self._routes[fname] = route

@@ -1,4 +1,4 @@
-# pyright: reportExplicitAny=false, reportPrivateUsage=false
+# pyright: reportExplicitAny=false
 from typing import Any
 from unittest.mock import Mock
 
@@ -79,8 +79,8 @@ async def test_injection_wrong_usage() -> None:
 
     with pytest.raises(JobFailedError, match=f"job_id: {job1.id}"):
         job1.result()
-    assert "Parameter _job requires" in str(job1._exception)
-    assert "Unknown type for injection" in str(job2._exception)
+    assert "Parameter _job requires" in str(job1.exception)
+    assert "Unknown type for injection" in str(job2.exception)
 
 
 async def test_inject_context_skips_non_inject_parameters() -> None:

@@ -51,5 +51,5 @@ class Runnable(Generic[_R]):
 
 def iscoroutinerunnable(
     runnable: Runnable[_R],
-) -> TypeGuard[Callable[..., Awaitable[_R]]]:
+) -> TypeGuard[Runnable[Awaitable[_R]]]:
     return runnable.is_async

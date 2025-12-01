@@ -57,12 +57,12 @@ async def test_exception_middleware() -> None:
 
     @jobber.register
     async def f2() -> None:
-        raise TimeoutError
+        raise ZeroDivisionError
 
     sync_handler = Mock()
     async_handler = AsyncMock()
     jobber.add_exception_handler(ValueError, sync_handler)
-    jobber.add_exception_handler(TimeoutError, async_handler)
+    jobber.add_exception_handler(ZeroDivisionError, async_handler)
 
     async with jobber:
         job1 = await f1.schedule().delay(0)
@@ -70,5 +70,5 @@ async def test_exception_middleware() -> None:
         await job1.wait()
         await job2.wait()
 
-    sync_handler.assert_called_once_with(ANY, job1._exception)
-    async_handler.assert_awaited_once_with(ANY, job2._exception)
+    sync_handler.assert_called_once_with(ANY, job1.exception)
+    async_handler.assert_awaited_once_with(ANY, job2.exception)

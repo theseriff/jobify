@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Generic, TypeVar, final
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, final
 
 from jobber._internal.common.constants import EMPTY, JobStatus
 from jobber._internal.exceptions import (
@@ -12,6 +12,7 @@ from jobber._internal.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
 
 ASYNC_FUNC_IGNORED_WARNING = """\
@@ -27,14 +28,15 @@ _R = TypeVar("_R")
 class Job(Generic[_R]):
     __slots__: tuple[str, ...] = (
         "_event",
-        "_exception",
         "_job_registry",
         "_result",
         "_timer_handler",
         "cron_expression",
+        "exception",
         "exec_at",
         "id",
         "job_name",
+        "metadata",
         "status",
     )
 
@@ -47,17 +49,19 @@ class Job(Generic[_R]):
         job_registry: dict[str, Job[_R]],
         job_status: JobStatus,
         cron_expression: str | None,
+        metadata: Mapping[str, Any] | None,
     ) -> None:
         self.id = job_id
         self._event = asyncio.Event()
         self._job_registry = job_registry
         self._result: _R = EMPTY
-        self._exception: Exception = EMPTY
+        self.exception: Exception | None = None
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self.cron_expression = cron_expression
         self.exec_at = exec_at
         self.job_name = job_name
         self.status = job_status
+        self.metadata = metadata
 
     def __repr__(self) -> str:
         return (
@@ -75,15 +79,15 @@ class Job(Generic[_R]):
         if self.status is JobStatus.FAILED:
             raise JobFailedError(
                 self.id,
-                reason=str(self._exception),
-            ) from self._exception
+                reason=str(self.exception),
+            ) from self.exception
         raise JobNotCompletedError
 
     def set_result(self, val: _R) -> None:
         self._result = val
 
     def set_exception(self, exc: Exception) -> None:
-        self._exception = exc
+        self.exception = exc
 
     def update(
         self,

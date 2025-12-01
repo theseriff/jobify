@@ -59,6 +59,20 @@ class JobSkippedError(BaseJobberError):
         super().__init__(message)
 
 
+class JobTimeoutError(BaseJobberError):
+    """Raised when job execution exceeds the configured timeout."""
+
+    def __init__(self, job_id: str, timeout: float) -> None:
+        self.job_id: str = job_id
+        self.timeout: float = timeout
+
+        message = (
+            f"job_id: {job_id} exceeded timeout of {timeout} seconds. "
+            "Job execution was interrupted."
+        )
+        super().__init__(message)
+
+
 class ApplicationStateError(BaseJobberError):
     """Raised when app is in wrong state for the requested operation."""
 

@@ -7,16 +7,22 @@ import logging
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Generic, TypeVar, cast, final
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, final
 from uuid import uuid4
 
 from jobber._internal.common.constants import JobStatus
 from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import JobSkippedError, NegativeDelayError
+from jobber._internal.exceptions import (
+    JobSkippedError,
+    JobTimeoutError,
+    NegativeDelayError,
+)
 from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from jobber._internal.context import AppContext
     from jobber._internal.cron_parser import CronParser
     from jobber._internal.middleware.base import CallNext
@@ -40,27 +46,33 @@ class ScheduleBuilder(ABC, Generic[_R]):
         "_app_ctx",
         "_job_name",
         "_job_registry",
+        "_metadata",
         "_middleware_chain",
         "_runnable",
         "_state",
+        "_timeout",
     )
 
     def __init__(  # noqa: PLR0913
         self,
         *,
+        state: State,
         app_ctx: AppContext,
         runnable: Runnable[_R],
         job_name: str,
+        timeout: float,
         job_registry: dict[str, Job[_R]],
         middleware_chain: CallNext,
-        state: State,
+        metadata: Mapping[str, Any] | None,
     ) -> None:
+        self._state = state
         self._app_ctx = app_ctx
         self._runnable = runnable
         self._job_name = job_name
         self._job_registry = job_registry
         self._middleware_chain = middleware_chain
-        self._state: State = state
+        self._timeout = timeout
+        self._metadata = metadata
 
     async def cron(
         self,
@@ -77,7 +89,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
             now=now,
             at=next_at,
             job_id=job_id or uuid4().hex,
-            cron_parser_cls=cron_parser,
+            cron_parser=cron_parser,
         )
 
     async def delay(
@@ -116,20 +128,20 @@ class ScheduleBuilder(ABC, Generic[_R]):
         now: datetime,
         at: datetime,
         job_id: str,
-        cron_parser_cls: CronParser | None = None,
+        cron_parser: CronParser | None = None,
     ) -> Job[_R]:
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
+        cron_exp = cron_parser.get_expression() if cron_parser else None
         job = Job(
             exec_at=at,
             job_name=self._job_name,
             job_id=job_id,
             job_registry=self._job_registry,
             job_status=JobStatus.SCHEDULED,
-            cron_expression=cron_parser_cls.get_expression()
-            if cron_parser_cls
-            else None,
+            cron_expression=cron_exp,
+            metadata=self._metadata,
         )
-        ctx = ScheduleContext(job=job, cron_parser=cron_parser_cls)
+        ctx = ScheduleContext(job=job, cron_parser=cron_parser)
         loop = self._app_ctx.getloop()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._pre_exec_job, ctx)
@@ -164,7 +176,20 @@ class ScheduleBuilder(ABC, Generic[_R]):
             runnable=self._runnable,
         )
         try:
-            result = await self._middleware_chain(job_context)
+            result = await asyncio.wait_for(
+                self._middleware_chain(job_context),
+                timeout=self._timeout,
+            )
+        except asyncio.TimeoutError as exc:
+            logger.warning(
+                "Job %s timed out after %s seconds",
+                job.id,
+                self._timeout,
+            )
+            job.status = JobStatus.TIMEOUT
+            timeout_exc = JobTimeoutError(job_id=job.id, timeout=self._timeout)
+            job.set_exception(timeout_exc)
+            raise timeout_exc from exc
         except JobSkippedError:
             logger.debug("Job %s execution was skipped by middleware", job.id)
             job.status = JobStatus.SKIPPED
