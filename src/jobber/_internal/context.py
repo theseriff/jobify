@@ -7,6 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from jobber._internal.common.datastructures import RequestState, State
+from jobber._internal.cron_parser import CronParser
 from jobber._internal.runner.job import Job
 from jobber._internal.runner.runnable import Runnable
 from jobber._internal.serializers.abc import JobsSerializer
@@ -45,6 +46,7 @@ class AppContext:
     worker_pools: WorkerPools
     serializer: JobsSerializer
     asyncio_tasks: set[asyncio.Task[Any]]
+    cron_parser_cls: type[CronParser]
     app_started: bool = False
 
     def getloop(self) -> asyncio.AbstractEventLoop:

@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Generic, TypeVar, cast, final
 from uuid import uuid4
 
 from jobber._internal.common.constants import JobStatus
-from jobber._internal.common.cron_parser import CronParser
 from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.context import JobContext
 from jobber._internal.exceptions import JobSkippedError, NegativeDelayError
@@ -19,6 +18,7 @@ from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
     from jobber._internal.context import AppContext
+    from jobber._internal.cron_parser import CronParser
     from jobber._internal.middleware.base import CallNext
     from jobber._internal.runner.runnable import Runnable
 
@@ -71,13 +71,13 @@ class ScheduleBuilder(ABC, Generic[_R]):
         job_id: str | None = None,
     ) -> Job[_R]:
         now = now or datetime.now(tz=self._app_ctx.tz)
-        cron_parser = CronParser(expression=expression)
+        cron_parser = self._app_ctx.cron_parser_cls(expression=expression)
         next_at = cron_parser.next_run(now=now)
         return await self._at(
             now=now,
             at=next_at,
             job_id=job_id or uuid4().hex,
-            cron_parser=cron_parser,
+            cron_parser_cls=cron_parser,
         )
 
     async def delay(
@@ -116,7 +116,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         now: datetime,
         at: datetime,
         job_id: str,
-        cron_parser: CronParser | None = None,
+        cron_parser_cls: CronParser | None = None,
     ) -> Job[_R]:
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         job = Job(
@@ -125,12 +125,14 @@ class ScheduleBuilder(ABC, Generic[_R]):
             job_id=job_id,
             job_registry=self._job_registry,
             job_status=JobStatus.SCHEDULED,
-            cron_expression=cron_parser._expression if cron_parser else None,
+            cron_expression=cron_parser_cls.get_expression()
+            if cron_parser_cls
+            else None,
         )
-        ctx = ScheduleContext(job=job, cron_parser=cron_parser)
+        ctx = ScheduleContext(job=job, cron_parser=cron_parser_cls)
         loop = self._app_ctx.getloop()
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._schedule_execution, ctx)
+        time_handler = loop.call_at(when, self._pre_exec_job, ctx)
         job._timer_handler = time_handler
         self._job_registry[job_id] = job
         return job
@@ -147,10 +149,10 @@ class ScheduleBuilder(ABC, Generic[_R]):
             raise NegativeDelayError(delay_seconds)
         return delay_seconds
 
-    def _schedule_execution(self, ctx: ScheduleContext[_R]) -> None:
-        task = asyncio.create_task(self._exec_job(ctx=ctx))
-        self._app_ctx.asyncio_tasks.add(task)
+    def _pre_exec_job(self, ctx: ScheduleContext[_R]) -> None:
+        task = asyncio.create_task(self._exec_job(ctx=ctx), name=ctx.job.id)
         task.add_done_callback(self._app_ctx.asyncio_tasks.discard)
+        self._app_ctx.asyncio_tasks.add(task)
 
     async def _exec_job(self, *, ctx: ScheduleContext[_R]) -> None:
         job = ctx.job
@@ -176,10 +178,10 @@ class ScheduleBuilder(ABC, Generic[_R]):
             job.status = JobStatus.SUCCESS
         finally:
             event = job._event
-            if ctx.cron_parser:
+            if ctx.cron_parser and self._app_ctx.app_started:
                 await self._reschedule_cron(ctx)
             else:
-                _ = self._job_registry.pop(job.id)
+                _ = self._job_registry.pop(job.id, None)
             event.set()
 
     async def _reschedule_cron(
@@ -192,13 +194,9 @@ class ScheduleBuilder(ABC, Generic[_R]):
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
         loop = self._app_ctx.getloop()
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(
-            when,
-            self._schedule_execution,
-            scheduler_ctx,
-        )
+        time_handler = loop.call_at(when, self._pre_exec_job, scheduler_ctx)
         job = scheduler_ctx.job
-        job._update(
+        job.update(
             exec_at=next_at,
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from typing import TypedDict
 from unittest.mock import AsyncMock
 
-from jobber._internal.jobber import Jobber
+from jobber import Jobber
 
 
 async def test_lifespan_with_state() -> None:

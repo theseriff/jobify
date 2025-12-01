@@ -1,19 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import functools
-from collections import deque
-from contextlib import asynccontextmanager
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Literal,
-    ParamSpec,
-    TypeVar,
-    cast,
-    final,
-    overload,
-)
-from zoneinfo import ZoneInfo
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 
 from jobber._internal.common.constants import EMPTY, ExecutionMode
 from jobber._internal.common.datastructures import State
@@ -24,21 +13,20 @@ from jobber._internal.middleware.base import build_middleware
 from jobber._internal.middleware.exceptions import ExceptionMiddleware
 from jobber._internal.routing import JobRoute, create_default_name
 from jobber._internal.runner.runnable import iscoroutinerunnable
-from jobber._internal.serializers.json import JSONSerializer
-from jobber._internal.storage.dummy import DummyRepository
-from jobber._internal.storage.sqlite import SQLiteJobRepository
 
 if TYPE_CHECKING:
-    import asyncio
-    from collections.abc import AsyncIterator, Callable, Sequence
+    from collections import deque
+    from collections.abc import AsyncIterator, Callable
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
+    from zoneinfo import ZoneInfo
 
     from jobber._internal.common.types import (
         ExceptionHandler,
+        ExceptionHandlers,
         Lifespan,
-        MappingExceptionHandlers,
     )
+    from jobber._internal.cron_parser import CronParser
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.runner.job import Job
     from jobber._internal.runner.runnable import Runnable
@@ -51,47 +39,39 @@ _P = ParamSpec("_P")
 _AppType = TypeVar("_AppType", bound="Jobber")
 
 
-@asynccontextmanager
-async def _lifespan_stub(_: Jobber) -> AsyncIterator[None]:
-    yield None
-
-
-@final
 class Jobber:
     def __init__(  # noqa: PLR0913
         self,
         *,
-        tz: ZoneInfo | None = None,
-        loop: asyncio.AbstractEventLoop | None = None,
-        durable: JobRepository | Literal[False] | None = None,
-        lifespan: Lifespan[_AppType] | None = None,
-        serializer: JobsSerializer | None = None,
-        middleware: Sequence[BaseMiddleware] | None = None,
-        exception_handlers: MappingExceptionHandlers | None = None,
-        threadpool_executor: ThreadPoolExecutor | None = None,
-        processpool_executor: ProcessPoolExecutor | None = None,
+        tz: ZoneInfo,
+        durable: JobRepository,
+        lifespan: Lifespan[_AppType],
+        serializer: JobsSerializer,
+        middleware: deque[BaseMiddleware],
+        exception_handlers: ExceptionHandlers,
+        loop: asyncio.AbstractEventLoop | None,
+        threadpool_executor: ThreadPoolExecutor | None,
+        processpool_executor: ProcessPoolExecutor | None,
+        cron_parser_cls: type[CronParser],
     ) -> None:
-        if durable is False:
-            durable = DummyRepository()
-        elif durable is None:
-            durable = SQLiteJobRepository()
-        self._app_ctx = AppContext(
+        self._app_ctx: AppContext = AppContext(
             _loop=loop,
-            tz=tz or ZoneInfo("UTC"),
+            tz=tz,
             durable=durable,
             worker_pools=WorkerPools(
                 _processpool=processpool_executor,
                 threadpool=threadpool_executor,
             ),
-            serializer=serializer or JSONSerializer(),
+            serializer=serializer,
+            cron_parser_cls=cron_parser_cls,
             asyncio_tasks=set(),
         )
-        self._lifespan = self._run_lifespan(lifespan or _lifespan_stub)
+        self._lifespan: AsyncIterator[None] = self._run_lifespan(lifespan)
         self._routes: dict[str, JobRoute[..., Any]] = {}
         self._job_registry: dict[str, Job[Any]] = {}
-        self._middleware = deque(middleware or [])
-        self._exc_handlers = dict(exception_handlers or {})
-        self.state = State()
+        self._middleware: deque[BaseMiddleware] = middleware
+        self._exc_handlers: ExceptionHandlers = exception_handlers
+        self.state: State = State()
 
     def add_exception_handler(
         self,
@@ -212,9 +192,15 @@ class Jobber:
         self._app_ctx.app_started = True
 
     async def shutdown(self) -> None:
+        self._app_ctx.app_started = False
+        if tasks := self._app_ctx.asyncio_tasks:
+            for task in tasks:
+                _ = task.cancel()
+            _ = await asyncio.gather(*tasks, return_exceptions=True)
+            self._app_ctx.asyncio_tasks.clear()
+
         self._app_ctx.close()
         await anext(self._lifespan, None)
-        self._app_ctx.app_started = False
 
     async def __aenter__(self) -> Jobber:
         await self.startup()
