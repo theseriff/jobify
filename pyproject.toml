@@ -8,7 +8,7 @@ module-root = "src"
 [project]
 name = "jobber"
 version = "0.0.1"
-description = "A modern, lightweight, and robust task planner with a user-friendly interface and a wide range of features."
+description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "MIT" }
