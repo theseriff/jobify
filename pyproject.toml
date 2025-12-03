@@ -7,7 +7,7 @@ module-root = "src"
 
 [project]
 name = "jobber"
-version = "0.0.1"
+version = "0.1.0"
 description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10"
 readme = "README.md"
@@ -229,9 +229,3 @@ exclude_commit_patterns = [
     '''build\((?!deps\): .+)''',
     '''Initial [Cc]ommit.*''', # codespell:ignore ommit
 ]
-
-[tool.semantic_release.branches.alpha]
-# Matches branches with the prefixes 'feat/', 'fix/', or 'perf/'.
-match = "^(feat|fix|perf)/.+"
-prerelease = true
-prerelease_token = "alpha"
