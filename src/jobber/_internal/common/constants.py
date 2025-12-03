@@ -19,21 +19,21 @@ class JobStatus(str, Enum):
 
 
 @unique
-class ExecutionMode(str, Enum):
+class RunMode(str, Enum):
     MAIN = "main"
     THREAD = "thread"
     PROCESS = "process"
 
 
-def get_exec_mode(mode: ExecutionMode, *, is_async: bool) -> ExecutionMode:
+def get_run_mode(mode: RunMode, *, is_async: bool) -> RunMode:
     if is_async:
-        if mode in (ExecutionMode.PROCESS, ExecutionMode.THREAD):
+        if mode in (RunMode.PROCESS, RunMode.THREAD):
             msg = (
                 "Async functions are always done in the main loop."
                 " This mode (PROCESS/THREAD) is not used."
             )
             warnings.warn(msg, category=RuntimeWarning, stacklevel=3)
-        return ExecutionMode.MAIN
+        return RunMode.MAIN
     if mode is EMPTY:
-        return ExecutionMode.THREAD
+        return RunMode.THREAD
     return mode

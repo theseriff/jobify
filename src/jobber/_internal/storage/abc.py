@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
-from jobber._internal.common.constants import ExecutionMode, JobStatus
+from jobber._internal.common.constants import JobStatus, RunMode
 
 
 @dataclass(slots=True, kw_only=True)
@@ -15,7 +15,7 @@ class JobStored:
     status: JobStatus
     func_args: bytes
     func_kwargs: bytes
-    exec_mode: ExecutionMode
+    run_mode: RunMode
     created_at: datetime
     updated_at: datetime
     cron_expression: str | None = None

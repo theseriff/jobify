@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 
 from jobber._internal.common.constants import (
     EMPTY,
-    ExecutionMode,
-    get_exec_mode,
+    RunMode,
+    get_run_mode,
 )
 from jobber._internal.common.datastructures import State
 from jobber._internal.configuration import (
@@ -119,7 +119,7 @@ class Jobber:
         retry: int = 1,
         timeout: float = 600,
         func_name: str | None = None,
-        exec_mode: ExecutionMode = EMPTY,
+        run_mode: RunMode = EMPTY,
         metadata: Mapping[str, Any] | None = None,
     ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]: ...
 
@@ -131,7 +131,7 @@ class Jobber:
         retry: int = 1,
         timeout: float = 600,
         func_name: str | None = None,
-        exec_mode: ExecutionMode = EMPTY,
+        run_mode: RunMode = EMPTY,
         metadata: Mapping[str, Any] | None = None,
     ) -> JobRoute[_P, _R]: ...
 
@@ -142,7 +142,7 @@ class Jobber:
         retry: int = 1,
         timeout: float = 600,  # default 10 min.
         func_name: str | None = None,
-        exec_mode: ExecutionMode = EMPTY,
+        run_mode: RunMode = EMPTY,
         metadata: Mapping[str, Any] | None = None,
     ) -> JobRoute[_P, _R] | Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
         if self.jobber_config.app_started is True:
@@ -152,7 +152,7 @@ class Jobber:
             retry=retry,
             timeout=timeout,
             func_name=func_name,
-            exec_mode=exec_mode,
+            run_mode=run_mode,
             metadata=metadata,
         )
         if callable(func):
@@ -165,7 +165,7 @@ class Jobber:
         retry: int = 1,
         timeout: float = 600,  # default 10 min.
         func_name: str | None,
-        exec_mode: ExecutionMode,
+        run_mode: RunMode,
         metadata: Mapping[str, Any] | None,
     ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
         def wrapper(func: Callable[_P, _R]) -> JobRoute[_P, _R]:
@@ -174,20 +174,20 @@ class Jobber:
                 return cast("JobRoute[_P, _R]", route)
 
             is_async = asyncio.iscoroutinefunction(func)
-            mode = get_exec_mode(exec_mode, is_async=is_async)
-            config = RouteConfiguration(
+            mode = get_run_mode(run_mode, is_async=is_async)
+            route_config = RouteConfiguration(
                 retry=retry,
                 timeout=timeout,
                 is_async=is_async,
                 func_name=fname,
-                exec_mode=mode,
+                run_mode=mode,
                 metadata=metadata,
             )
             route = JobRoute(
-                original_func=func,
-                configuration=config,
                 state=self.state,
-                jobber_configuration=self.jobber_config,
+                original_func=func,
+                route_config=route_config,
+                jobber_config=self.jobber_config,
                 job_registry=self._job_registry,
             )
             _ = functools.update_wrapper(route, func)

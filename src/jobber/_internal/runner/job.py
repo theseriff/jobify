@@ -35,8 +35,8 @@ class Job(Generic[_R]):
         "exception",
         "exec_at",
         "id",
-        "job_name",
         "metadata",
+        "name",
         "status",
     )
 
@@ -59,7 +59,7 @@ class Job(Generic[_R]):
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self.cron_expression = cron_expression
         self.exec_at = exec_at
-        self.job_name = func_name
+        self.name = func_name
         self.status = job_status
         self.metadata = metadata
 
@@ -68,7 +68,7 @@ class Job(Generic[_R]):
             f"{self.__class__.__qualname__}("
             f"instance_id={id(self)}, "
             f"exec_at={self.exec_at.isoformat()}, "
-            f"job_name={self.job_name}, job_id={self.id})"
+            f"job_name={self.name}, job_id={self.id})"
         )
 
     def result(self) -> _R:

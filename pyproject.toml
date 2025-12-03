@@ -8,7 +8,7 @@ module-root = "src"
 [project]
 name = "jobber"
 version = "0.0.1"
-description = "Lightweight async/sync job scheduler with cron-like syntax and delayed execution for Python functions"
+description = "A modern, lightweight, and robust task planner with a user-friendly interface and a wide range of features."
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "MIT" }
@@ -16,13 +16,19 @@ authors = [
     { name = "Sergey Yavorsky", email = "maclovi.dev@gmail.com" },
 ]
 keywords = [
+    "jobs",
     "cron",
+    "asyncio",
     "cron-jobs",
     "scheduler",
-    "delayed-tasks",
+    "scheduling",
+    "asynchronous",
     "job-scheduler",
     "task-scheduler",
+    "python-scheduler",
     "background-tasks",
+    "background-jobs",
+    "delayed-tasks",
 ]
 classifiers = [
     "Typing :: Typed",
@@ -33,13 +39,14 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Documentation",
     "Topic :: Utilities",
 ]
 dependencies = [
@@ -81,8 +88,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/Maclovi/jobber"
-Documentation = "https://github.com/Maclovi/jobber/README.md"
 Repository = "https://github.com/Maclovi/jobber"
+Documentation = "https://github.com/Maclovi/jobber/README.md"
+Changelog = "https://github.com/Maclovi/jobber/blob/main/docs/src/CHANGELOG.md"
 Issues = "https://github.com/Maclovi/jobber/issues"
 
 # Tests

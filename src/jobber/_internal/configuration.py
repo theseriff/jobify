@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from zoneinfo import ZoneInfo
 
-    from jobber._internal.common.constants import ExecutionMode
+    from jobber._internal.common.constants import RunMode
     from jobber._internal.common.types import LoopFactory
     from jobber._internal.cron_parser import CronParser
     from jobber._internal.serializers.abc import JobsSerializer
@@ -63,5 +63,5 @@ class RouteConfiguration:
     timeout: float
     is_async: bool
     func_name: str
-    exec_mode: ExecutionMode
+    run_mode: RunMode
     metadata: Mapping[str, Any] | None

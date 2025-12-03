@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from jobber import ExecutionMode, Jobber
+from jobber import Jobber, RunMode
 from jobber._internal.cron_parser import CronParser
 
 
@@ -17,11 +17,11 @@ async def f2(num: int) -> int:
 
 
 @pytest.mark.parametrize(
-    "exec_mode",
+    "run_mode",
     [
-        pytest.param(ExecutionMode.MAIN, id="main"),
-        pytest.param(ExecutionMode.THREAD, id="thread"),
-        pytest.param(ExecutionMode.PROCESS, id="process"),
+        pytest.param(RunMode.MAIN, id="main"),
+        pytest.param(RunMode.THREAD, id="thread"),
+        pytest.param(RunMode.PROCESS, id="process"),
     ],
 )
 @pytest.mark.parametrize(
@@ -39,11 +39,11 @@ async def test_jobber(  # noqa: PLR0913
     method: str,
     num: int,
     expected: int,
-    exec_mode: ExecutionMode,
+    run_mode: RunMode,
 ) -> None:
     jobber = Jobber(cron_parser_cls=cron_parser_cls)
-    f1_reg = jobber.register(f1, func_name="f1_reg", exec_mode=exec_mode)
-    f2_reg = jobber.register(f2, func_name="f2_reg", exec_mode=exec_mode)
+    f1_reg = jobber.register(f1, func_name="f1_reg", run_mode=run_mode)
+    f2_reg = jobber.register(f2, func_name="f2_reg", run_mode=run_mode)
     async with jobber:
         if method == "at":
             job_sync = await f1_reg.schedule(num).at(now, now=now)

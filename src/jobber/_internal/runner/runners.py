@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar, final
 
-from jobber._internal.common.constants import ExecutionMode
+from jobber._internal.common.constants import RunMode
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -21,6 +21,25 @@ ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 
 
+@final
+class Runnable(Generic[ReturnT]):
+    __slots__: tuple[str, ...] = ("args", "kwargs", "strategy")
+
+    def __init__(
+        self,
+        strategy: RunStrategy[ParamsT, ReturnT],
+        /,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> None:
+        self.strategy = strategy
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self) -> Awaitable[ReturnT]:
+        return self.strategy(*self.args, **self.kwargs)
+
+
 class RunStrategy(ABC, Generic[ParamsT, ReturnT]):
     __slots__: tuple[str, ...] = ("func",)
 
@@ -34,6 +53,13 @@ class RunStrategy(ABC, Generic[ParamsT, ReturnT]):
         **kwargs: ParamsT.kwargs,
     ) -> ReturnT:
         raise NotImplementedError
+
+    def create_runnable(
+        self,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> Runnable[ReturnT]:
+        return Runnable(self, *args, **kwargs)
 
 
 class SyncStrategy(RunStrategy[ParamsT, ReturnT]):
@@ -77,26 +103,7 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
         return await loop.run_in_executor(self.executor, func_call)
 
 
-@final
-class Runnable(Generic[ReturnT]):
-    __slots__: tuple[str, ...] = ("args", "kwargs", "strategy")
-
-    def __init__(
-        self,
-        strategy: RunStrategy[ParamsT, ReturnT],
-        /,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> None:
-        self.strategy = strategy
-        self.args = args
-        self.kwargs = kwargs
-
-    def __call__(self) -> Awaitable[ReturnT]:
-        return self.strategy(*self.args, **self.kwargs)
-
-
-def _create_strategy(
+def create_run_strategy(
     func: Callable[ParamsT, ReturnT],
     route_config: RouteConfiguration,
     jobber_config: JobberConfiguration,
@@ -105,28 +112,12 @@ def _create_strategy(
         return AsyncStrategy(func)
 
     loop_factory = jobber_config.loop_factory
-    match route_config.exec_mode:
-        case ExecutionMode.PROCESS:
+    match route_config.run_mode:
+        case RunMode.PROCESS:
             processpool = jobber_config.worker_pools.processpool
             return PoolStrategy(func, processpool, loop_factory)
-        case ExecutionMode.THREAD:
+        case RunMode.THREAD:
             threadpool = jobber_config.worker_pools.threadpool
             return PoolStrategy(func, threadpool, loop_factory)
         case _:
             return SyncStrategy(func)
-
-
-def create_runnable_factory(
-    func: Callable[ParamsT, ReturnT],
-    route_config: RouteConfiguration,
-    jobber_config: JobberConfiguration,
-) -> Callable[ParamsT, Runnable[ReturnT]]:
-    strategy = _create_strategy(func, route_config, jobber_config)
-
-    def create_runnable(
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> Runnable[ReturnT]:
-        return Runnable(strategy, *args, **kwargs)
-
-    return create_runnable

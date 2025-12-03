@@ -44,10 +44,10 @@ class ScheduleContext(Generic[_R]):
 @final
 class ScheduleBuilder(ABC, Generic[_R]):
     __slots__: tuple[str, ...] = (
-        "_configuration",
         "_job_registry",
         "_jobber_config",
         "_middleware_chain",
+        "_route_configuration",
         "_runnable",
         "_state",
     )
@@ -66,7 +66,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         self._jobber_config = jobber_config
         self._runnable = runnable
         self._job_registry = job_registry
-        self._configuration = configuration
+        self._route_configuration = configuration
         self._middleware_chain = middleware_chain
 
     async def cron(
@@ -132,11 +132,11 @@ class ScheduleBuilder(ABC, Generic[_R]):
         job = Job(
             exec_at=at,
             job_id=job_id,
-            func_name=self._configuration.func_name,
+            func_name=self._route_configuration.func_name,
             job_registry=self._job_registry,
             job_status=JobStatus.SCHEDULED,
             cron_expression=cron_exp,
-            metadata=self._configuration.metadata,
+            metadata=self._route_configuration.metadata,
         )
         ctx = ScheduleContext(job=job, cron_parser=cron_parser)
         loop = self._jobber_config.loop_factory()
@@ -171,22 +171,23 @@ class ScheduleBuilder(ABC, Generic[_R]):
             state=self._state,
             request_state=RequestState(),
             runnable=self._runnable,
+            route_config=self._route_configuration,
         )
         try:
             result = await asyncio.wait_for(
                 self._middleware_chain(job_context),
-                timeout=self._configuration.timeout,
+                timeout=self._route_configuration.timeout,
             )
         except asyncio.TimeoutError as exc:
             logger.warning(
                 "Job %s timed out after %s seconds",
                 job.id,
-                self._configuration.timeout,
+                self._route_configuration.timeout,
             )
             job.status = JobStatus.TIMEOUT
             timeout_exc = JobTimeoutError(
                 job_id=job.id,
-                timeout=self._configuration.timeout,
+                timeout=self._route_configuration.timeout,
             )
             job.set_exception(timeout_exc)
             raise timeout_exc from exc

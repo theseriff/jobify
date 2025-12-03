@@ -15,7 +15,7 @@ from uuid import uuid4
 
 from jobber._internal.common.constants import EMPTY
 from jobber._internal.exceptions import raise_app_not_started_error
-from jobber._internal.runner.runners import Runnable, create_runnable_factory
+from jobber._internal.runner.runners import create_run_strategy
 from jobber._internal.runner.scheduler import ScheduleBuilder
 
 if TYPE_CHECKING:
@@ -52,23 +52,21 @@ class JobRoute(Generic[_P, _R]):
         self,
         *,
         state: State,
-        jobber_configuration: JobberConfiguration,
+        jobber_config: JobberConfiguration,
+        route_config: RouteConfiguration,
         original_func: Callable[_P, _R],
         job_registry: dict[str, Job[_R]],
-        configuration: RouteConfiguration,
     ) -> None:
-        self._jobber_configuration = jobber_configuration
+        self._strategy_run = create_run_strategy(
+            original_func,
+            route_config,
+            jobber_config,
+        )
+        self._jobber_config = jobber_config
         self._job_registry = job_registry
         self._original_func = original_func
-        self._runnable_factory: Callable[_P, Runnable[_R]] = (
-            create_runnable_factory(
-                original_func,
-                configuration,
-                jobber_configuration,
-            )
-        )
         self._middleware_chain: CallNext = EMPTY
-        self.configuration = configuration
+        self.route_config = route_config
         self.state = state
 
         # --------------------------------------------------------------------
@@ -144,14 +142,14 @@ class JobRoute(Generic[_P, _R]):
         *args: _P.args,
         **kwargs: _P.kwargs,
     ) -> ScheduleBuilder[Any]:
-        if not self._jobber_configuration.app_started:
+        if not self._jobber_config.app_started:
             raise_app_not_started_error("schedule")
 
         return ScheduleBuilder(
             state=self.state,
-            runnable=self._runnable_factory(*args, **kwargs),
-            jobber_config=self._jobber_configuration,
+            runnable=self._strategy_run.create_runnable(*args, **kwargs),
+            jobber_config=self._jobber_config,
             job_registry=self._job_registry,
-            configuration=self.configuration,
+            configuration=self.route_config,
             middleware_chain=self._middleware_chain,
         )
