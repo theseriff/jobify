@@ -1,5 +1,6 @@
+import inspect
 from datetime import datetime, timedelta
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -22,3 +23,10 @@ def cron_parser_cls() -> CronParser:
     cron.next_run.side_effect = now_
     cron.get_expression.return_value = "* * * * * *"
     return Mock(return_value=cron, spec=type[CronParser])
+
+
+@pytest.fixture
+def amock() -> AsyncMock:
+    mock = AsyncMock(return_value="test")
+    mock.__signature__ = inspect.Signature()
+    return mock

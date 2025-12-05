@@ -32,22 +32,22 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("jobber.runner")
 
-_R = TypeVar("_R")
+ReturnT = TypeVar("ReturnT")
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
-class ScheduleContext(Generic[_R]):
-    job: Job[_R]
+class ScheduleContext(Generic[ReturnT]):
+    job: Job[ReturnT]
     cron_parser: CronParser | None
 
 
 @final
-class ScheduleBuilder(ABC, Generic[_R]):
+class ScheduleBuilder(ABC, Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_job_registry",
         "_jobber_config",
         "_middleware_chain",
-        "_route_configuration",
+        "_route_config",
         "_runnable",
         "_state",
     )
@@ -57,8 +57,8 @@ class ScheduleBuilder(ABC, Generic[_R]):
         *,
         state: State,
         jobber_config: JobberConfiguration,
-        runnable: Runnable[_R],
-        job_registry: dict[str, Job[_R]],
+        runnable: Runnable[ReturnT],
+        job_registry: dict[str, Job[ReturnT]],
         middleware_chain: CallNext,
         configuration: RouteConfiguration,
     ) -> None:
@@ -66,7 +66,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         self._jobber_config = jobber_config
         self._runnable = runnable
         self._job_registry = job_registry
-        self._route_configuration = configuration
+        self._route_config = configuration
         self._middleware_chain = middleware_chain
 
     async def cron(
@@ -76,7 +76,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         *,
         now: datetime | None = None,
         job_id: str | None = None,
-    ) -> Job[_R]:
+    ) -> Job[ReturnT]:
         now = now or datetime.now(tz=self._jobber_config.tz)
         cron_parser = self._jobber_config.cron_parser_cls(
             expression=expression
@@ -96,7 +96,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         *,
         now: datetime | None = None,
         job_id: str | None = None,
-    ) -> Job[_R]:
+    ) -> Job[ReturnT]:
         now = now or datetime.now(tz=self._jobber_config.tz)
         at = now + timedelta(seconds=delay_seconds)
         return await self._at(
@@ -112,7 +112,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
         *,
         now: datetime | None = None,
         job_id: str | None = None,
-    ) -> Job[_R]:
+    ) -> Job[ReturnT]:
         return await self._at(
             now=now or datetime.now(tz=at.tzinfo),
             at=at,
@@ -126,17 +126,17 @@ class ScheduleBuilder(ABC, Generic[_R]):
         at: datetime,
         job_id: str,
         cron_parser: CronParser | None = None,
-    ) -> Job[_R]:
+    ) -> Job[ReturnT]:
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         cron_exp = cron_parser.get_expression() if cron_parser else None
         job = Job(
             exec_at=at,
             job_id=job_id,
-            func_name=self._route_configuration.func_name,
+            func_name=self._route_config.func_name,
             job_registry=self._job_registry,
             job_status=JobStatus.SCHEDULED,
             cron_expression=cron_exp,
-            metadata=self._route_configuration.metadata,
+            metadata=self._route_config.metadata,
         )
         ctx = ScheduleContext(job=job, cron_parser=cron_parser)
         loop = self._jobber_config.loop_factory()
@@ -158,12 +158,12 @@ class ScheduleBuilder(ABC, Generic[_R]):
             raise NegativeDelayError(delay_seconds)
         return delay_seconds
 
-    def _pre_exec_job(self, ctx: ScheduleContext[_R]) -> None:
+    def _pre_exec_job(self, ctx: ScheduleContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_job(ctx=ctx), name=ctx.job.id)
         task.add_done_callback(self._jobber_config.asyncio_tasks.discard)
         self._jobber_config.asyncio_tasks.add(task)
 
-    async def _exec_job(self, *, ctx: ScheduleContext[_R]) -> None:
+    async def _exec_job(self, *, ctx: ScheduleContext[ReturnT]) -> None:
         job = ctx.job
         job.status = JobStatus.RUNNING
         job_context = JobContext(
@@ -171,33 +171,19 @@ class ScheduleBuilder(ABC, Generic[_R]):
             state=self._state,
             request_state=RequestState(),
             runnable=self._runnable,
-            route_config=self._route_configuration,
+            route_config=self._route_config,
+            jobber_config=self._jobber_config,
         )
         try:
-            result = await asyncio.wait_for(
-                self._middleware_chain(job_context),
-                timeout=self._route_configuration.timeout,
-            )
-        except asyncio.TimeoutError as exc:
-            logger.warning(
-                "Job %s timed out after %s seconds",
-                job.id,
-                self._route_configuration.timeout,
-            )
-            job.status = JobStatus.TIMEOUT
-            timeout_exc = JobTimeoutError(
-                job_id=job.id,
-                timeout=self._route_configuration.timeout,
-            )
-            job.set_exception(timeout_exc)
-            raise timeout_exc from exc
-        except JobSkippedError:
+            result = await self._middleware_chain(job_context)
+        except JobTimeoutError as exc:
+            job.set_exception(exc, status=JobStatus.TIMEOUT)
+        except JobSkippedError as exc:
             logger.debug("Job %s execution was skipped by middleware", job.id)
-            job.status = JobStatus.SKIPPED
+            job.set_exception(exc, status=JobStatus.SKIPPED)
         except Exception as exc:
             logger.exception("Job %s failed with unexpected error", job.id)
-            job.status = JobStatus.FAILED
-            job.set_exception(exc)
+            job.set_exception(exc, status=JobStatus.FAILED)
             raise
         else:
             job.set_result(result)
@@ -212,7 +198,7 @@ class ScheduleBuilder(ABC, Generic[_R]):
 
     async def _reschedule_cron(
         self,
-        scheduler_ctx: ScheduleContext[_R],
+        scheduler_ctx: ScheduleContext[ReturnT],
     ) -> None:
         cron_parser = cast("CronParser", scheduler_ctx.cron_parser)
         now = datetime.now(tz=self._jobber_config.tz)

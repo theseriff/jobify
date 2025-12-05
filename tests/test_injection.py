@@ -1,5 +1,4 @@
 # pyright: reportExplicitAny=false
-import inspect
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
@@ -77,10 +76,9 @@ async def test_injection_wrong_usage() -> None:
     assert "Unknown type for injection" in str(job2.exception)
 
 
-async def test_inject_context_skips_non_inject_parameters() -> None:
-    amock = AsyncMock(return_value="test")
-    amock.__signature__ = inspect.Signature()
-
+async def test_inject_context_skips_non_inject_parameters(
+    amock: AsyncMock,
+) -> None:
     strategy = create_run_strategy(amock, Mock(), Mock())
     runnable = strategy.create_runnable(normal_param="test")
     inject_context(runnable, Mock(spec=JobContext))

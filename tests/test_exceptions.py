@@ -1,7 +1,5 @@
 import asyncio
 import time
-from datetime import datetime
-from typing import TypedDict
 from unittest.mock import Mock
 
 import pytest
@@ -13,12 +11,6 @@ from jobber._internal.exceptions import (
     JobTimeoutError,
     NegativeDelayError,
 )
-
-
-class CommonKwargs(TypedDict):
-    now: datetime
-    to_thread: bool
-    to_process: bool
 
 
 async def test_jobber_runtime_error() -> None:

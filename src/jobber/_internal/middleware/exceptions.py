@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Any, TypeAlias, cast, final
+from typing import TYPE_CHECKING, Any, TypeAlias, final
 
 from jobber._internal.context import JobContext
 from jobber._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
-    from concurrent.futures import ThreadPoolExecutor
+    from jobber._internal.configuration import JobberConfiguration
 
 
 ExceptionHandler: TypeAlias = Callable[
@@ -22,17 +22,15 @@ MappingExceptionHandlers: TypeAlias = Mapping[
 
 @final
 class ExceptionMiddleware(BaseMiddleware):
-    __slots__: tuple[str, ...] = ("exc_handlers", "getloop", "threadpool")
+    __slots__: tuple[str, ...] = ("exc_handlers", "jobber_config")
 
     def __init__(
         self,
         exc_handlers: ExceptionHandlers,
-        threadpool: ThreadPoolExecutor | None,
-        getloop: Callable[[], asyncio.AbstractEventLoop],
+        jobber_config: JobberConfiguration,
     ) -> None:
         self.exc_handlers = exc_handlers
-        self.threadpool = threadpool
-        self.getloop = getloop
+        self.jobber_config = jobber_config
 
     async def __call__(self, call_next: CallNext, context: JobContext) -> Any:  # noqa: ANN401
         try:
@@ -42,10 +40,9 @@ class ExceptionMiddleware(BaseMiddleware):
             if asyncio.iscoroutinefunction(handler):
                 await handler(context, exc)
             else:
-                loop = self.getloop()
-                thread = self.threadpool
-                handler = cast("Callable[..., None]", handler)
-                await loop.run_in_executor(thread, handler, context, exc)
+                loop = self.jobber_config.loop_factory()
+                thread = self.jobber_config.worker_pools.threadpool
+                _ = await loop.run_in_executor(thread, handler, context, exc)
             raise
 
     def _lookup_exc_handler(self, exc: Exception) -> ExceptionHandler:

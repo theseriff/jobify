@@ -31,12 +31,12 @@ if TYPE_CHECKING:
     from jobber._internal.runner.job import Job
 
 
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
-_T = TypeVar("_T")
+T = TypeVar("T")
+ReturnT = TypeVar("ReturnT")
+ParamsT = ParamSpec("ParamsT")
 
 
-def create_default_name(func: Callable[_P, _R], /) -> str:
+def create_default_name(func: Callable[ParamsT, ReturnT], /) -> str:
     fname = func.__name__
     fmodule = func.__module__
     if fname == "<lambda>":
@@ -47,15 +47,15 @@ def create_default_name(func: Callable[_P, _R], /) -> str:
 
 
 @final
-class JobRoute(Generic[_P, _R]):
+class JobRoute(Generic[ParamsT, ReturnT]):
     def __init__(
         self,
         *,
         state: State,
         jobber_config: JobberConfiguration,
         route_config: RouteConfiguration,
-        original_func: Callable[_P, _R],
-        job_registry: dict[str, Job[_R]],
+        original_func: Callable[ParamsT, ReturnT],
+        job_registry: dict[str, Job[ReturnT]],
     ) -> None:
         self._strategy_run = create_run_strategy(
             original_func,
@@ -111,36 +111,36 @@ class JobRoute(Generic[_P, _R]):
 
     def __call__(
         self,
-        *args: _P.args,
-        **kwargs: _P.kwargs,
-    ) -> _R:
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> ReturnT:
         return self._original_func(*args, **kwargs)
 
     @overload
     def schedule(
-        self: JobRoute[_P, CoroutineType[object, object, _T]],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
-    ) -> ScheduleBuilder[_T]: ...
+        self: JobRoute[ParamsT, CoroutineType[object, object, T]],
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> ScheduleBuilder[T]: ...
 
     @overload
     def schedule(
-        self: JobRoute[_P, Coroutine[object, object, _T]],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
-    ) -> ScheduleBuilder[_T]: ...
+        self: JobRoute[ParamsT, Coroutine[object, object, T]],
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> ScheduleBuilder[T]: ...
 
     @overload
     def schedule(
-        self: JobRoute[_P, _R],
-        *args: _P.args,
-        **kwargs: _P.kwargs,
-    ) -> ScheduleBuilder[_R]: ...
+        self: JobRoute[ParamsT, ReturnT],
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> ScheduleBuilder[ReturnT]: ...
 
     def schedule(
         self,
-        *args: _P.args,
-        **kwargs: _P.kwargs,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
     ) -> ScheduleBuilder[Any]:
         if not self._jobber_config.app_started:
             raise_app_not_started_error("schedule")

@@ -23,6 +23,8 @@ from jobber._internal.middleware.exceptions import (
     ExceptionHandlers,
     ExceptionMiddleware,
 )
+from jobber._internal.middleware.retry import RetryMiddleware
+from jobber._internal.middleware.timeout import TimeoutMiddleware
 from jobber._internal.routing import JobRoute, create_default_name
 
 if TYPE_CHECKING:
@@ -42,9 +44,9 @@ if TYPE_CHECKING:
     from jobber._internal.storage.abc import JobRepository
 
 
-_R = TypeVar("_R")
-_P = ParamSpec("_P")
-_AppType = TypeVar("_AppType", bound="Jobber")
+ReturnT = TypeVar("ReturnT")
+ParamsT = ParamSpec("ParamsT")
+AppT = TypeVar("AppT", bound="Jobber")
 
 
 class Jobber:
@@ -53,7 +55,7 @@ class Jobber:
         *,
         tz: ZoneInfo,
         durable: JobRepository,
-        lifespan: Lifespan[_AppType],
+        lifespan: Lifespan[AppT],
         serializer: JobsSerializer,
         middleware: deque[BaseMiddleware],
         exception_handlers: ExceptionHandlers,
@@ -110,41 +112,48 @@ class Jobber:
         return await runnable()
 
     @overload
-    def register(self, func: Callable[_P, _R]) -> JobRoute[_P, _R]: ...
+    def register(
+        self, func: Callable[ParamsT, ReturnT]
+    ) -> JobRoute[ParamsT, ReturnT]: ...
 
     @overload
     def register(
         self,
         *,
-        retry: int = 1,
+        retry: int = 0,
         timeout: float = 600,
         func_name: str | None = None,
         run_mode: RunMode = EMPTY,
         metadata: Mapping[str, Any] | None = None,
-    ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]: ...
+    ) -> Callable[
+        [Callable[ParamsT, ReturnT]], JobRoute[ParamsT, ReturnT]
+    ]: ...
 
     @overload
     def register(
         self,
-        func: Callable[_P, _R],
+        func: Callable[ParamsT, ReturnT],
         *,
-        retry: int = 1,
+        retry: int = 0,
         timeout: float = 600,
         func_name: str | None = None,
         run_mode: RunMode = EMPTY,
         metadata: Mapping[str, Any] | None = None,
-    ) -> JobRoute[_P, _R]: ...
+    ) -> JobRoute[ParamsT, ReturnT]: ...
 
     def register(  # noqa: PLR0913
         self,
-        func: Callable[_P, _R] | None = None,
+        func: Callable[ParamsT, ReturnT] | None = None,
         *,
-        retry: int = 1,
+        retry: int = 0,
         timeout: float = 600,  # default 10 min.
         func_name: str | None = None,
         run_mode: RunMode = EMPTY,
         metadata: Mapping[str, Any] | None = None,
-    ) -> JobRoute[_P, _R] | Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
+    ) -> (
+        JobRoute[ParamsT, ReturnT]
+        | Callable[[Callable[ParamsT, ReturnT]], JobRoute[ParamsT, ReturnT]]
+    ):
         if self.jobber_config.app_started is True:
             raise_app_already_started_error("register")
 
@@ -162,25 +171,26 @@ class Jobber:
     def _register(
         self,
         *,
-        retry: int = 1,
-        timeout: float = 600,  # default 10 min.
+        retry: int,
+        timeout: float,
         func_name: str | None,
         run_mode: RunMode,
         metadata: Mapping[str, Any] | None,
-    ) -> Callable[[Callable[_P, _R]], JobRoute[_P, _R]]:
-        def wrapper(func: Callable[_P, _R]) -> JobRoute[_P, _R]:
+    ) -> Callable[[Callable[ParamsT, ReturnT]], JobRoute[ParamsT, ReturnT]]:
+        def wrapper(
+            func: Callable[ParamsT, ReturnT],
+        ) -> JobRoute[ParamsT, ReturnT]:
             fname = func_name or create_default_name(func)
             if route := self._routes.get(fname):
-                return cast("JobRoute[_P, _R]", route)
+                return cast("JobRoute[ParamsT, ReturnT]", route)
 
             is_async = asyncio.iscoroutinefunction(func)
-            mode = get_run_mode(run_mode, is_async=is_async)
             route_config = RouteConfiguration(
                 retry=retry,
                 timeout=timeout,
                 is_async=is_async,
                 func_name=fname,
-                run_mode=mode,
+                run_mode=get_run_mode(run_mode, is_async=is_async),
                 metadata=metadata,
             )
             route = JobRoute(
@@ -197,13 +207,12 @@ class Jobber:
         return wrapper
 
     def _build_middleware_chain(self) -> None:
-        self._middleware.append(
-            ExceptionMiddleware(
-                self._exc_handlers,
-                self.jobber_config.worker_pools.threadpool,
-                self.jobber_config.loop_factory,
-            )
+        system_middlewares = (
+            TimeoutMiddleware(),
+            RetryMiddleware(),
+            ExceptionMiddleware(self._exc_handlers, self.jobber_config),
         )
+        self._middleware.extend(system_middlewares)
         middleware_chain = build_middleware(self._middleware, self._entry)
         for route in self._routes.values():
             route._middleware_chain = middleware_chain  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]

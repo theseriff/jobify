@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, final
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, final
 
 from jobber._internal.common.constants import EMPTY, JobStatus
 from jobber._internal.exceptions import (
@@ -21,11 +21,11 @@ Use it only with synchronous functions. \
 Async functions are already executed in the event loop.
 """
 
-_R = TypeVar("_R")
+ReturnT = TypeVar("ReturnT")
 
 
 @final
-class Job(Generic[_R]):
+class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_job_registry",
@@ -46,7 +46,7 @@ class Job(Generic[_R]):
         job_id: str,
         exec_at: datetime,
         func_name: str,
-        job_registry: dict[str, Job[_R]],
+        job_registry: dict[str, Job[ReturnT]],
         job_status: JobStatus,
         cron_expression: str | None,
         metadata: Mapping[str, Any] | None,
@@ -54,7 +54,7 @@ class Job(Generic[_R]):
         self.id = job_id
         self._event = asyncio.Event()
         self._job_registry = job_registry
-        self._result: _R = EMPTY
+        self._result: ReturnT = EMPTY
         self.exception: Exception | None = None
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self.cron_expression = cron_expression
@@ -71,9 +71,9 @@ class Job(Generic[_R]):
             f"job_name={self.name}, job_id={self.id})"
         )
 
-    def result(self) -> _R:
+    def result(self) -> ReturnT:
         if self.status is JobStatus.SKIPPED:
-            raise JobSkippedError
+            raise cast("JobSkippedError", self.exception)
         if self.status is JobStatus.SUCCESS or self._result is not EMPTY:
             return self._result
         if self.status is JobStatus.FAILED:
@@ -83,11 +83,12 @@ class Job(Generic[_R]):
             ) from self.exception
         raise JobNotCompletedError
 
-    def set_result(self, val: _R) -> None:
+    def set_result(self, val: ReturnT) -> None:
         self._result = val
 
-    def set_exception(self, exc: Exception) -> None:
+    def set_exception(self, exc: Exception, *, status: JobStatus) -> None:
         self.exception = exc
+        self.status = status
 
     def update(
         self,
