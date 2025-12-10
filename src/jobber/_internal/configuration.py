@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from jobber._internal.common.types import LoopFactory
     from jobber._internal.cron_parser import CronParser
     from jobber._internal.runner.job import Job
-    from jobber._internal.serializers.abc import JobsSerializer
+    from jobber._internal.serializers.base import JobsSerializer
     from jobber._internal.storage.abc import JobRepository
 
 

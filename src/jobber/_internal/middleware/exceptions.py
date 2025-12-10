@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import TYPE_CHECKING, Any, TypeAlias, final
 
 from jobber._internal.context import JobContext
-from jobber._internal.middleware.abc import BaseMiddleware, CallNext
+from jobber._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
     from jobber._internal.configuration import JobberConfiguration

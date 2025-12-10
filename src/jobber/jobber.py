@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections import deque
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Literal, TypeVar
-from zoneinfo import ZoneInfo
 
 from jobber._internal.jobber import Jobber as _Jobber
-from jobber._internal.serializers.json import JSONSerializer
 from jobber._internal.storage.dummy import DummyRepository
 from jobber._internal.storage.sqlite import SQLiteJobRepository
 from jobber.crontab import Crontab
@@ -17,12 +14,13 @@ from jobber.crontab import Crontab
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+    from zoneinfo import ZoneInfo
 
     from jobber._internal.common.types import Lifespan, LoopFactory
     from jobber._internal.cron_parser import CronParser
-    from jobber._internal.middleware.abc import BaseMiddleware
+    from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.middleware.exceptions import MappingExceptionHandlers
-    from jobber._internal.serializers.abc import JobsSerializer
+    from jobber._internal.serializers.base import JobsSerializer
     from jobber._internal.storage.abc import JobRepository
 
 
@@ -62,13 +60,13 @@ class Jobber(_Jobber):
         elif durable is None:
             durable = SQLiteJobRepository()
         super().__init__(
-            tz=tz or ZoneInfo("UTC"),
+            tz=tz,
             loop_factory=loop_factory,
             durable=durable,
             lifespan=lifespan,
-            serializer=serializer or JSONSerializer(),
-            middleware=deque(middleware or []),
-            exception_handlers=dict(exception_handlers or {}),
+            serializer=serializer,
+            middleware=middleware,
+            exception_handlers=exception_handlers,
             threadpool_executor=threadpool_executor,
             processpool_executor=processpool_executor,
             cron_parser_cls=cron_parser_cls or Crontab,

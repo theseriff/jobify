@@ -4,7 +4,7 @@ from collections.abc import Callable
 import pytest
 
 from jobber import Jobber
-from jobber._internal.routers.root import create_default_name
+from jobber._internal.routers.base import resolve_fname
 
 
 def somefunc() -> None:
@@ -20,7 +20,7 @@ def test_create_default_name(func: Callable[..., None]) -> None:
     if func.__name__ == "main":
         main.__module__ = "__main__"
 
-    job_name = create_default_name(func)
+    job_name = resolve_fname(func)
     if func.__module__ == "__main__":
         assert job_name.endswith(f"pytest:{main.__name__}")
     elif func.__name__ == "<lambda>":
@@ -59,10 +59,10 @@ def test_patch_job_name() -> None:
     new_name = "t__jobber_original"
     new_qualname = f"test_patch_job_name.<locals>.{new_name}"
 
-    assert t.original_func.__name__ == new_name
-    assert t1_reg.original_func.__name__ == new_name
-    assert t2_reg.original_func.__name__ == new_name
-    assert t.original_func.__qualname__ == new_qualname
-    assert t1_reg.original_func.__qualname__ == new_qualname
-    assert t2_reg.original_func.__qualname__ == new_qualname
+    assert t.func.__name__ == new_name
+    assert t1_reg.func.__name__ == new_name
+    assert t2_reg.func.__name__ == new_name
+    assert t.func.__qualname__ == new_qualname
+    assert t1_reg.func.__qualname__ == new_qualname
+    assert t2_reg.func.__qualname__ == new_qualname
     assert t1_reg is t2_reg is t

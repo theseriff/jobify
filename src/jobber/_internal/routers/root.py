@@ -1,10 +1,7 @@
-# pyright: reportPrivateUsage=false
 from __future__ import annotations
 
 import functools
-import os
 import sys
-import uuid
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
 from jobber._internal.common.constants import EMPTY
@@ -12,54 +9,54 @@ from jobber._internal.exceptions import (
     raise_app_already_started_error,
     raise_app_not_started_error,
 )
-from jobber._internal.routers.abc import BaseRegistrator, BaseRoute
+from jobber._internal.routers.base import (
+    Registrator,
+    Route,
+    Router,
+)
 from jobber._internal.runner.runners import create_run_strategy
 from jobber._internal.runner.scheduler import ScheduleBuilder
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from jobber._internal.common.datastructures import State
+    from jobber._internal.common.types import Lifespan
     from jobber._internal.configuration import (
         JobberConfiguration,
         RouteOptions,
     )
-    from jobber._internal.middleware.abc import CallNext
+    from jobber._internal.middleware.base import BaseMiddleware, CallNext
+    from jobber._internal.middleware.exceptions import (
+        ExceptionHandler,
+        ExceptionHandlers,
+        MappingExceptionHandlers,
+    )
     from jobber._internal.runner.runners import RunStrategy
 
 
+AppT = TypeVar("AppT")
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 
 PENDING_CRON_JOBS = "__pending_cron_jobs__"
 
 
-def create_default_name(func: Callable[ParamsT, ReturnT], /) -> str:
-    fname = func.__name__
-    fmodule = func.__module__
-    if fname == "<lambda>":
-        fname = f"lambda_{uuid.uuid4().hex}"
-    if fmodule == "__main__":
-        fmodule = sys.argv[0].removesuffix(".py").replace(os.path.sep, ".")
-    return f"{fmodule}:{fname}"
-
-
-class JobRoute(BaseRoute[ParamsT, ReturnT]):
+class JobRoute(Route[ParamsT, ReturnT]):
     def __init__(  # noqa: PLR0913
         self,
         *,
         state: State,
         func: Callable[ParamsT, ReturnT],
-        func_name: str,
+        fname: str,
         strategy: RunStrategy[ParamsT, ReturnT],
         options: RouteOptions,
         jobber_config: JobberConfiguration,
     ) -> None:
-        super().__init__(options, func)
+        super().__init__(func, fname, options)
         self._strategy_run: RunStrategy[ParamsT, ReturnT] = strategy
         self._middleware_chain: CallNext = EMPTY
         self.jobber_config: JobberConfiguration = jobber_config
-        self.func_name: str = func_name
         self.state: State = state
 
         # --------------------------------------------------------------------
@@ -113,32 +110,36 @@ class JobRoute(BaseRoute[ParamsT, ReturnT]):
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
-            func_name=self.func_name,
+            func_name=self.fname,
             jobber_config=self.jobber_config,
             middleware_chain=self._middleware_chain,
             runnable=self._strategy_run.create_runnable(*args, **kwargs),
         )
 
 
-class JobRegistrator(BaseRegistrator[JobRoute[..., Any]]):
+class JobRegistrator(Registrator[JobRoute[..., Any]]):
     def __init__(
         self,
         state: State,
+        lifespan: Lifespan[AppT] | None,
+        middleware: Sequence[BaseMiddleware] | None,
         jobber_config: JobberConfiguration,
+        exception_handlers: MappingExceptionHandlers | None,
     ) -> None:
-        super().__init__()
+        super().__init__(lifespan, middleware)
+        self.exc_handlers: ExceptionHandlers = dict(exception_handlers or {})
         self.state: State = state
         self.jobber_config: JobberConfiguration = jobber_config
 
     def register(
         self,
         func: Callable[ParamsT, ReturnT],
+        fname: str,
         options: RouteOptions,
     ) -> JobRoute[ParamsT, ReturnT]:
         if self.jobber_config.app_started is True:
             raise_app_already_started_error("register")
 
-        fname = options.func_name or create_default_name(func)
         if self._routes.get(fname) is None:
             strategy = create_run_strategy(
                 func,
@@ -149,7 +150,7 @@ class JobRegistrator(BaseRegistrator[JobRoute[..., Any]]):
                 func=func,
                 state=self.state,
                 options=options,
-                func_name=fname,
+                fname=fname,
                 strategy=strategy,
                 jobber_config=self.jobber_config,
             )
@@ -158,4 +159,40 @@ class JobRegistrator(BaseRegistrator[JobRoute[..., Any]]):
             if options.cron:
                 p = (route, options.cron)
                 self.state.setdefault(PENDING_CRON_JOBS, []).append(p)
+
         return cast("JobRoute[ParamsT, ReturnT]", self._routes[fname])
+
+
+class JobRouter(Router[JobRegistrator]):
+    def __init__(
+        self,
+        *,
+        state: State,
+        lifespan: Lifespan[AppT] | None,
+        middleware: Sequence[BaseMiddleware] | None,
+        jobber_config: JobberConfiguration,
+        exception_handlers: MappingExceptionHandlers | None,
+    ) -> None:
+        super().__init__(
+            registrator=JobRegistrator(
+                state,
+                lifespan,
+                middleware,
+                jobber_config,
+                exception_handlers,
+            ),
+        )
+
+    def add_exception_handler(
+        self,
+        cls_exc: type[Exception],
+        handler: ExceptionHandler,
+    ) -> None:
+        if self.task.jobber_config.app_started is True:
+            raise_app_already_started_error("add_exception_handler")
+        self.task.exc_handlers[cls_exc] = handler
+
+    def add_middleware(self, middleware: BaseMiddleware) -> None:
+        if self.task.jobber_config.app_started is True:
+            raise_app_already_started_error("add_middleware")
+        super().add_middleware(middleware)

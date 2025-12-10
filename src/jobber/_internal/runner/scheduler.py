@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         RouteOptions,
     )
     from jobber._internal.cron_parser import CronParser
-    from jobber._internal.middleware.abc import CallNext
+    from jobber._internal.middleware.base import CallNext
     from jobber._internal.runner.runners import Runnable
 
 

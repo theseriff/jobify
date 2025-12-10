@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from jobber._internal.exceptions import JobTimeoutError
-from jobber._internal.middleware.abc import BaseMiddleware, CallNext
+from jobber._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
     from jobber._internal.context import JobContext
