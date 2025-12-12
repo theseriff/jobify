@@ -4,7 +4,6 @@ import os
 import sys
 import uuid
 from abc import ABC, abstractmethod
-from collections import deque
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import (
@@ -18,7 +17,6 @@ from typing import (
 )
 
 from jobber._internal.common.constants import EMPTY, RunMode
-from jobber._internal.common.datastructures import State
 from jobber._internal.configuration import RouteOptions
 
 if TYPE_CHECKING:
@@ -32,6 +30,7 @@ if TYPE_CHECKING:
     )
     from types import CoroutineType
 
+    from jobber._internal.common.datastructures import State
     from jobber._internal.common.types import Lifespan
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.runner.scheduler import ScheduleBuilder
@@ -40,6 +39,7 @@ if TYPE_CHECKING:
 ParamsT = ParamSpec("ParamsT")
 Return_co = TypeVar("Return_co", covariant=True)
 Route_co = TypeVar("Route_co", bound="Route[..., Any]", covariant=True)
+Router_co = TypeVar("Router_co", bound="Router", covariant=True)
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -109,14 +109,15 @@ def resolve_fname(func: Callable[ParamsT, Return_co], /) -> str:
 class Registrator(ABC, Generic[Route_co]):
     def __init__(
         self,
-        lifespan: Lifespan[T_co] | None,
+        state: State,
+        lifespan: Lifespan[Router_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
     ) -> None:
         self._routes: dict[str, Route_co] = {}
         self._lifespan: Final = lifespan or dummy_lifespan
         self._state_lifespan: Final = self._iter_lifespan(self._lifespan)
-        self.state: State = State()
-        self._middleware: deque[BaseMiddleware] = deque(middleware or [])
+        self._middleware: list[BaseMiddleware] = list(middleware or [])
+        self.state: State = state
 
     async def _iter_lifespan(
         self,
@@ -233,7 +234,7 @@ class Router:
         prefix: str | None,
         registrator: Registrator[Route[..., Any]],
     ) -> None:
-        self.prefix: str = f"{prefix}:" if prefix else ""
+        self.prefix: str = prefix if prefix else ""
         self._parent: Router | None = None
         self._sub_routers: list[Router] = []
         self._registrator: Registrator[Route[..., Any]] = registrator
@@ -282,12 +283,28 @@ class Router:
             self.include_router(router)
 
     def add_middleware(self, middleware: BaseMiddleware) -> None:
-        self._registrator._middleware.appendleft(middleware)
+        self._registrator._middleware.append(middleware)
+
+    @property
+    def chain_tail(self) -> Iterator[Router]:
+        yield self
+        for router in self.sub_routers:
+            yield from router.chain_tail
 
     @property
     def routes(self) -> Iterator[Route[..., Any]]:
         yield from self._registrator._routes.values()
 
     @property
-    def sub_routers(self) -> Iterator[Router]:
-        yield from self._sub_routers
+    def sub_routers(self) -> Sequence[Router]:
+        return self._sub_routers
+
+    def remove_route(self, fname: str) -> None:
+        del self._registrator._routes[fname]
+
+    def set_route(self, route: Route[..., Any]) -> None:
+        self._registrator._routes[route.fname] = route
+
+    def propagate_prefix(self, parent: Router) -> None:
+        sep = "." if parent.prefix and self.prefix else ""
+        self.prefix = f"{parent.prefix}{sep}{self.prefix}"

@@ -1,6 +1,7 @@
 import pytest
 
 from jobber import Jobber, JobRouter
+from jobber._internal.routers.base import resolve_fname
 
 
 def test_nested_prefix() -> None:
@@ -8,9 +9,11 @@ def test_nested_prefix() -> None:
     router2 = JobRouter(prefix="2")
     router3 = JobRouter(prefix="3")
     router4 = JobRouter(prefix="4")
+    router5 = JobRouter()
 
     sub4_routers = [JobRouter(prefix=char) for char in "abcd"]
     router4.include_routers(*sub4_routers)
+    router4.include_router(router5)
 
     router1.include_router(router2)
     router2.include_router(router3)
@@ -18,10 +21,11 @@ def test_nested_prefix() -> None:
 
     app = Jobber()
     app.include_router(router1)
-    assert all(
-        router.prefix == f"{router4.prefix}{char}:"
-        for router, char in zip(sub4_routers, "abcd", strict=True)
-    )
+
+    assert router5.prefix == "1.2.3.4"
+
+    for router, prefix in zip(sub4_routers, "abcd", strict=True):
+        assert router.prefix == f"1.2.3.4.{prefix}"
 
 
 def test_nested_fname() -> None:
@@ -36,13 +40,18 @@ def test_nested_fname() -> None:
     async def f2() -> None:
         pass
 
+    @router2.task
+    async def f3() -> None:
+        pass
+
     router1.include_router(router2)
 
     app = Jobber()
     app.include_router(router1)
 
     assert f.fname == "level1:test1"
-    assert f2.fname == "level1:level2:test2"
+    assert f2.fname == "level1.level2:test2"
+    assert f3.fname == f"level1.level2:{resolve_fname(f3)}"
 
 
 def test_router_not_included() -> None:

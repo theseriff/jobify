@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
+from jobber._internal.common.datastructures import State
 from jobber._internal.routers.base import Registrator, Route, Router
 
 if TYPE_CHECKING:
@@ -13,9 +15,9 @@ if TYPE_CHECKING:
     from jobber._internal.runner.scheduler import ScheduleBuilder
 
 
-AppT = TypeVar("AppT")
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
+NodeRouter_co = TypeVar("NodeRouter_co", bound="NodeRouter", covariant=True)
 
 
 class NodeRoute(Route[ParamsT, ReturnT]):
@@ -48,10 +50,11 @@ class NodeRoute(Route[ParamsT, ReturnT]):
 class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
     def __init__(
         self,
-        lifespan: Lifespan[AppT] | None,
+        state: State,
+        lifespan: Lifespan[NodeRouter_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
     ) -> None:
-        super().__init__(lifespan, middleware)
+        super().__init__(state, lifespan, middleware)
 
     def register(
         self,
@@ -60,7 +63,9 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
         options: RouteOptions,
     ) -> NodeRoute[ParamsT, ReturnT]:
         if self._routes.get(fname) is None:
-            self._routes[fname] = NodeRoute(func, fname, options)
+            route = NodeRoute(func, fname, options)
+            _ = functools.update_wrapper(route, func)
+            self._routes[fname] = route
 
         return cast("NodeRoute[ParamsT, ReturnT]", self._routes[fname])
 
@@ -70,12 +75,13 @@ class NodeRouter(Router):
         self,
         *,
         prefix: str | None = None,
-        lifespan: Lifespan[AppT] | None = None,
+        lifespan: Lifespan[NodeRouter_co] | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
     ) -> None:
+        self.state: State = State()
         super().__init__(
             prefix=prefix,
-            registrator=NodeRegistrator(lifespan, middleware),
+            registrator=NodeRegistrator(self.state, lifespan, middleware),
         )
         self.task: NodeRegistrator = cast("NodeRegistrator", self._registrator)
 
@@ -84,5 +90,5 @@ class NodeRouter(Router):
         yield from self.task._routes.values()
 
     @property
-    def sub_routers(self) -> Iterator[NodeRouter]:
-        yield from cast("list[NodeRouter]", self._sub_routers)
+    def sub_routers(self) -> list[NodeRouter]:
+        return cast("list[NodeRouter]", self._sub_routers)

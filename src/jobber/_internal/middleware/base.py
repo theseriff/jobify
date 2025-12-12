@@ -10,7 +10,7 @@ from jobber._internal.exceptions import JobSkippedError
 
 CallNext = Callable[[JobContext], Awaitable[Any]]
 
-_R = TypeVar("_R")
+ReturnT = TypeVar("ReturnT")
 
 
 @runtime_checkable
@@ -23,9 +23,9 @@ class BaseMiddleware(Protocol, metaclass=ABCMeta):
 def build_middleware(
     middleware: Sequence[BaseMiddleware],
     /,
-    func: Callable[..., Awaitable[_R]],
+    func: Callable[[JobContext], Awaitable[ReturnT]],
 ) -> CallNext:
-    async def target(context: JobContext) -> _R:
+    async def target(context: JobContext) -> ReturnT:
         context.request_state.__has_called__ = True
         return await func(context)
 
@@ -33,7 +33,7 @@ def build_middleware(
     for m in reversed(middleware):
         chain_of_middlewares = functools.partial(m, chain_of_middlewares)
 
-    async def executor(context: JobContext) -> _R:
+    async def executor(context: JobContext) -> ReturnT:
         result = await chain_of_middlewares(context)
         if "__has_called__" not in context.request_state:
             raise JobSkippedError

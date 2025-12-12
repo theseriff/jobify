@@ -42,8 +42,8 @@ class ScheduleContext(Generic[ReturnT]):
 @final
 class ScheduleBuilder(ABC, Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
+        "_chain_middleware",
         "_jobber_config",
-        "_middleware_chain",
         "_runnable",
         "_state",
         "func_name",
@@ -56,14 +56,14 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         state: State,
         jobber_config: JobberConfiguration,
         runnable: Runnable[ReturnT],
-        middleware_chain: CallNext,
+        chain_middleware: CallNext,
         options: RouteOptions,
         func_name: str,
     ) -> None:
         self._state = state
         self._jobber_config = jobber_config
         self._runnable = runnable
-        self._middleware_chain = middleware_chain
+        self._chain_middleware = chain_middleware
         self.func_name = func_name
         self.route_options = options
 
@@ -172,7 +172,7 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             jobber_config=self._jobber_config,
         )
         try:
-            result = await self._middleware_chain(job_context)
+            result = await self._chain_middleware(job_context)
         except JobTimeoutError as exc:
             job.set_exception(exc, status=JobStatus.TIMEOUT)
             job.register_failures()
