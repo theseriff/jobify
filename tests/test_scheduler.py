@@ -1,11 +1,17 @@
-# pyright: reportPrivateUsage=false
 import asyncio
 from datetime import datetime
 
 import pytest
 
-from jobber import Jobber, RunMode
-from jobber._internal.cron_parser import CronParser
+from jobber import Jobber, JobRouter, RunMode
+from jobber._internal.router.base import Router
+from tests.conftest import create_app
+
+
+@pytest.fixture(params=[create_app, JobRouter])
+def node(request: pytest.FixtureRequest) -> Router:
+    router: Router = request.param()
+    return router
 
 
 def f1(num: int) -> int:
@@ -34,17 +40,21 @@ async def f2(num: int) -> int:
 )
 async def test_jobber(  # noqa: PLR0913
     now: datetime,
-    cron_parser_cls: type[CronParser],
+    node: Router,
     *,
     method: str,
     num: int,
     expected: int,
     run_mode: RunMode,
 ) -> None:
-    jobber = Jobber(cron_parser_cls=cron_parser_cls)
-    f1_reg = jobber.register(f1, func_name="f1_reg", run_mode=run_mode)
-    f2_reg = jobber.register(f2, func_name="f2_reg", run_mode=run_mode)
-    async with jobber:
+    f1_reg = node.task(f1, func_name="f1_reg", run_mode=run_mode)
+    f2_reg = node.task(f2, func_name="f2_reg", run_mode=run_mode)
+    if type(node) is Jobber:
+        app = node
+    else:
+        app = create_app()
+        app.include_router(node)
+    async with app:
         if method == "at":
             job_sync = await f1_reg.schedule(num).at(now, now=now)
             job_async = await f2_reg.schedule(num).at(now, now=now)
@@ -66,5 +76,5 @@ async def test_jobber(  # noqa: PLR0913
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
-    assert len(jobber.jobber_config._tasks_registry) == 0
-    assert len(jobber.jobber_config._jobs_registry) == 0
+    assert len(app.jobber_config._tasks_registry) == 0
+    assert len(app.jobber_config._jobs_registry) == 0

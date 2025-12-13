@@ -1,4 +1,3 @@
-# pyright: reportPrivateUsage=false
 from jobber import Jobber
 from jobber._internal.common.constants import JobStatus
 
@@ -6,7 +5,7 @@ from jobber._internal.common.constants import JobStatus
 async def test_job() -> None:
     jobber = Jobber()
 
-    @jobber.register(func_name="t")
+    @jobber.task(func_name="t")
     def t(num: int) -> int:
         return num + 1
 

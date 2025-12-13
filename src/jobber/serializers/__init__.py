@@ -18,7 +18,7 @@ Security Notes:
 
 """  # noqa: E501
 
-from jobber._internal.serializers.abc import JobsSerializer, SerializableTypes
+from jobber._internal.serializers.base import JobsSerializer, SerializableTypes
 from jobber._internal.serializers.json import JSONSerializer
 from jobber._internal.serializers.pickle_unsafe import UnsafePickleSerializer
 

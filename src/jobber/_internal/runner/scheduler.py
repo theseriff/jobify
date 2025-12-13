@@ -1,5 +1,3 @@
-# pyright: reportPrivateUsage=false
-# ruff: noqa: SLF001
 from __future__ import annotations
 
 import asyncio
@@ -13,17 +11,13 @@ from uuid import uuid4
 from jobber._internal.common.constants import JobStatus
 from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import (
-    JobSkippedError,
-    JobTimeoutError,
-    NegativeDelayError,
-)
+from jobber._internal.exceptions import JobTimeoutError, NegativeDelayError
 from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
     from jobber._internal.configuration import (
         JobberConfiguration,
-        RouteConfiguration,
+        RouteOptions,
     )
     from jobber._internal.cron_parser import CronParser
     from jobber._internal.middleware.base import CallNext
@@ -44,27 +38,30 @@ class ScheduleContext(Generic[ReturnT]):
 @final
 class ScheduleBuilder(ABC, Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
+        "_chain_middleware",
         "_jobber_config",
-        "_middleware_chain",
-        "_route_config",
         "_runnable",
         "_state",
+        "func_name",
+        "route_options",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         state: State,
         jobber_config: JobberConfiguration,
         runnable: Runnable[ReturnT],
-        middleware_chain: CallNext,
-        configuration: RouteConfiguration,
+        chain_middleware: CallNext,
+        options: RouteOptions,
+        func_name: str,
     ) -> None:
         self._state = state
         self._jobber_config = jobber_config
         self._runnable = runnable
-        self._route_config = configuration
-        self._middleware_chain = middleware_chain
+        self._chain_middleware = chain_middleware
+        self.func_name = func_name
+        self.route_options = options
 
     async def cron(
         self,
@@ -75,9 +72,7 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         job_id: str | None = None,
     ) -> Job[ReturnT]:
         now = now or datetime.now(tz=self._jobber_config.tz)
-        cron_parser = self._jobber_config.cron_parser_cls(
-            expression=expression
-        )
+        cron_parser = self._jobber_config.factory_cron(expression)
         next_at = cron_parser.next_run(now=now)
         return await self._at(
             now=now,
@@ -129,11 +124,10 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         job = Job(
             exec_at=at,
             job_id=job_id,
-            func_name=self._route_config.func_name,
+            func_name=self.func_name,
             job_registry=self._jobber_config._jobs_registry,
             job_status=JobStatus.SCHEDULED,
             cron_expression=cron_exp,
-            metadata=self._route_config.metadata,
         )
         ctx = ScheduleContext(job=job, cron_parser=cron_parser)
         loop = self._jobber_config.loop_factory()
@@ -168,17 +162,14 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             state=self._state,
             request_state=RequestState(),
             runnable=self._runnable,
-            route_config=self._route_config,
+            route_config=self.route_options,
             jobber_config=self._jobber_config,
         )
         try:
-            result = await self._middleware_chain(job_context)
+            result = await self._chain_middleware(job_context)
         except JobTimeoutError as exc:
             job.set_exception(exc, status=JobStatus.TIMEOUT)
             job.register_failures()
-        except JobSkippedError as exc:
-            logger.debug("Job %s execution was skipped by middleware", job.id)
-            job.set_exception(exc, status=JobStatus.SKIPPED)
         except Exception as exc:
             logger.exception("Job %s failed with unexpected error", job.id)
             job.set_exception(exc, status=JobStatus.FAILED)
@@ -191,7 +182,7 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             job._event.set()
             _ = self._jobber_config._jobs_registry.pop(job.id, None)
             if job.is_cron() and self._jobber_config.app_started:
-                max_failures = self._route_config.max_cron_failures
+                max_failures = self.route_options.max_cron_failures
                 if job.should_reschedule(max_failures):
                     await self._reschedule_cron(ctx)
                 else:

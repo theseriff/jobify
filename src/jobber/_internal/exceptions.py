@@ -41,24 +41,6 @@ class NegativeDelayError(BaseJobberError):
         self.delay_seconds: float = delay_seconds
 
 
-class JobSkippedError(BaseJobberError):
-    """Raised when middleware chain completes without calling the job callback.
-
-    This occurs when a middleware in the chain decides to short-circuit
-    the execution and returns a response early without calling `call_next`,
-    preventing the actual job handler from being executed.
-    """
-
-    def __init__(
-        self,
-        message: str = (
-            "Job was not executed. A middleware short-circuited "
-            "the request without calling call_next."
-        ),
-    ) -> None:
-        super().__init__(message)
-
-
 class JobTimeoutError(BaseJobberError):
     """Raised when job execution exceeds the configured timeout."""
 

@@ -10,7 +10,6 @@ from jobber._internal.exceptions import (
     BaseJobberError,
     JobFailedError,
     JobNotCompletedError,
-    JobSkippedError,
     JobTimeoutError,
     NegativeDelayError,
 )
@@ -20,7 +19,6 @@ __all__ = (
     "BaseJobberError",
     "JobFailedError",
     "JobNotCompletedError",
-    "JobSkippedError",
     "JobTimeoutError",
     "NegativeDelayError",
 )

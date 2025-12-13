@@ -16,7 +16,7 @@ from jobber._internal.exceptions import (
 async def test_jobber_runtime_error() -> None:
     jobber = Jobber()
 
-    @jobber.register
+    @jobber.task
     def f() -> None: ...
 
     reason = "The Jobber application is not started."
@@ -29,7 +29,7 @@ async def test_jobber_runtime_error() -> None:
         )
 
         with pytest.raises(ApplicationStateError, match=reason):
-            _ = jobber.register(f)
+            _ = jobber.task(f)
 
         with pytest.raises(ApplicationStateError, match=reason):
             jobber.add_middleware(Mock())
@@ -41,7 +41,7 @@ async def test_jobber_runtime_error() -> None:
 async def test_job_not_completed() -> None:
     jobber = Jobber()
 
-    @jobber.register(func_name="f1")
+    @jobber.task(func_name="f1")
     def f1(num: int) -> int:
         return num + 1
 
@@ -63,11 +63,11 @@ async def test_job_timeout() -> None:
     timeout = 0.005
     jobber = Jobber()
 
-    @jobber.register(timeout=timeout)
+    @jobber.task(timeout=timeout)
     async def f1() -> None:
         await asyncio.sleep(5000)
 
-    @jobber.register(timeout=timeout)
+    @jobber.task(timeout=timeout)
     def f2() -> None:
         time.sleep(0.01)
 

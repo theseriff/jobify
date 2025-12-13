@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 import functools
+import inspect
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar, final
 
-from jobber._internal.common.constants import RunMode
+from jobber._internal.common.constants import EMPTY, RunMode
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from concurrent.futures import Executor
 
     from jobber._internal.common.types import LoopFactory
-    from jobber._internal.configuration import (
-        JobberConfiguration,
-        RouteConfiguration,
-    )
+    from jobber._internal.configuration import JobberConfiguration
 
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
@@ -105,14 +104,19 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
 
 def create_run_strategy(
     func: Callable[ParamsT, ReturnT],
-    route_config: RouteConfiguration,
     jobber_config: JobberConfiguration,
+    *,
+    mode: RunMode,
 ) -> RunStrategy[ParamsT, ReturnT]:
-    if route_config.is_async:
+    # inspect.iscoroutinefunction returns TypeGuard,
+    # but we need a regular bool variable
+    is_async = bool(inspect.iscoroutinefunction(func))
+    mode = _validate_run_mode(mode, is_async=is_async)
+    if is_async:
         return AsyncStrategy(func)
 
     loop_factory = jobber_config.loop_factory
-    match route_config.run_mode:
+    match mode:
         case RunMode.PROCESS:
             processpool = jobber_config.worker_pools.processpool
             return PoolStrategy(func, processpool, loop_factory)
@@ -121,3 +125,17 @@ def create_run_strategy(
             return PoolStrategy(func, threadpool, loop_factory)
         case _:
             return SyncStrategy(func)
+
+
+def _validate_run_mode(mode: RunMode, *, is_async: bool) -> RunMode:
+    if is_async:
+        if mode in (RunMode.PROCESS, RunMode.THREAD):
+            msg = (
+                "Async functions are always done in the main loop."
+                " This mode (PROCESS/THREAD) is not used."
+            )
+            warnings.warn(msg, category=RuntimeWarning, stacklevel=3)
+        return RunMode.MAIN
+    if mode is EMPTY:
+        return RunMode.THREAD
+    return mode

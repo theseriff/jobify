@@ -137,6 +137,7 @@ include = ["src", "tests"]
 ignore = ["**/__pycache__", "**/alembic"]
 pythonVersion = "3.10"
 reportImplicitOverride = false
+reportPrivateUsage = false
 reportAny = false
 reportExplicitAny = false
 
@@ -185,6 +186,7 @@ ignore = [
     "D203",  # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
     "D213",  # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
     "COM812", # Conflict: Danger! This rule ("trailing-comma-missing") conflicts with the automatic behavior of "ruff format", which manages trailing commas.
+    "SLF001",
 ]
 
 [tool.ruff.lint.per-file-ignores]

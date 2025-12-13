@@ -6,11 +6,10 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import JobSkippedError
 
 CallNext = Callable[[JobContext], Awaitable[Any]]
 
-_R = TypeVar("_R")
+ReturnT = TypeVar("ReturnT")
 
 
 @runtime_checkable
@@ -23,20 +22,13 @@ class BaseMiddleware(Protocol, metaclass=ABCMeta):
 def build_middleware(
     middleware: Sequence[BaseMiddleware],
     /,
-    func: Callable[..., Awaitable[_R]],
+    func: Callable[[JobContext], Awaitable[ReturnT]],
 ) -> CallNext:
-    async def target(context: JobContext) -> _R:
-        context.request_state.__has_called__ = True
+    async def target(context: JobContext) -> ReturnT:
         return await func(context)
 
     chain_of_middlewares = target
     for m in reversed(middleware):
         chain_of_middlewares = functools.partial(m, chain_of_middlewares)
 
-    async def executor(context: JobContext) -> _R:
-        result = await chain_of_middlewares(context)
-        if "__has_called__" not in context.request_state:
-            raise JobSkippedError
-        return result
-
-    return executor
+    return chain_of_middlewares

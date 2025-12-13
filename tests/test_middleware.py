@@ -4,10 +4,7 @@ from typing import Any
 from unittest import mock
 from unittest.mock import call
 
-import pytest
-
 from jobber import Jobber, JobContext, JobStatus
-from jobber.exceptions import JobSkippedError
 from jobber.middleware import BaseMiddleware, CallNext
 
 
@@ -25,7 +22,7 @@ class MyMiddleware(BaseMiddleware):
 async def test_common_case(amock: mock.AsyncMock) -> None:
     jobber = Jobber()
     jobber.add_middleware(MyMiddleware())
-    f = jobber.register(amock)
+    f = jobber.task(amock)
 
     async with jobber:
         job = await f.schedule(2).delay(0)
@@ -36,23 +33,17 @@ async def test_common_case(amock: mock.AsyncMock) -> None:
 
         job = await f.schedule(2).delay(0)
         await job.wait()
-        assert job.status is JobStatus.SKIPPED
-        with pytest.raises(
-            JobSkippedError,
-            match=r"Job was not executed\. A middleware short-circuited",
-        ):
-            _ = job.result()
         amock.assert_not_awaited()
 
 
 async def test_exception() -> None:
     jobber = Jobber()
 
-    @jobber.register
+    @jobber.task
     async def f1() -> None:
         raise ValueError
 
-    @jobber.register
+    @jobber.task
     async def f2() -> None:
         raise ZeroDivisionError
 
@@ -81,7 +72,7 @@ async def test_retry(
 
     retry = 3
     jobber = Jobber()
-    f = jobber.register(amock, retry=retry)
+    f = jobber.task(amock, retry=retry)
     async with jobber:
         job = await f.schedule().delay(0)
         await job.wait()

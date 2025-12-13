@@ -4,7 +4,7 @@ import multiprocessing
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ParamSpec
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
     import asyncio
@@ -13,13 +13,10 @@ if TYPE_CHECKING:
 
     from jobber._internal.common.constants import RunMode
     from jobber._internal.common.types import LoopFactory
-    from jobber._internal.cron_parser import CronParser
+    from jobber._internal.cron_parser import FactoryCron
     from jobber._internal.runner.job import Job
-    from jobber._internal.serializers.abc import JobsSerializer
+    from jobber._internal.serializers.base import JobsSerializer
     from jobber._internal.storage.abc import JobRepository
-
-
-ParamsT = ParamSpec("ParamsT")
 
 
 @dataclass(slots=True, kw_only=True)
@@ -53,7 +50,7 @@ class JobberConfiguration:
     durable: JobRepository
     worker_pools: WorkerPools
     serializer: JobsSerializer
-    cron_parser_cls: type[CronParser]
+    factory_cron: FactoryCron
     app_started: bool = False
     _jobs_registry: dict[str, Job[Any]]
     _tasks_registry: set[asyncio.Task[Any]]
@@ -62,17 +59,10 @@ class JobberConfiguration:
         self.worker_pools.close()
 
 
-@dataclass(slots=True, kw_only=True, frozen=True)
-class CronSpec:
-    expression: str
-
-
-@dataclass(slots=True, kw_only=True, frozen=True)
-class RouteConfiguration:
+class RouteOptions(NamedTuple):
     retry: int
     timeout: float
-    is_async: bool
-    func_name: str
+    func_name: str | None
     run_mode: RunMode
     max_cron_failures: int
     cron: str | None
