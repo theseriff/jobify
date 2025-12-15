@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Generic, TypeVar, cast, final
 from uuid import uuid4
 
-from jobber._internal.common.constants import JobStatus
+from jobber._internal.common.constants import INFINITY, JobStatus
 from jobber._internal.common.datastructures import RequestState, State
+from jobber._internal.configuration import Cron
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import JobTimeoutError, NegativeDelayError
+from jobber._internal.exceptions import (
+    DuplicateJobError,
+    JobTimeoutError,
+    NegativeDelayError,
+)
 from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
@@ -29,10 +35,22 @@ logger = logging.getLogger("jobber.runner")
 ReturnT = TypeVar("ReturnT")
 
 
+@dataclass(slots=True, kw_only=True)
+class CronContext:
+    cron: Cron
+    cron_parser: CronParser
+    exec_count: itertools.count[int] = field(default_factory=itertools.count)
+
+    def is_run_allowed_by_limit(self) -> bool:
+        if self.cron.max_runs is INFINITY:
+            return True
+        return next(self.exec_count) < self.cron.max_runs
+
+
 @dataclass(slots=True, kw_only=True, frozen=True)
 class ScheduleContext(Generic[ReturnT]):
     job: Job[ReturnT]
-    cron_parser: CronParser | None
+    cron_ctx: CronContext | None
 
 
 @final
@@ -42,7 +60,7 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         "_jobber_config",
         "_runnable",
         "_state",
-        "func_name",
+        "name",
         "route_options",
     )
 
@@ -54,31 +72,38 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         runnable: Runnable[ReturnT],
         chain_middleware: CallNext,
         options: RouteOptions,
-        func_name: str,
+        name: str,
     ) -> None:
         self._state = state
         self._jobber_config = jobber_config
         self._runnable = runnable
         self._chain_middleware = chain_middleware
-        self.func_name = func_name
+        self.name = name
         self.route_options = options
+
+    def _now(self) -> datetime:
+        return datetime.now(tz=self._jobber_config.tz)
 
     async def cron(
         self,
-        expression: str,
+        cron: str | Cron,
         /,
         *,
+        job_id: str,
         now: datetime | None = None,
-        job_id: str | None = None,
     ) -> Job[ReturnT]:
-        now = now or datetime.now(tz=self._jobber_config.tz)
-        cron_parser = self._jobber_config.factory_cron(expression)
+        now = now or self._now()
+        if isinstance(cron, str):
+            cron = Cron(cron)
+
+        cron_parser = self._jobber_config.factory_cron(cron.expression)
         next_at = cron_parser.next_run(now=now)
+
         return await self._at(
             now=now,
             at=next_at,
             job_id=job_id or uuid4().hex,
-            cron_parser=cron_parser,
+            cron_ctx=CronContext(cron=cron, cron_parser=cron_parser),
         )
 
     async def delay(
@@ -89,7 +114,7 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         now: datetime | None = None,
         job_id: str | None = None,
     ) -> Job[ReturnT]:
-        now = now or datetime.now(tz=self._jobber_config.tz)
+        now = now or self._now()
         at = now + timedelta(seconds=delay_seconds)
         return await self._at(
             now=now,
@@ -117,19 +142,20 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         now: datetime,
         at: datetime,
         job_id: str,
-        cron_parser: CronParser | None = None,
+        cron_ctx: CronContext | None = None,
     ) -> Job[ReturnT]:
+        if job_id in self._jobber_config._jobs_registry:
+            raise DuplicateJobError(job_id)
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
-        cron_exp = cron_parser.get_expression() if cron_parser else None
         job = Job(
             exec_at=at,
             job_id=job_id,
-            func_name=self.func_name,
+            name=self.name,
             job_registry=self._jobber_config._jobs_registry,
             job_status=JobStatus.SCHEDULED,
-            cron_expression=cron_exp,
+            cron_expression=cron_ctx.cron.expression if cron_ctx else None,
         )
-        ctx = ScheduleContext(job=job, cron_parser=cron_parser)
+        ctx = ScheduleContext(job=job, cron_ctx=cron_ctx)
         loop = self._jobber_config.loop_factory()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._pre_exec_job, ctx)
@@ -156,7 +182,7 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
 
     async def _exec_job(self, *, ctx: ScheduleContext[ReturnT]) -> None:
         job = ctx.job
-        job.status = JobStatus.RUNNING
+        job._status = JobStatus.RUNNING
         job_context = JobContext(
             job=job,
             state=self._state,
@@ -165,8 +191,12 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             route_config=self.route_options,
             jobber_config=self._jobber_config,
         )
+        shutdown_graceful = False
         try:
             result = await self._chain_middleware(job_context)
+        except asyncio.CancelledError:
+            shutdown_graceful = True
+            raise
         except JobTimeoutError as exc:
             job.set_exception(exc, status=JobStatus.TIMEOUT)
             job.register_failures()
@@ -180,26 +210,36 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             job.register_success()
         finally:
             job._event.set()
-            _ = self._jobber_config._jobs_registry.pop(job.id, None)
-            if job.is_cron() and self._jobber_config.app_started:
-                max_failures = self.route_options.max_cron_failures
-                if job.should_reschedule(max_failures):
-                    await self._reschedule_cron(ctx)
+            if (
+                ctx.cron_ctx
+                and ctx.cron_ctx.is_run_allowed_by_limit()
+                and job.is_reschedulable()
+                and not shutdown_graceful
+                and self._jobber_config.app_started
+            ):
+                max_failures = ctx.cron_ctx.cron.max_failures
+                if job._cron_failures < max_failures:
+                    self._reschedule_cron(ctx)
                 else:
+                    job._status = JobStatus.PERMANENTLY_FAILED
                     logger.warning(
                         "Job %s stopped due to max failures policy (%s/%s)",
                         job.id,
                         job._cron_failures,
                         max_failures,
                     )
+                    _ = self._jobber_config._jobs_registry.pop(job.id, None)
 
-    async def _reschedule_cron(
+            else:
+                _ = self._jobber_config._jobs_registry.pop(job.id, None)
+
+    def _reschedule_cron(
         self,
         scheduler_ctx: ScheduleContext[ReturnT],
     ) -> None:
-        cron_parser = cast("CronParser", scheduler_ctx.cron_parser)
-        now = datetime.now(tz=self._jobber_config.tz)
-        next_at = cron_parser.next_run(now=now)
+        cron_ctx = cast("CronContext", scheduler_ctx.cron_ctx)
+        now = self._now()
+        next_at = cron_ctx.cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
         loop = self._jobber_config.loop_factory()
         when = loop.time() + delay_seconds
@@ -210,4 +250,3 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,
         )
-        self._jobber_config._jobs_registry[job.id] = job

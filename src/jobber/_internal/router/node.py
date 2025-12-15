@@ -24,10 +24,10 @@ class NodeRoute(Route[ParamsT, ReturnT]):
     def __init__(
         self,
         func: Callable[ParamsT, ReturnT],
-        fname: str,
+        name: str,
         options: RouteOptions,
     ) -> None:
-        super().__init__(func, fname, options)
+        super().__init__(func, name, options)
         self._real_route: Route[ParamsT, ReturnT] | None = None
 
     def bind(self, route: Route[ParamsT, ReturnT]) -> None:
@@ -40,7 +40,7 @@ class NodeRoute(Route[ParamsT, ReturnT]):
     ) -> ScheduleBuilder[Any]:
         if self._real_route is None:
             msg = (
-                f"Job {self.fname!r} is not attached to any Jobber app."
+                f"Job {self.name!r} is not attached to any Jobber app."
                 " Did you forget to call app.include_router()?"
             )
             raise RuntimeError(msg)
@@ -59,15 +59,15 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
     def register(
         self,
         func: Callable[ParamsT, ReturnT],
-        fname: str,
+        name: str,
         options: RouteOptions,
     ) -> NodeRoute[ParamsT, ReturnT]:
-        if self._routes.get(fname) is None:
-            route = NodeRoute(func, fname, options)
+        if self._routes.get(name) is None:
+            route = NodeRoute(func, name, options)
             _ = functools.update_wrapper(route, func)
-            self._routes[fname] = route
+            self._routes[name] = route
 
-        return cast("NodeRoute[ParamsT, ReturnT]", self._routes[fname])
+        return cast("NodeRoute[ParamsT, ReturnT]", self._routes[name])
 
 
 class NodeRouter(Router):

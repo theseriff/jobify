@@ -3,7 +3,7 @@ from collections.abc import Callable
 import pytest
 
 from jobber import Jobber
-from jobber._internal.router.base import resolve_fname
+from jobber._internal.router.base import resolve_name
 
 
 def somefunc() -> None:
@@ -19,7 +19,7 @@ def test_create_default_name(func: Callable[..., None]) -> None:
     if func.__name__ == "main":
         main.__module__ = "__main__"
 
-    job_name = resolve_fname(func)
+    job_name = resolve_name(func)
     if func.__module__ == "__main__":
         assert job_name.endswith(f"pytest:{main.__name__}")
     elif func.__name__ == "<lambda>":

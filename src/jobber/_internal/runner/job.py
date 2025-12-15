@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
 ASYNC_FUNC_IGNORED_WARNING = """\
-Method {fname!r} is ignored for async functions. \
+Method {name!r} is ignored for async functions. \
 Use it only with synchronous functions. \
 Async functions are already executed in the event loop.
 """
@@ -25,13 +25,13 @@ class Job(Generic[ReturnT]):
         "_event",
         "_jobs_registry",
         "_result",
+        "_status",
         "_timer_handler",
         "cron_expression",
         "exception",
         "exec_at",
-        "fname",
         "id",
-        "status",
+        "name",
     )
 
     def __init__(  # noqa: PLR0913
@@ -39,7 +39,7 @@ class Job(Generic[ReturnT]):
         *,
         job_id: str,
         exec_at: datetime,
-        func_name: str,
+        name: str,
         job_registry: dict[str, Job[ReturnT]],
         job_status: JobStatus,
         cron_expression: str | None,
@@ -48,20 +48,24 @@ class Job(Generic[ReturnT]):
         self._jobs_registry = job_registry
         self._cron_failures = 0
         self._result: ReturnT = EMPTY
+        self._status = job_status
         self._timer_handler: asyncio.TimerHandle = EMPTY
         self.id = job_id
         self.exception: Exception | None = None
         self.cron_expression = cron_expression
         self.exec_at = exec_at
-        self.fname = func_name
-        self.status = job_status
+        self.name = name
+
+    @property
+    def status(self) -> JobStatus:
+        return self._status
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__qualname__}("
             f"instance_id={id(self)}, "
             f"exec_at={self.exec_at.isoformat()}, "
-            f"job_name={self.fname}, job_id={self.id})"
+            f"job_name={self.name}, job_id={self.id})"
         )
 
     def result(self) -> ReturnT:
@@ -76,11 +80,11 @@ class Job(Generic[ReturnT]):
 
     def set_result(self, val: ReturnT, *, status: JobStatus) -> None:
         self._result = val
-        self.status = status
+        self._status = status
 
     def set_exception(self, exc: Exception, *, status: JobStatus) -> None:
         self.exception = exc
-        self.status = status
+        self._status = status
 
     def update(
         self,
@@ -91,14 +95,17 @@ class Job(Generic[ReturnT]):
     ) -> None:
         self._timer_handler = time_handler
         self.exec_at = exec_at
-        self.status = job_status
+        self._status = job_status
         self._event = asyncio.Event()
 
     def is_done(self) -> bool:
         return self._event.is_set()
 
-    def is_cron(self) -> bool:
-        return self.cron_expression is not None
+    def is_reschedulable(self) -> bool:
+        return self._status not in (
+            JobStatus.PERMANENTLY_FAILED,
+            JobStatus.CANCELLED,
+        )
 
     async def wait(self) -> None:
         """Wait until the job is done.
@@ -109,8 +116,11 @@ class Job(Generic[ReturnT]):
         _ = await self._event.wait()
 
     async def cancel(self) -> None:
+        self._status = JobStatus.CANCELLED
+        self._cancel()
+
+    def _cancel(self) -> None:
         _ = self._jobs_registry.pop(self.id, None)
-        self.status = JobStatus.CANCELLED
         self._timer_handler.cancel()
         self._event.set()
 

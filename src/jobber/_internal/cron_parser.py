@@ -11,7 +11,3 @@ class CronParser(Protocol, metaclass=ABCMeta):
     @abstractmethod
     def next_run(self, *, now: datetime) -> datetime:
         raise NotImplementedError
-
-    @abstractmethod
-    def get_expression(self) -> str:
-        raise NotImplementedError

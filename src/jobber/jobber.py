@@ -138,12 +138,15 @@ class Jobber(RootRouter):
     async def shutdown(self) -> None:
         """Gracefully shut down the Jobber application.
 
-        This method:
-        1. Marks the application as stopped
-        2. Cancels all pending tasks and waits for their completion
-        3. Clears the task registry
-        4. Closes the jobber configuration
-        5. Propagates shutdown events to all routers
+        This method performs a structured shutdown:
+        1. Marks the application as stopped (`app_started = False`).
+        2. Propagates shutdown events to all routers/components.
+        3. Cancels all scheduled future jobs in the registry
+           (`_jobs_registry`).
+        4. Closes the jobber configuration (e.g., stopping the internal
+           scheduler).
+        5. Cancels all currently running tasks (in `_tasks_registry`), waits
+           for their completion, and explicitly clears the task registry.
 
         Note:
             The method uses `return_exceptions=True` when gathering cancelled
@@ -151,14 +154,19 @@ class Jobber(RootRouter):
 
         """
         self.jobber_config.app_started = False
+        await self._propagate_shutdown()
+
+        if jobs := tuple(self.jobber_config._jobs_registry.values()):
+            for job in jobs:
+                job._cancel()
+
+        self.jobber_config.close()
+
         if tasks := self.jobber_config._tasks_registry:
             for task in tuple(tasks):
                 _ = task.cancel()
             _ = await asyncio.gather(*tasks, return_exceptions=True)
-            self.jobber_config._tasks_registry.clear()
-
-        self.jobber_config.close()
-        await self._propagate_shutdown()
+            tasks.clear()
 
     async def __aenter__(self) -> Jobber:
         """Enter the Jobber context manager.

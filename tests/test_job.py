@@ -5,12 +5,13 @@ import pytest
 
 from jobber import Jobber
 from jobber._internal.common.constants import JobStatus
+from jobber._internal.exceptions import DuplicateJobError
 
 
 async def test_job() -> None:
     jobber = Jobber()
 
-    @jobber.task(func_name="t")
+    @jobber.task(name="t")
     def t(num: int) -> int:
         return num + 1
 
@@ -52,3 +53,14 @@ async def test_all_jobs_completed(amock: AsyncMock) -> None:
 
         expected_planned_jobs = 3
         assert len(app.jobber_config._jobs_registry) == expected_planned_jobs
+
+
+async def test_duplicate_job_error(amock: AsyncMock) -> None:
+    app = Jobber()
+    f = app.task(amock)
+    async with app:
+        _ = await f.schedule().delay(0, job_id="test")
+
+        match = "Job with ID 'test' is already scheduled."
+        with pytest.raises(DuplicateJobError, match=match):
+            _ = await f.schedule().delay(0, job_id="test")

@@ -1,4 +1,5 @@
 import inspect
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
@@ -7,10 +8,6 @@ import pytest
 
 from jobber import Jobber
 from jobber._internal.cron_parser import CronParser, FactoryCron
-
-
-def now_(now: datetime) -> datetime:
-    return now + timedelta(microseconds=300)
 
 
 @pytest.fixture(scope="session")
@@ -26,19 +23,19 @@ def amock() -> AsyncMock:
 
 
 def create_factory_cron() -> FactoryCron:
+    def scope() -> Callable[[datetime], datetime]:
+        ms = 0
+
+        def now(now: datetime) -> datetime:
+            nonlocal ms
+            ms += 10
+            return now + timedelta(microseconds=ms)
+
+        return now
+
     cron = Mock(spec=CronParser)
-    cron.next_run.side_effect = now_
-    cron.get_expression.return_value = "* * * * * *"
-
-    def factory(_: str) -> CronParser:
-        return cron
-
-    return factory
-
-
-@pytest.fixture(scope="session")
-def cron_parser() -> FactoryCron:
-    return create_factory_cron()
+    cron.next_run.side_effect = scope()
+    return Mock(return_value=cron)
 
 
 def create_app() -> Jobber:

@@ -51,12 +51,12 @@ class RootRoute(Route[ParamsT, ReturnT]):
         *,
         state: State,
         func: Callable[ParamsT, ReturnT],
-        fname: str,
+        name: str,
         options: RouteOptions,
         strategy: RunStrategy[ParamsT, ReturnT],
         jobber_config: JobberConfiguration,
     ) -> None:
-        super().__init__(func, fname, options)
+        super().__init__(func, name, options)
         self._strategy_run: RunStrategy[ParamsT, ReturnT] = strategy
         self._chain_middleware: CallNext | None = None
         self.jobber_config: JobberConfiguration = jobber_config
@@ -113,7 +113,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
-            func_name=self.fname,
+            name=self.name,
             jobber_config=self.jobber_config,
             chain_middleware=self._chain_middleware,
             runnable=self._strategy_run.create_runnable(*args, **kwargs),
@@ -143,13 +143,13 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
     def register(
         self,
         func: Callable[ParamsT, ReturnT],
-        fname: str,
+        name: str,
         options: RouteOptions,
     ) -> RootRoute[ParamsT, ReturnT]:
         if self.jobber_config.app_started is True:
             raise_app_already_started_error("register")
 
-        if self._routes.get(fname) is None:
+        if self._routes.get(name) is None:
             strategy = create_run_strategy(
                 func,
                 self.jobber_config,
@@ -159,17 +159,17 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
                 func=func,
                 state=self.state,
                 options=options,
-                fname=fname,
+                name=name,
                 strategy=strategy,
                 jobber_config=self.jobber_config,
             )
             _ = functools.update_wrapper(route, func)
-            self._routes[fname] = route
+            self._routes[name] = route
             if options.cron:
-                p = (route, route.fname, options.cron)
+                p = (route, route.name, options.cron)
                 self.state.setdefault(PENDING_CRON_JOBS, []).append(p)
 
-        return cast("RootRoute[ParamsT, ReturnT]", self._routes[fname])
+        return cast("RootRoute[ParamsT, ReturnT]", self._routes[name])
 
     async def start_crons(self) -> None:
         if crons := self.state.pop(PENDING_CRON_JOBS, []):
@@ -222,12 +222,12 @@ class RootRouter(Router):
 
     def _propagate_real_routes(self, router: NodeRouter) -> None:
         for route in tuple(router.routes):
-            router.remove_route(route.fname)
+            router.remove_route(route.name)
             prefix = f"{router.prefix}:" if router.prefix else ""
-            route.fname = f"{prefix}{route.fname}"
+            route.name = f"{prefix}{route.name}"
             real_route = self.task.register(
                 route.func,
-                route.fname,
+                route.name,
                 route.options,
             )
             route.bind(real_route)

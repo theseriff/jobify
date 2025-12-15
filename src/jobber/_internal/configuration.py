@@ -3,8 +3,10 @@ from __future__ import annotations
 import multiprocessing
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NamedTuple
+
+from jobber._internal.common.constants import INFINITY
 
 if TYPE_CHECKING:
     import asyncio
@@ -59,11 +61,26 @@ class JobberConfiguration:
         self.worker_pools.close()
 
 
+@dataclass(slots=True, kw_only=True, frozen=True)
+class Cron:
+    expression: str = field(kw_only=False)
+    max_runs: int = INFINITY
+    max_failures: int = 10
+
+    def __post_init__(self) -> None:
+        if self.max_failures < 1:
+            msg = (
+                "max_cron_failures must be >= 1."
+                " Use 1 for 'stop on first error'."
+            )
+            raise ValueError(msg)
+
+
 class RouteOptions(NamedTuple):
     retry: int
     timeout: float
-    func_name: str | None
     run_mode: RunMode
-    max_cron_failures: int
-    cron: str | None
+    durable: bool | None
+    name: str | None
+    cron: Cron | None
     metadata: Mapping[str, Any] | None

@@ -18,7 +18,7 @@ from typing import (
 
 from jobber._internal.common.constants import EMPTY, RunMode
 from jobber._internal.common.datastructures import State
-from jobber._internal.configuration import RouteOptions
+from jobber._internal.configuration import Cron, RouteOptions
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -47,11 +47,11 @@ class Route(ABC, Generic[ParamsT, Return_co]):
     def __init__(
         self,
         func: Callable[ParamsT, Return_co],
-        fname: str,
+        name: str,
         options: RouteOptions,
     ) -> None:
         self.func: Callable[ParamsT, Return_co] = func
-        self.fname: str = fname
+        self.name: str = name
         self.options: RouteOptions = options
 
     def __call__(
@@ -96,14 +96,14 @@ async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
     yield None
 
 
-def resolve_fname(func: Callable[ParamsT, Return_co], /) -> str:
-    fname = func.__name__
+def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
+    name = func.__name__
     fmodule = func.__module__
-    if fname == "<lambda>":
-        fname = f"lambda_{uuid.uuid4().hex}"
+    if name == "<lambda>":
+        name = f"lambda_{uuid.uuid4().hex}"
     if fmodule == "__main__":
         fmodule = sys.argv[0].removesuffix(".py").replace(os.path.sep, ".")
-    return f"{fmodule}:{fname}"
+    return f"{fmodule}:{name}"
 
 
 class Registrator(ABC, Generic[Route_co]):
@@ -146,10 +146,10 @@ class Registrator(ABC, Generic[Route_co]):
         *,
         retry: int = 0,
         timeout: float = 600,
-        max_cron_failures: int = 10,
         run_mode: RunMode = EMPTY,
-        func_name: str | None = None,
-        cron: str | None = None,
+        name: str | None = None,
+        cron: str | Cron | None = None,
+        durable: bool | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> Callable[
         [Callable[ParamsT, Return_co]], Route[ParamsT, Return_co]
@@ -162,10 +162,10 @@ class Registrator(ABC, Generic[Route_co]):
         *,
         retry: int = 0,
         timeout: float = 600,
-        max_cron_failures: int = 10,
         run_mode: RunMode = EMPTY,
-        func_name: str | None = None,
-        cron: str | None = None,
+        name: str | None = None,
+        cron: str | Cron | None = None,
+        durable: bool | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> Route[ParamsT, Return_co]: ...
 
@@ -175,29 +175,25 @@ class Registrator(ABC, Generic[Route_co]):
         *,
         retry: int = 0,
         timeout: float = 600,  # default 10 min.
-        max_cron_failures: int = 10,
         run_mode: RunMode = EMPTY,
-        func_name: str | None = None,
-        cron: str | None = None,
+        name: str | None = None,
+        cron: str | Cron | None = None,
+        durable: bool | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> (
         Route[ParamsT, Return_co]
         | Callable[[Callable[ParamsT, Return_co]], Route[ParamsT, Return_co]]
     ):
-        if max_cron_failures < 1:
-            msg = (
-                "max_cron_failures must be >= 1."
-                " Use 1 for 'stop on first error'."
-            )
-            raise ValueError(msg)
+        if isinstance(cron, str):
+            cron = Cron(cron)
 
         route_options = RouteOptions(
             retry=retry,
             timeout=timeout,
-            max_cron_failures=max_cron_failures,
-            run_mode=run_mode,
-            func_name=func_name,
             cron=cron,
+            run_mode=run_mode,
+            name=name,
+            durable=durable,
             metadata=metadata,
         )
         wrapper = self._register(route_options)
@@ -212,8 +208,8 @@ class Registrator(ABC, Generic[Route_co]):
         def wrapper(
             func: Callable[ParamsT, Return_co],
         ) -> Route[ParamsT, Return_co]:
-            fname = options.func_name or resolve_fname(func)
-            return self.register(func, fname, options)
+            name = options.name or resolve_name(func)
+            return self.register(func, name, options)
 
         return wrapper
 
@@ -221,7 +217,7 @@ class Registrator(ABC, Generic[Route_co]):
     def register(
         self,
         func: Callable[ParamsT, Return_co],
-        fname: str,
+        name: str,
         options: RouteOptions,
     ) -> Route[ParamsT, Return_co]:
         raise NotImplementedError
@@ -303,8 +299,8 @@ class Router(ABC):
     def add_middleware(self, middleware: BaseMiddleware) -> None:
         self.task._middleware.append(middleware)
 
-    def remove_route(self, fname: str) -> None:
-        del self.task._routes[fname]
+    def remove_route(self, name: str) -> None:
+        del self.task._routes[name]
 
     def add_route(self, route: Route[..., Any]) -> None:
-        self.task._routes[route.fname] = route
+        self.task._routes[route.name] = route

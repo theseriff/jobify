@@ -8,6 +8,7 @@ about errors and guidance on how to handle common scheduling scenarios.
 from jobber._internal.exceptions import (
     ApplicationStateError,
     BaseJobberError,
+    DuplicateJobError,
     JobFailedError,
     JobNotCompletedError,
     JobTimeoutError,
@@ -17,6 +18,7 @@ from jobber._internal.exceptions import (
 __all__ = (
     "ApplicationStateError",
     "BaseJobberError",
+    "DuplicateJobError",
     "JobFailedError",
     "JobNotCompletedError",
     "JobTimeoutError",

@@ -41,7 +41,7 @@ async def test_jobber_runtime_error() -> None:
 async def test_job_not_completed() -> None:
     jobber = Jobber()
 
-    @jobber.task(func_name="f1")
+    @jobber.task(name="f1")
     def f1(num: int) -> int:
         return num + 1
 

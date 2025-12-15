@@ -55,6 +55,14 @@ class JobTimeoutError(BaseJobberError):
         super().__init__(message)
 
 
+class DuplicateJobError(RuntimeError):
+    """Raised when a job is scheduled with an ID that is already in use."""
+
+    def __init__(self, job_id: str) -> None:
+        self.job_id: str = job_id
+        super().__init__(f"Job with ID {job_id!r} is already scheduled.")
+
+
 class ApplicationStateError(BaseJobberError):
     """Raised when app is in wrong state for the requested operation."""
 
