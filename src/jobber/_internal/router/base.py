@@ -16,7 +16,6 @@ from typing import (
     overload,
 )
 
-from jobber._internal.common.constants import EMPTY, RunMode
 from jobber._internal.common.datastructures import State
 from jobber._internal.configuration import Cron, RouteOptions
 
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
     )
     from types import CoroutineType
 
+    from jobber._internal.common.constants import RunMode
     from jobber._internal.common.types import Lifespan
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.runner.scheduler import ScheduleBuilder
@@ -46,12 +46,12 @@ T_co = TypeVar("T_co", covariant=True)
 class Route(ABC, Generic[ParamsT, Return_co]):
     def __init__(
         self,
-        func: Callable[ParamsT, Return_co],
         name: str,
+        func: Callable[ParamsT, Return_co],
         options: RouteOptions,
     ) -> None:
-        self.func: Callable[ParamsT, Return_co] = func
         self.name: str = name
+        self.func: Callable[ParamsT, Return_co] = func
         self.options: RouteOptions = options
 
     def __call__(
@@ -146,7 +146,7 @@ class Registrator(ABC, Generic[Route_co]):
         *,
         retry: int = 0,
         timeout: float = 600,
-        run_mode: RunMode = EMPTY,
+        run_mode: RunMode | None = None,
         name: str | None = None,
         cron: str | Cron | None = None,
         durable: bool | None = None,
@@ -162,7 +162,7 @@ class Registrator(ABC, Generic[Route_co]):
         *,
         retry: int = 0,
         timeout: float = 600,
-        run_mode: RunMode = EMPTY,
+        run_mode: RunMode | None = None,
         name: str | None = None,
         cron: str | Cron | None = None,
         durable: bool | None = None,
@@ -175,7 +175,7 @@ class Registrator(ABC, Generic[Route_co]):
         *,
         retry: int = 0,
         timeout: float = 600,  # default 10 min.
-        run_mode: RunMode = EMPTY,
+        run_mode: RunMode | None = None,
         name: str | None = None,
         cron: str | Cron | None = None,
         durable: bool | None = None,
@@ -209,15 +209,15 @@ class Registrator(ABC, Generic[Route_co]):
             func: Callable[ParamsT, Return_co],
         ) -> Route[ParamsT, Return_co]:
             name = options.name or resolve_name(func)
-            return self.register(func, name, options)
+            return self.register(name, func, options)
 
         return wrapper
 
     @abstractmethod
     def register(
         self,
-        func: Callable[ParamsT, Return_co],
         name: str,
+        func: Callable[ParamsT, Return_co],
         options: RouteOptions,
     ) -> Route[ParamsT, Return_co]:
         raise NotImplementedError

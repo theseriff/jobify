@@ -23,10 +23,10 @@ class ExtendedEncoder(json.JSONEncoder):
     def _transform(self, o: SerializableTypes) -> _JsonCompat:
         if isinstance(o, bytes):
             return {"__bytes__": base64.b64encode(o).decode("utf-8")}
-        if isinstance(o, set):
-            return {"__set__": [self._transform(item) for item in o]}
         if isinstance(o, tuple):
             return {"__tuple__": [self._transform(item) for item in o]}
+        if isinstance(o, set):
+            return {"__set__": [self._transform(item) for item in o]}
         if isinstance(o, list):
             return [self._transform(item) for item in o]
         if isinstance(o, dict):
@@ -35,10 +35,10 @@ class ExtendedEncoder(json.JSONEncoder):
 
 
 def extended_decoder(dct: dict[str, Any]) -> SerializableTypes:
-    if "__tuple__" in dct:
-        return tuple(dct["__tuple__"])
     if "__bytes__" in dct:
         return base64.b64decode(dct["__bytes__"])
+    if "__tuple__" in dct:
+        return tuple(dct["__tuple__"])
     if "__set__" in dct:
         return set(dct["__set__"])
     return dct

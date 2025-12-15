@@ -8,7 +8,7 @@ from jobber import INJECT, Job, Jobber, JobContext, State
 from jobber._internal.common.constants import EMPTY
 from jobber._internal.common.datastructures import RequestState
 from jobber._internal.injection import inject_context
-from jobber._internal.runner.runners import create_run_strategy
+from jobber._internal.runner.runners import Runnable, create_run_strategy
 from jobber.exceptions import JobFailedError
 from jobber.middleware import BaseMiddleware, CallNext
 
@@ -80,7 +80,7 @@ async def test_inject_context_skips_non_inject_parameters(
     amock: AsyncMock,
 ) -> None:
     strategy = create_run_strategy(amock, Mock(), mode=Mock())
-    runnable = strategy.create_runnable(normal_param="test")
+    runnable = Runnable(strategy, Mock(), Mock(), normal_param="test")
     inject_context(runnable, Mock(spec=JobContext))
     result = await runnable()
 

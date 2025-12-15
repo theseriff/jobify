@@ -79,7 +79,7 @@ class Cron:
 class RouteOptions(NamedTuple):
     retry: int
     timeout: float
-    run_mode: RunMode
+    run_mode: RunMode | None
     durable: bool | None
     name: str | None
     cron: Cron | None

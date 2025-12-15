@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import sys
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, get_type_hints
 
 from jobber._internal.exceptions import (
     raise_app_already_started_error,
@@ -49,15 +49,17 @@ class RootRoute(Route[ParamsT, ReturnT]):
     def __init__(  # noqa: PLR0913
         self,
         *,
-        state: State,
-        func: Callable[ParamsT, ReturnT],
         name: str,
+        func: Callable[ParamsT, ReturnT],
+        return_type: type[ReturnT] | None,
+        state: State,
         options: RouteOptions,
         strategy: RunStrategy[ParamsT, ReturnT],
         jobber_config: JobberConfiguration,
     ) -> None:
-        super().__init__(func, name, options)
-        self._strategy_run: RunStrategy[ParamsT, ReturnT] = strategy
+        super().__init__(name, func, options)
+        self._run_strategy: RunStrategy[ParamsT, ReturnT] = strategy
+        self._return_type: type[ReturnT] | None = return_type
         self._chain_middleware: CallNext | None = None
         self.jobber_config: JobberConfiguration = jobber_config
         self.state: State = state
@@ -110,13 +112,26 @@ class RootRoute(Route[ParamsT, ReturnT]):
         if not (self.jobber_config.app_started and self._chain_middleware):
             raise_app_not_started_error("schedule")
 
+        raw_args = self.jobber_config.serializer.dumpb(
+            args,  # type: ignore[arg-type] # pyright: ignore[reportArgumentType]
+        )
+        raw_kwargs = self.jobber_config.serializer.dumpb(
+            kwargs,  # type: ignore[arg-type] # pyright: ignore[reportArgumentType]
+        )
+        runnable = Runnable(
+            self._run_strategy,
+            raw_args,
+            raw_kwargs,
+            *args,
+            **kwargs,
+        )
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
             name=self.name,
             jobber_config=self.jobber_config,
             chain_middleware=self._chain_middleware,
-            runnable=self._strategy_run.create_runnable(*args, **kwargs),
+            runnable=runnable,
         )
 
 
@@ -142,8 +157,8 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
 
     def register(
         self,
-        func: Callable[ParamsT, ReturnT],
         name: str,
+        func: Callable[ParamsT, ReturnT],
         options: RouteOptions,
     ) -> RootRoute[ParamsT, ReturnT]:
         if self.jobber_config.app_started is True:
@@ -156,10 +171,11 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
                 mode=options.run_mode,
             )
             route = RootRoute(
+                name=name,
                 func=func,
+                return_type=get_type_hints(func).get("return"),
                 state=self.state,
                 options=options,
-                name=name,
                 strategy=strategy,
                 jobber_config=self.jobber_config,
             )
@@ -226,8 +242,8 @@ class RootRouter(Router):
             prefix = f"{router.prefix}:" if router.prefix else ""
             route.name = f"{prefix}{route.name}"
             real_route = self.task.register(
-                route.func,
                 route.name,
+                route.func,
                 route.options,
             )
             route.bind(real_route)

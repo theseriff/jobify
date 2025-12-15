@@ -1,6 +1,6 @@
-import inspect
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
 
@@ -17,8 +17,16 @@ def now() -> datetime:
 
 @pytest.fixture
 def amock() -> AsyncMock:
-    mock = AsyncMock(return_value="test")
-    mock.__signature__ = inspect.Signature()
+    async def _stub(*_args: Any, **_kwargs: Any) -> str:  # noqa: ANN401
+        raise NotImplementedError
+
+    mock = AsyncMock(spec=_stub, return_value="test")
+    mock.__code__ = _stub.__code__
+    mock.__defaults__ = _stub.__defaults__
+    mock.__kwdefaults__ = _stub.__kwdefaults__
+    mock.__annotations__ = _stub.__annotations__
+    mock.__module__ = _stub.__module__ or "tests.conftest"
+    mock.__name__ = _stub.__name__
     return mock
 
 

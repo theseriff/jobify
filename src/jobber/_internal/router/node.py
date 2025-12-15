@@ -23,11 +23,11 @@ NodeRouter_co = TypeVar("NodeRouter_co", bound="NodeRouter", covariant=True)
 class NodeRoute(Route[ParamsT, ReturnT]):
     def __init__(
         self,
-        func: Callable[ParamsT, ReturnT],
         name: str,
+        func: Callable[ParamsT, ReturnT],
         options: RouteOptions,
     ) -> None:
-        super().__init__(func, name, options)
+        super().__init__(name, func, options)
         self._real_route: Route[ParamsT, ReturnT] | None = None
 
     def bind(self, route: Route[ParamsT, ReturnT]) -> None:
@@ -58,12 +58,12 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
 
     def register(
         self,
-        func: Callable[ParamsT, ReturnT],
         name: str,
+        func: Callable[ParamsT, ReturnT],
         options: RouteOptions,
     ) -> NodeRoute[ParamsT, ReturnT]:
         if self._routes.get(name) is None:
-            route = NodeRoute(func, name, options)
+            route = NodeRoute(name, func, options)
             _ = functools.update_wrapper(route, func)
             self._routes[name] = route
 

@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar, final
 
-from jobber._internal.common.constants import EMPTY, RunMode
+from jobber._internal.common.constants import RunMode
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -18,25 +18,6 @@ if TYPE_CHECKING:
 
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
-
-
-@final
-class Runnable(Generic[ReturnT]):
-    __slots__: tuple[str, ...] = ("args", "kwargs", "strategy")
-
-    def __init__(
-        self,
-        strategy: RunStrategy[ParamsT, ReturnT],
-        /,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> None:
-        self.strategy = strategy
-        self.args = args
-        self.kwargs = kwargs
-
-    def __call__(self) -> Awaitable[ReturnT]:
-        return self.strategy(*self.args, **self.kwargs)
 
 
 class RunStrategy(ABC, Generic[ParamsT, ReturnT]):
@@ -52,13 +33,6 @@ class RunStrategy(ABC, Generic[ParamsT, ReturnT]):
         **kwargs: ParamsT.kwargs,
     ) -> ReturnT:
         raise NotImplementedError
-
-    def create_runnable(
-        self,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> Runnable[ReturnT]:
-        return Runnable(self, *args, **kwargs)
 
 
 class SyncStrategy(RunStrategy[ParamsT, ReturnT]):
@@ -102,15 +76,30 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
         return await loop.run_in_executor(self.executor, func_call)
 
 
+def _validate_run_mode(mode: RunMode | None, *, is_async: bool) -> RunMode:
+    if is_async:
+        if mode in (RunMode.PROCESS, RunMode.THREAD):
+            msg = (
+                "Async functions are always done in the main loop."
+                " This mode (PROCESS/THREAD) is not used."
+            )
+            warnings.warn(msg, category=RuntimeWarning, stacklevel=3)
+        return RunMode.MAIN
+    if mode is None:
+        return RunMode.THREAD
+    return mode
+
+
 def create_run_strategy(
     func: Callable[ParamsT, ReturnT],
     jobber_config: JobberConfiguration,
     *,
-    mode: RunMode,
+    mode: RunMode | None,
 ) -> RunStrategy[ParamsT, ReturnT]:
     # inspect.iscoroutinefunction returns TypeGuard,
     # but we need a regular bool variable
     is_async = bool(inspect.iscoroutinefunction(func))
+
     mode = _validate_run_mode(mode, is_async=is_async)
     if is_async:
         return AsyncStrategy(func)
@@ -127,15 +116,30 @@ def create_run_strategy(
             return SyncStrategy(func)
 
 
-def _validate_run_mode(mode: RunMode, *, is_async: bool) -> RunMode:
-    if is_async:
-        if mode in (RunMode.PROCESS, RunMode.THREAD):
-            msg = (
-                "Async functions are always done in the main loop."
-                " This mode (PROCESS/THREAD) is not used."
-            )
-            warnings.warn(msg, category=RuntimeWarning, stacklevel=3)
-        return RunMode.MAIN
-    if mode is EMPTY:
-        return RunMode.THREAD
-    return mode
+@final
+class Runnable(Generic[ReturnT]):
+    __slots__: tuple[str, ...] = (
+        "args",
+        "kwargs",
+        "raw_args",
+        "raw_kwargs",
+        "strategy",
+    )
+
+    def __init__(
+        self,
+        strategy: RunStrategy[ParamsT, ReturnT],
+        /,
+        raw_args: bytes,
+        raw_kwargs: bytes,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> None:
+        self.strategy = strategy
+        self.args = args
+        self.kwargs = kwargs
+        self.raw_args = raw_args
+        self.raw_kwargs = raw_kwargs
+
+    def __call__(self) -> Awaitable[ReturnT]:
+        return self.strategy(*self.args, **self.kwargs)
