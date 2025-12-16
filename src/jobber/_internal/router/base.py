@@ -188,12 +188,12 @@ class Registrator(ABC, Generic[Route_co]):
             cron = Cron(cron)
 
         route_options = RouteOptions(
+            name=name,
+            cron=cron,
             retry=retry,
             timeout=timeout,
-            cron=cron,
-            run_mode=run_mode,
-            name=name,
             durable=durable,
+            run_mode=run_mode,
             metadata=metadata,
         )
         wrapper = self._register(route_options)

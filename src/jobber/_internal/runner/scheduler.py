@@ -1,23 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import itertools
+import functools
 import logging
-from abc import ABC
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Generic, TypeVar, cast, final
+from itertools import count
+from typing import TYPE_CHECKING, Generic, TypeVar, final
 from uuid import uuid4
 
 from jobber._internal.common.constants import INFINITY, JobStatus
 from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.configuration import Cron
 from jobber._internal.context import JobContext
-from jobber._internal.exceptions import (
-    DuplicateJobError,
-    JobTimeoutError,
-    NegativeDelayError,
-)
+from jobber._internal.exceptions import DuplicateJobError, JobTimeoutError
 from jobber._internal.runner.job import Job
 
 if TYPE_CHECKING:
@@ -36,25 +32,24 @@ ReturnT = TypeVar("ReturnT")
 
 
 @dataclass(slots=True, kw_only=True)
-class CronContext:
+class CronContext(Generic[ReturnT]):
+    job: Job[ReturnT]
     cron: Cron
     cron_parser: CronParser
-    exec_count: itertools.count[int] = field(default_factory=itertools.count)
+    failure_count: int = 0
+    exec_count: count[int] = field(default_factory=count)
 
     def is_run_allowed_by_limit(self) -> bool:
         if self.cron.max_runs is INFINITY:
             return True
         return next(self.exec_count) < self.cron.max_runs
 
-
-@dataclass(slots=True, kw_only=True, frozen=True)
-class ScheduleContext(Generic[ReturnT]):
-    job: Job[ReturnT]
-    cron_ctx: CronContext | None
+    def is_failure_allowed_by_limit(self) -> bool:
+        return self.failure_count < self.cron.max_failures
 
 
 @final
-class ScheduleBuilder(ABC, Generic[ReturnT]):
+class ScheduleBuilder(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_chain_middleware",
         "_jobber_config",
@@ -81,8 +76,15 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         self.name = name
         self.route_options = options
 
+    def _validate_job_id(self, job_id: str) -> None:
+        if job_id in self._jobber_config._pending_jobs:
+            raise DuplicateJobError(job_id)
+
     def _now(self) -> datetime:
         return datetime.now(tz=self._jobber_config.tz)
+
+    def _calculate_delay_seconds(self, now: datetime, at: datetime) -> float:
+        return max(0, at.timestamp() - now.timestamp())
 
     async def cron(
         self,
@@ -92,19 +94,29 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         job_id: str,
         now: datetime | None = None,
     ) -> Job[ReturnT]:
-        now = now or self._now()
+        self._validate_job_id(job_id)
+
         if isinstance(cron, str):
             cron = Cron(cron)
 
-        cron_parser = self._jobber_config.factory_cron(cron.expression)
-        next_at = cron_parser.next_run(now=now)
+        now = now or self._now()
+        cron_parser = self._jobber_config.cron_factory(cron.expression)
+        at = cron_parser.next_run(now=now)
 
-        return await self._at(
-            now=now,
-            at=next_at,
-            job_id=job_id or uuid4().hex,
-            cron_ctx=CronContext(cron=cron, cron_parser=cron_parser),
+        job = Job(
+            exec_at=at,
+            job_id=job_id,
+            pending_jobs=self._jobber_config._pending_jobs,
+            cron_expression=cron.expression,
         )
+        cron_ctx = CronContext(job=job, cron=cron, cron_parser=cron_parser)
+        delay_seconds = self._calculate_delay_seconds(now=now, at=at)
+        loop = self._jobber_config.loop
+        when = loop.time() + delay_seconds
+        time_handler = loop.call_at(when, self._pre_exec_cron, cron_ctx)
+        job._timer_handler = time_handler
+        self._jobber_config._pending_jobs[job.id] = job
+        return job
 
     async def delay(
         self,
@@ -142,46 +154,35 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
         now: datetime,
         at: datetime,
         job_id: str,
-        cron_ctx: CronContext | None = None,
     ) -> Job[ReturnT]:
-        if job_id in self._jobber_config._jobs_registry:
-            raise DuplicateJobError(job_id)
-        delay_seconds = self._calculate_delay_seconds(now=now, at=at)
+        self._validate_job_id(job_id)
         job = Job(
             exec_at=at,
             job_id=job_id,
-            name=self.name,
-            job_registry=self._jobber_config._jobs_registry,
-            job_status=JobStatus.SCHEDULED,
-            cron_expression=cron_ctx.cron.expression if cron_ctx else None,
+            pending_jobs=self._jobber_config._pending_jobs,
         )
-        ctx = ScheduleContext(job=job, cron_ctx=cron_ctx)
-        loop = self._jobber_config.loop_factory()
+        loop = self._jobber_config.loop
+        delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._pre_exec_job, ctx)
+        time_handler = loop.call_at(when, self._pre_exec_job, job)
         job._timer_handler = time_handler
-        self._jobber_config._jobs_registry[job.id] = job
+        self._jobber_config._pending_jobs[job.id] = job
         return job
 
-    def _calculate_delay_seconds(
+    def _pre_exec_job(self, job: Job[ReturnT]) -> None:
+        task = asyncio.create_task(self._exec_job(job), name=job.id)
+        self._jobber_config._pending_tasks.add(task)
+        task.add_done_callback(functools.partial(self._post_exec_job, job))
+
+    def _post_exec_job(
         self,
-        now: datetime,
-        at: datetime,
-    ) -> float:
-        now_timestamp = now.timestamp()
-        at_timestamp = at.timestamp()
-        delay_seconds = at_timestamp - now_timestamp
-        if delay_seconds < 0:
-            raise NegativeDelayError(delay_seconds)
-        return delay_seconds
+        job: Job[ReturnT],
+        task: asyncio.Task[None],
+    ) -> None:
+        self._jobber_config._pending_tasks.discard(task)
+        _ = self._jobber_config._pending_jobs.pop(job.id, None)
 
-    def _pre_exec_job(self, ctx: ScheduleContext[ReturnT]) -> None:
-        task = asyncio.create_task(self._exec_job(ctx=ctx), name=ctx.job.id)
-        self._jobber_config._tasks_registry.add(task)
-        task.add_done_callback(self._jobber_config._tasks_registry.discard)
-
-    async def _exec_job(self, *, ctx: ScheduleContext[ReturnT]) -> None:
-        job = ctx.job
+    async def _exec_job(self, job: Job[ReturnT]) -> None:
         job._status = JobStatus.RUNNING
         job_context = JobContext(
             job=job,
@@ -191,60 +192,62 @@ class ScheduleBuilder(ABC, Generic[ReturnT]):
             route_config=self.route_options,
             jobber_config=self._jobber_config,
         )
-        shutdown_graceful = False
         try:
             result = await self._chain_middleware(job_context)
-        except asyncio.CancelledError:
-            shutdown_graceful = True
-            raise
         except JobTimeoutError as exc:
             job.set_exception(exc, status=JobStatus.TIMEOUT)
-            job.register_failures()
+            raise
         except Exception as exc:
             logger.exception("Job %s failed with unexpected error", job.id)
             job.set_exception(exc, status=JobStatus.FAILED)
-            job.register_failures()
             raise
         else:
             job.set_result(result, status=JobStatus.SUCCESS)
-            job.register_success()
         finally:
             job._event.set()
+
+    def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
+        task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
+        self._jobber_config._pending_tasks.add(task)
+        task.add_done_callback(self._jobber_config._pending_tasks.discard)
+
+    async def _exec_cron(self, ctx: CronContext[ReturnT]) -> None:
+        job = ctx.job
+        try:
+            await self._exec_job(job)
+        except Exception:
+            ctx.failure_count += 1
+            raise
+        else:
+            ctx.failure_count = 0
+        finally:
             if (
-                ctx.cron_ctx
-                and ctx.cron_ctx.is_run_allowed_by_limit()
-                and job.is_reschedulable()
-                and not shutdown_graceful
+                job.is_reschedulable()
+                and ctx.is_run_allowed_by_limit()
                 and self._jobber_config.app_started
             ):
-                max_failures = ctx.cron_ctx.cron.max_failures
-                if job._cron_failures < max_failures:
+                if ctx.is_failure_allowed_by_limit():
                     self._reschedule_cron(ctx)
                 else:
                     job._status = JobStatus.PERMANENTLY_FAILED
                     logger.warning(
                         "Job %s stopped due to max failures policy (%s/%s)",
                         job.id,
-                        job._cron_failures,
-                        max_failures,
+                        ctx.failure_count,
+                        ctx.cron.max_failures,
                     )
-                    _ = self._jobber_config._jobs_registry.pop(job.id, None)
-
+                    _ = self._jobber_config._pending_jobs.pop(job.id, None)
             else:
-                _ = self._jobber_config._jobs_registry.pop(job.id, None)
+                _ = self._jobber_config._pending_jobs.pop(job.id, None)
 
-    def _reschedule_cron(
-        self,
-        scheduler_ctx: ScheduleContext[ReturnT],
-    ) -> None:
-        cron_ctx = cast("CronContext", scheduler_ctx.cron_ctx)
+    def _reschedule_cron(self, ctx: CronContext[ReturnT]) -> None:
         now = self._now()
-        next_at = cron_ctx.cron_parser.next_run(now=now)
+        next_at = ctx.cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
-        loop = self._jobber_config.loop_factory()
+        loop = self._jobber_config.loop
         when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._pre_exec_job, scheduler_ctx)
-        job = scheduler_ctx.job
+        time_handler = loop.call_at(when, self._pre_exec_cron, ctx)
+        job = ctx.job
         job.update(
             exec_at=next_at,
             time_handler=time_handler,

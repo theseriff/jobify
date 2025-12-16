@@ -26,21 +26,6 @@ class JobFailedError(BaseJobberError):
         super().__init__(message)
 
 
-class NegativeDelayError(BaseJobberError):
-    """Exception raised when negative delay_seconds is provided."""
-
-    def __init__(
-        self,
-        delay_seconds: float,
-        message: str = (
-            "Negative delay_seconds ({delay_seconds}) is not supported. "
-            "Please provide non-negative values."
-        ),
-    ) -> None:
-        super().__init__(message.format(delay_seconds=delay_seconds))
-        self.delay_seconds: float = delay_seconds
-
-
 class JobTimeoutError(BaseJobberError):
     """Raised when job execution exceeds the configured timeout."""
 

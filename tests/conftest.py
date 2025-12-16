@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from jobber import Jobber
-from jobber._internal.cron_parser import CronParser, FactoryCron
+from jobber._internal.cron_parser import CronFactory, CronParser
 
 
 @pytest.fixture(scope="session")
@@ -30,7 +30,7 @@ def amock() -> AsyncMock:
     return mock
 
 
-def create_factory_cron() -> FactoryCron:
+def create_factory_cron() -> CronFactory:
     def scope() -> Callable[[datetime], datetime]:
         ms = 0
 
@@ -47,4 +47,4 @@ def create_factory_cron() -> FactoryCron:
 
 
 def create_app() -> Jobber:
-    return Jobber(factory_cron=create_factory_cron())
+    return Jobber(cron_factory=create_factory_cron())

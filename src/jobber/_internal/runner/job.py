@@ -9,21 +9,14 @@ from jobber._internal.exceptions import JobFailedError, JobNotCompletedError
 if TYPE_CHECKING:
     from datetime import datetime
 
-ASYNC_FUNC_IGNORED_WARNING = """\
-Method {name!r} is ignored for async functions. \
-Use it only with synchronous functions. \
-Async functions are already executed in the event loop.
-"""
-
 ReturnT = TypeVar("ReturnT")
 
 
 @final
 class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
-        "_cron_failures",
         "_event",
-        "_jobs_registry",
+        "_pending_jobs",
         "_result",
         "_status",
         "_timer_handler",
@@ -31,22 +24,19 @@ class Job(Generic[ReturnT]):
         "exception",
         "exec_at",
         "id",
-        "name",
     )
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         job_id: str,
         exec_at: datetime,
-        name: str,
-        job_registry: dict[str, Job[ReturnT]],
-        job_status: JobStatus,
-        cron_expression: str | None,
+        pending_jobs: dict[str, Job[ReturnT]],
+        job_status: JobStatus = JobStatus.SCHEDULED,
+        cron_expression: str | None = None,
     ) -> None:
         self._event = asyncio.Event()
-        self._jobs_registry = job_registry
-        self._cron_failures = 0
+        self._pending_jobs = pending_jobs
         self._result: ReturnT = EMPTY
         self._status = job_status
         self._timer_handler: asyncio.TimerHandle = EMPTY
@@ -54,7 +44,6 @@ class Job(Generic[ReturnT]):
         self.exception: Exception | None = None
         self.cron_expression = cron_expression
         self.exec_at = exec_at
-        self.name = name
 
     @property
     def status(self) -> JobStatus:
@@ -64,8 +53,7 @@ class Job(Generic[ReturnT]):
         return (
             f"{self.__class__.__qualname__}("
             f"instance_id={id(self)}, "
-            f"exec_at={self.exec_at.isoformat()}, "
-            f"job_name={self.name}, job_id={self.id})"
+            f"exec_at={self.exec_at.isoformat()}"
         )
 
     def result(self) -> ReturnT:
@@ -93,10 +81,10 @@ class Job(Generic[ReturnT]):
         job_status: JobStatus,
         time_handler: asyncio.TimerHandle,
     ) -> None:
-        self._timer_handler = time_handler
-        self.exec_at = exec_at
         self._status = job_status
         self._event = asyncio.Event()
+        self._timer_handler = time_handler
+        self.exec_at = exec_at
 
     def is_done(self) -> bool:
         return self._event.is_set()
@@ -120,15 +108,6 @@ class Job(Generic[ReturnT]):
         self._cancel()
 
     def _cancel(self) -> None:
-        _ = self._jobs_registry.pop(self.id, None)
+        _ = self._pending_jobs.pop(self.id, None)
         self._timer_handler.cancel()
         self._event.set()
-
-    def register_failures(self) -> None:
-        self._cron_failures += 1
-
-    def register_success(self) -> None:
-        self._cron_failures = 0
-
-    def should_reschedule(self, max_failures: int) -> bool:
-        return self._cron_failures < max_failures

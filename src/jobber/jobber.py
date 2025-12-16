@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from jobber._internal.common.types import Lifespan, LoopFactory
-    from jobber._internal.cron_parser import FactoryCron
+    from jobber._internal.cron_parser import CronFactory
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.middleware.exceptions import MappingExceptionHandlers
     from jobber._internal.serializers.base import JobsSerializer
@@ -49,7 +49,7 @@ class Jobber(RootRouter):
         exception_handlers: MappingExceptionHandlers | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
-        factory_cron: FactoryCron | None = None,
+        cron_factory: CronFactory | None = None,
     ) -> None:
         """Initialize a `Jobber` instance."""
         if durable is False:
@@ -66,9 +66,9 @@ class Jobber(RootRouter):
                 threadpool=threadpool_executor,
             ),
             serializer=serializer or JSONSerializer(),
-            factory_cron=factory_cron or create_crontab,
-            _tasks_registry=set(),
-            _jobs_registry={},
+            cron_factory=cron_factory or create_crontab,
+            _pending_tasks=set(),
+            _pending_jobs={},
         )
 
         super().__init__(
@@ -112,7 +112,7 @@ class Jobber(RootRouter):
         """
 
         async def target() -> None:
-            while jobs := self.jobber_config._jobs_registry.values():
+            while jobs := self.jobber_config._pending_jobs.values():
                 coros = (job.wait() for job in jobs)
                 _ = await asyncio.gather(*coros)
 
@@ -154,19 +154,19 @@ class Jobber(RootRouter):
 
         """
         self.jobber_config.app_started = False
-        await self._propagate_shutdown()
 
-        if jobs := tuple(self.jobber_config._jobs_registry.values()):
-            for job in jobs:
-                job._cancel()
-
-        self.jobber_config.close()
-
-        if tasks := self.jobber_config._tasks_registry:
+        if tasks := self.jobber_config._pending_tasks:
             for task in tuple(tasks):
                 _ = task.cancel()
             _ = await asyncio.gather(*tasks, return_exceptions=True)
             tasks.clear()
+
+        if jobs := tuple(self.jobber_config._pending_jobs.values()):
+            for job in jobs:
+                job._cancel()
+
+        self.jobber_config.close()
+        await self._propagate_shutdown()
 
     async def __aenter__(self) -> Jobber:
         """Enter the Jobber context manager.

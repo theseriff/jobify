@@ -40,7 +40,7 @@ class ExceptionMiddleware(BaseMiddleware):
             if asyncio.iscoroutinefunction(handler):
                 await handler(context, exc)
             else:
-                loop = self.jobber_config.loop_factory()
+                loop = self.jobber_config.loop
                 thread = self.jobber_config.worker_pools.threadpool
                 _ = await loop.run_in_executor(thread, handler, context, exc)
             raise

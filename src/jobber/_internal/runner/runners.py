@@ -71,8 +71,8 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
         *args: ParamsT.args,
         **kwargs: ParamsT.kwargs,
     ) -> ReturnT:
-        loop = self.loop_factory()
         func_call = functools.partial(self.func, *args, **kwargs)
+        loop = self.loop_factory()
         return await loop.run_in_executor(self.executor, func_call)
 
 
@@ -104,14 +104,13 @@ def create_run_strategy(
     if is_async:
         return AsyncStrategy(func)
 
-    loop_factory = jobber_config.loop_factory
     match mode:
         case RunMode.PROCESS:
             processpool = jobber_config.worker_pools.processpool
-            return PoolStrategy(func, processpool, loop_factory)
+            return PoolStrategy(func, processpool, lambda: jobber_config.loop)
         case RunMode.THREAD:
             threadpool = jobber_config.worker_pools.threadpool
-            return PoolStrategy(func, threadpool, loop_factory)
+            return PoolStrategy(func, threadpool, lambda: jobber_config.loop)
         case _:
             return SyncStrategy(func)
 

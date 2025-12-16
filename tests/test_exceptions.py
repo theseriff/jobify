@@ -9,7 +9,6 @@ from jobber._internal.exceptions import (
     ApplicationStateError,
     JobNotCompletedError,
     JobTimeoutError,
-    NegativeDelayError,
 )
 
 
@@ -54,9 +53,6 @@ async def test_job_not_completed() -> None:
         expected_val = 2
         await job.wait()
         assert job.result() == expected_val
-
-        with pytest.raises(NegativeDelayError, match="Negative delay_seconds"):
-            _ = await f1.schedule(2).delay(-1)
 
 
 async def test_job_timeout() -> None:

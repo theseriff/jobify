@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
     from jobber._internal.common.constants import RunMode
     from jobber._internal.common.types import LoopFactory
-    from jobber._internal.cron_parser import FactoryCron
+    from jobber._internal.cron_parser import CronFactory
     from jobber._internal.runner.job import Job
     from jobber._internal.serializers.base import JobsSerializer
     from jobber._internal.storage.abc import JobRepository
@@ -47,15 +47,22 @@ class WorkerPools:
 
 @dataclass(slots=True, kw_only=True)
 class JobberConfiguration:
-    loop_factory: LoopFactory
     tz: ZoneInfo
     durable: JobRepository
     worker_pools: WorkerPools
     serializer: JobsSerializer
-    factory_cron: FactoryCron
+    loop_factory: LoopFactory
+    cron_factory: CronFactory
     app_started: bool = False
-    _jobs_registry: dict[str, Job[Any]]
-    _tasks_registry: set[asyncio.Task[Any]]
+    _loop: asyncio.AbstractEventLoop | None = None
+    _pending_jobs: dict[str, Job[Any]]
+    _pending_tasks: set[asyncio.Task[Any]]
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is None:
+            self._loop = self.loop_factory()
+        return self._loop
 
     def close(self) -> None:
         self.worker_pools.close()
@@ -77,10 +84,10 @@ class Cron:
 
 
 class RouteOptions(NamedTuple):
-    retry: int
-    timeout: float
-    run_mode: RunMode | None
-    durable: bool | None
     name: str | None
     cron: Cron | None
+    retry: int
+    timeout: float
+    durable: bool | None
+    run_mode: RunMode | None
     metadata: Mapping[str, Any] | None
