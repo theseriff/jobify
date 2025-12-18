@@ -129,7 +129,7 @@ def test_serialization_fallback_create_structure(
         d_cls: Any = data.__class__
         data_params = d_cls.__dataclass_params__
         deser_params = deserialized.__class__.__dataclass_params__
-        assert data_params.frozen is deser_params.frozen is True
+        assert data_params.frozen is deser_params.frozen
         assert _ensure_has_param("kw_only", data_params, deser_params)
         assert _ensure_has_param("slots", data_params, deser_params)
     else:

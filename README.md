@@ -5,18 +5,18 @@
 
 ---
 
-**Jobber** is a powerful and flexible framework for scheduling and managing background tasks in Python. It offers a versatile architecture for defining, executing, and storing jobs, supporting a variety of execution engines, middleware, and serialization formats.
+**Jobber** is a good program for doing things behind the scenes in Python. You can use it to make a lot of things happen at the same time. It has a good architecture for making, doing, and keeping jobs. It can work with different engines, middlewares, and ways to save things.
 
-Jobber is a robust solution that was built from the ground up to handle asynchronous tasks. It offers a clean and modern API that is inspired by leading frameworks.
+Jobber is strong and made to do things that don't happen together. It has an easy and new API like other good programs.
 
 ## Features
 
-- **Cron**: Jobber supports cron expressions with an optional seventh field for seconds (`* * * * * * *`) to schedule jobs with high precision and for high-frequency tasks.
-- **Context Dependency Injection**: Simplify your job by automatically injecting dependencies from a shared context.
-- **Lifespan Events**: Effectively manage resources with startup and shutdown events. These are useful for initializing and cleaning up resources, such as database connections, or sending a notification when the application starts or stops.
-- **Middleware Support**: Jobber offers a flexible middleware processing pipeline that allows you to add custom logic before or after a job is executed. This can be useful for things like logging, authentication, or performance monitoring. The API is similar to that of frameworks like Starlette and aiogram, providing a powerful tool for customizing job execution.
-- **Flexible Exception Handling**: Avoid application crashes due to a single failed job. Create custom exception handlers for various error types, enabling more detailed and flexible error handling strategies. You can record the error, try the task again, or notify the developers.
-- **Full-Time Zone Support**: Let's make time zones less of a headache. We can schedule jobs reliably for users in different regions, considering their local time zones. With Jobber, it's easy to schedule jobs in any time zone and convert between them.
+- **Schedule**: Jobber can run jobs on a schedule. You can use an extra field for seconds to run jobs very often.
+- **Dependencies**: Job can use things from other places.
+- **When it starts and stops**: Job can do things when it starts and when it stops. This is good for things like connecting to a database.
+- **Extra things**: Job can have extra things done before or after it runs. This is useful for things like writing to a log or checking if a user is logged in.
+- **Exception Handling**: Don't let your app crash because of one bad job. Make your own exceptions for different mistakes. You can write down the mistake, do the job again, or tell the programmer.
+- **Time Zones**: Let's not worry about time zones. We can make jobs for people in different places. With Jobber, you can make a job for any time and change time zones.
 
 ---
 
