@@ -6,17 +6,40 @@ from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from collections.abc import Callable
 from typing import (
-    TYPE_CHECKING,
     Any,
-    NamedTuple,
+    ClassVar,
     Protocol,
     TypeAlias,
     TypeGuard,
-    cast,
+    runtime_checkable,
 )
 
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
+
+class DataclassParams:
+    eq: ClassVar[bool]
+    frozen: ClassVar[bool]
+    init: ClassVar[bool]
+    kw_only: ClassVar[bool]
+    match_args: ClassVar[bool]
+    order: ClassVar[bool]
+    repr: ClassVar[bool]
+    slots: ClassVar[bool]
+    unsafe_hash: ClassVar[bool]
+    weakref_slot: ClassVar[bool]
+
+
+@runtime_checkable
+class DataclassType(Protocol):
+    # as already noted in comments, checking for this attribute is currently
+    # the most reliable way to ascertain that something is a dataclass
+    __dataclass_fields__: ClassVar[dict[str, dataclasses.Field[Any]]]
+    __dataclass_params__: DataclassParams
+
+
+@runtime_checkable
+class NamedTupleType(Protocol):
+    _asdict: ClassVar[Callable[[NamedTupleType], dict[str, Any]]]
+
 
 SerializableTypes: TypeAlias = (
     None
@@ -25,6 +48,8 @@ SerializableTypes: TypeAlias = (
     | float
     | str
     | bytes
+    | DataclassType
+    | NamedTupleType
     | set["SerializableTypes"]
     | list["SerializableTypes"]
     | tuple["SerializableTypes", ...]
@@ -52,29 +77,20 @@ class JobsSerializer(Protocol, metaclass=ABCMeta):
         raise NotImplementedError
 
 
-_DATACLASS_PARAMS = (
-    "eq",
-    "frozen",
-    "init",
-    "kw_only",
-    "match_args",
-    "order",
-    "repr",
-    "slots",
-    "unsafe_hash",
-    "weakref_slot",
-)
+def is_dataclass(o: SerializableTypes) -> TypeGuard[DataclassType]:
+    return dataclasses.is_dataclass(o) and not isinstance(o, type)
 
 
-def guard_is_dataclass(o: SerializableTypes) -> TypeGuard[DataclassInstance]:
-    return dataclasses.is_dataclass(o) and not isinstance(o, type)  # type: ignore[unreachable]
+def is_named_tuple(o: SerializableTypes) -> TypeGuard[NamedTupleType]:
+    return isinstance(o, tuple) and hasattr(o, "_asdict")
 
 
 def json_extended_encoder(o: SerializableTypes) -> JsonCompat:  # noqa: PLR0911
-    if guard_is_dataclass(o):  # pragma: no cover
+    if is_dataclass(o) or isinstance(o, DataclassType):  # pragma: no cover
         if params := getattr(o.__class__, "__dataclass_params__", {}):
             params = {
-                field: getattr(params, field) for field in _DATACLASS_PARAMS
+                field: getattr(params, field)
+                for field in DataclassParams.__annotations__
             }
         return {
             "__dataclass__": {
@@ -86,8 +102,7 @@ def json_extended_encoder(o: SerializableTypes) -> JsonCompat:  # noqa: PLR0911
                 },
             }
         }
-    if isinstance(o, tuple) and hasattr(o, "_asdict"):
-        o = cast("NamedTuple", o)
+    if is_named_tuple(o) or isinstance(o, NamedTupleType):
         return {
             "__namedtuple__": {
                 "type": o.__class__.__name__,

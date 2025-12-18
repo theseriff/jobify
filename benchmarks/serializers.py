@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from timeit import timeit
+from typing import Any, NamedTuple
 
 from jobber.serializers import (
     JobsSerializer,
@@ -7,6 +9,31 @@ from jobber.serializers import (
     UnsafePickleSerializer,
 )
 
+
+@dataclass
+class BenchDataclass:
+    id: int
+    name: str
+    tags: list[str]
+    meta: dict[str, int]
+
+
+@dataclass
+class NestedBenchDataclass:
+    bench: BenchDataclass
+
+
+class BenchNamedTuple(NamedTuple):
+    x: float
+    y: float
+    label: str
+
+
+bench_registry: dict[str, Any] = {
+    "BenchDataclass": BenchDataclass,
+    "NestedBenchDataclass": NestedBenchDataclass,
+    "BenchNamedTuple": BenchNamedTuple,
+}
 big_serializable_data: dict[str, SerializableTypes] = {
     # Simple types
     "none_value": None,
@@ -136,6 +163,20 @@ big_serializable_data: dict[str, SerializableTypes] = {
         "unicode_mix": "Hello 世界 🌍 Привет",
         "escape_chars": 'New\nLine\tTab"Quote\\Backslash',
     },
+    "custom_types": {
+        "dataclasses_simple": BenchDataclass(1, "test", ["a"], {"x": 1}),
+        "namedtuples_simple": BenchNamedTuple(1.1, 2.2, "point"),
+        "dataclasses_list": [
+            BenchDataclass(i, f"nm_{i}", [], {}) for i in range(20)
+        ],
+        "mixed_custom": {
+            "dc": BenchDataclass(99, "nested", ["root"], {}),
+            "nt": BenchNamedTuple(0.0, 0.0, "origin"),
+            "nested_dc": NestedBenchDataclass(
+                BenchDataclass(99, "nested", ["root"], {}),
+            ),
+        },
+    },
 }
 
 
@@ -148,9 +189,9 @@ def serializer_case(serializer: JobsSerializer) -> None:
 def serializers_measure() -> dict[str, dict[str, float]]:
     results: dict[str, float] = {}
     common_globs = {"serializer_case": serializer_case}
-    stmt = "for _ in range(100): serializer_case(serializer)"
+    stmt = "for _ in range(10): serializer_case(serializer)"
     for name, serializer in {
-        "json": JSONSerializer(),
+        "json": JSONSerializer(bench_registry),
         "pickle": UnsafePickleSerializer(),
     }.items():
         globs = common_globs | {"serializer": serializer}

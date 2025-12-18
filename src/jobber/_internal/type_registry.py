@@ -4,7 +4,7 @@ from dataclasses import is_dataclass
 from typing import Any, get_args, get_type_hints
 
 
-def is_named_tuple(tp: Any) -> bool:
+def is_named_tuple_type(tp: Any) -> bool:
     return (
         isinstance(tp, type)
         and issubclass(tp, tuple)
@@ -13,7 +13,7 @@ def is_named_tuple(tp: Any) -> bool:
 
 
 def is_structured_type(tp: Any) -> bool:
-    return is_dataclass(tp) or is_named_tuple(tp)
+    return is_dataclass(tp) or is_named_tuple_type(tp)
 
 
 def collect_structured_types(

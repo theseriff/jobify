@@ -105,3 +105,6 @@ test-all +param="tests/":
 [group("tests")]
 test-coverage-all +param="tests/":
   just _setup_test {{param}} --cov --cov-report=term:skip-covered
+
+alias ta := test-all
+alias tca := test-coverage-all

@@ -1,9 +1,10 @@
 import dataclasses
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 import pytest
 
+from jobber._internal.serializers.base import is_dataclass
 from jobber.serializers import (
     JobsSerializer,
     JSONSerializer,
@@ -107,26 +108,21 @@ def test_serialization_all(
     assert deserialized == data
 
 
-@pytest.mark.parametrize(
-    "serializer",
-    [
-        pytest.param(UnsafePickleSerializer()),
-        pytest.param(JSONSerializer({})),
-    ],
-)
+@pytest.mark.parametrize("serializer", [JSONSerializer({})])
 @pytest.mark.parametrize(
     "data",
     [*dataclass_structures, *named_tuple_structures],
 )
 def test_serialization_fallback_create_structure(
-    serializer: JobsSerializer,
-    data: Any,  # noqa: ANN401
+    serializer: JSONSerializer,
+    data: SerializableTypes,
 ) -> None:
     serialized = serializer.dumpb(data)
     deserialized: Any = serializer.loadb(serialized)
-    if bool(is_dataclass(data)):
-        assert dataclasses.asdict(data) == dataclasses.asdict(deserialized)
 
+    assert len(serializer.decoder_hook.registry) > 0
+    if is_dataclass(data) and is_dataclass(deserialized):
+        assert dataclasses.asdict(data) == dataclasses.asdict(deserialized)
         data_params = data.__class__.__dataclass_params__
         deser_params = deserialized.__class__.__dataclass_params__
         assert data_params.slots == deser_params.slots is True

@@ -67,11 +67,15 @@ async def test_job_timeout() -> None:
     def f2() -> None:
         time.sleep(0.01)
 
+    @jobber.task(timeout=None)
+    async def f3() -> str:
+        return "test"
+
     async with jobber:
         job1 = await f1.schedule().delay(0)
         job2 = await f2.schedule().delay(0)
-        await job1.wait()
-        await job2.wait()
+        job3 = await f3.schedule().delay(0)
+        await jobber.wait_all()
 
         match = (
             "job_id: {id} exceeded timeout of {timeout} seconds. "
@@ -82,3 +86,4 @@ async def test_job_timeout() -> None:
 
         assert type(job2.exception) is JobTimeoutError
         assert str(job2.exception) == match.format(id=job2.id, timeout=timeout)
+        assert job3.result() == "test"
