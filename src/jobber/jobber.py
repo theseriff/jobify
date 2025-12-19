@@ -138,7 +138,7 @@ class Jobber(RootRouter):
         """
         self.jobber_config.app_started = True
         await self._propagate_startup(self)
-        await self.task.start_crons()
+        await self.task.start_pending_crons()
 
     async def shutdown(self) -> None:
         """Gracefully shut down the Jobber application.

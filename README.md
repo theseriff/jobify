@@ -9,14 +9,13 @@
 
 Jobber is strong and made to do things that don't happen together. It has an easy and new API like other good programs.
 
-## Features
+## Key features
 
-- **Schedule**: Jobber can run jobs on a schedule. You can use an extra field for seconds to run jobs very often.
-- **Dependencies**: Job can use things from other places.
-- **When it starts and stops**: Job can do things when it starts and when it stops. This is good for things like connecting to a database.
-- **Extra things**: Job can have extra things done before or after it runs. This is useful for things like writing to a log or checking if a user is logged in.
-- **Exception Handling**: Don't let your app crash because of one bad job. Make your own exceptions for different mistakes. You can write down the mistake, do the job again, or tell the programmer.
-- **Time Zones**: Let's not worry about time zones. We can make jobs for people in different places. With Jobber, you can make a job for any time and change time zones.
+- **Routing**: There are routers like in fastAPI/Starlette/Aiogram.
+- **Schedule**: For cron, add two extra optional fields, `* * * * * * *`, for the second interval.
+- **Lifespan**: The lifespan of the application is similar to that of FastAPI/Starlette.
+- **Middleware**: Middleware such as fastAPI/Starlette/Aiogram.
+- **Exception Handling**: Exception handling using fastAPI/Starlette.
 
 ---
 

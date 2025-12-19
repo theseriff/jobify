@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 ExceptionHandler: TypeAlias = Callable[
-    [JobContext, Exception], Awaitable[None] | None
+    [Exception, JobContext], Awaitable[None] | None
 ]
 ExceptionHandlers: TypeAlias = dict[type[Exception], ExceptionHandler]
 MappingExceptionHandlers: TypeAlias = Mapping[
@@ -42,11 +42,11 @@ class ExceptionMiddleware(BaseMiddleware):
             handler = self._lookup_exc_handler(exc)
             if handler:
                 if asyncio.iscoroutinefunction(handler):
-                    await handler(context, exc)
+                    await handler(exc, context)
                 else:
                     loop = self.jobber_config.loop
                     thread = self.jobber_config.worker_pools.threadpool
-                    await loop.run_in_executor(thread, handler, context, exc)  # pyright: ignore[reportUnusedCallResult]
+                    await loop.run_in_executor(thread, handler, exc, context)  # pyright: ignore[reportUnusedCallResult]
             raise
 
     def _lookup_exc_handler(self, exc: Exception) -> ExceptionHandler | None:

@@ -5,7 +5,7 @@ import inspect
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar, final
+from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar
 
 from typing_extensions import override
 
@@ -81,6 +81,28 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
         return await loop.run_in_executor(self.executor, func_call)
 
 
+class Runnable(Generic[ReturnT]):
+    __slots__: tuple[str, ...] = (
+        "args",
+        "kwargs",
+        "strategy",
+    )
+
+    def __init__(
+        self,
+        strategy: RunStrategy[ParamsT, ReturnT],
+        /,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> None:
+        self.strategy: Final = strategy
+        self.args: Final = args
+        self.kwargs: Final = kwargs
+
+    def __call__(self) -> Awaitable[ReturnT]:
+        return self.strategy(*self.args, **self.kwargs)
+
+
 def _validate_run_mode(mode: RunMode | None, *, is_async: bool) -> RunMode:
     if is_async:
         if mode in (RunMode.PROCESS, RunMode.THREAD):
@@ -118,32 +140,3 @@ def create_run_strategy(
             return PoolStrategy(func, threadpool, lambda: jobber_config.loop)
         case _:
             return SyncStrategy(func)
-
-
-@final
-class Runnable(Generic[ReturnT]):
-    __slots__: tuple[str, ...] = (
-        "args",
-        "kwargs",
-        "raw_args",
-        "raw_kwargs",
-        "strategy",
-    )
-
-    def __init__(
-        self,
-        strategy: RunStrategy[ParamsT, ReturnT],
-        /,
-        raw_args: bytes,
-        raw_kwargs: bytes,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> None:
-        self.strategy: Final = strategy
-        self.args = args
-        self.kwargs = kwargs
-        self.raw_args = raw_args
-        self.raw_kwargs = raw_kwargs
-
-    def __call__(self) -> Awaitable[ReturnT]:
-        return self.strategy(*self.args, **self.kwargs)

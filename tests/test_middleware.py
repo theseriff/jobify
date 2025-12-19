@@ -60,8 +60,8 @@ async def test_exception() -> None:
         await job1.wait()
         await job2.wait()
 
-    sync_handler.assert_called_once_with(mock.ANY, job1.exception)
-    async_handler.assert_awaited_once_with(mock.ANY, job2.exception)
+    sync_handler.assert_called_once_with(job1.exception, mock.ANY)
+    async_handler.assert_awaited_once_with(job2.exception, mock.ANY)
 
 
 @mock.patch("asyncio.sleep", spec=asyncio.sleep)

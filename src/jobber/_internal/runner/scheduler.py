@@ -98,7 +98,6 @@ class ScheduleBuilder(Generic[ReturnT]):
         now: datetime | None = None,
     ) -> Job[ReturnT]:
         self._validate_job_id(job_id)
-
         if isinstance(cron, str):
             cron = Cron(cron)
 

@@ -18,10 +18,9 @@ def is_structured_type(tp: Any) -> bool:
 
 def collect_structured_types(
     types: Iterable[Any],
-    registry: dict[str, Any] | None = None,
+    registry: dict[str, Any],
 ) -> dict[str, Any]:
-    if registry is None:
-        registry = {}
+    registry = {}
 
     for tp in types:
         if not is_structured_type(tp):

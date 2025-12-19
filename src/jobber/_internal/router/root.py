@@ -117,20 +117,6 @@ class RootRoute(Route[ParamsT, ReturnT]):
     ) -> ScheduleBuilder[Any]:
         if not (self.jobber_config.app_started and self._chain_middleware):
             raise_app_not_started_error("schedule")
-
-        raw_args = self.jobber_config.serializer.dumpb(
-            args,  # type: ignore[arg-type] # pyright: ignore[reportArgumentType]
-        )
-        raw_kwargs = self.jobber_config.serializer.dumpb(
-            kwargs,  # type: ignore[arg-type] # pyright: ignore[reportArgumentType]
-        )
-        runnable = Runnable(
-            self._run_strategy,
-            raw_args,
-            raw_kwargs,
-            *args,
-            **kwargs,
-        )
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
@@ -138,7 +124,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
             shared_state=self._shared_state,
             jobber_config=self.jobber_config,
             chain_middleware=self._chain_middleware,
-            runnable=runnable,
+            runnable=Runnable(self._run_strategy, *args, **kwargs),
         )
 
 
@@ -202,7 +188,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
 
         return cast("RootRoute[ParamsT, ReturnT]", self._routes[name])
 
-    async def start_crons(self) -> None:
+    async def start_pending_crons(self) -> None:
         if crons := self.state.pop(PENDING_CRON_JOBS, []):
             pending = (
                 route.schedule().cron(cron, job_id=job_id)
