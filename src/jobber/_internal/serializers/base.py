@@ -5,17 +5,15 @@ import dataclasses
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from collections.abc import Callable
-from typing import Any, ClassVar, Protocol, TypeAlias, runtime_checkable
+from typing import Any, ClassVar, Protocol, TypeAlias
 
 from typing_extensions import TypeIs
 
 
-@runtime_checkable
 class DataclassType(Protocol):
     __dataclass_fields__: ClassVar[dict[str, dataclasses.Field[Any]]]
 
 
-@runtime_checkable
 class NamedTupleType(Protocol):
     _asdict: ClassVar[Callable[[NamedTupleType], dict[str, SerializableTypes]]]
 

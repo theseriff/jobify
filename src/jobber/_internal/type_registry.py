@@ -20,8 +20,6 @@ def collect_structured_types(
     types: Iterable[Any],
     registry: dict[str, Any],
 ) -> dict[str, Any]:
-    registry = {}
-
     for tp in types:
         if not is_structured_type(tp):
             continue
