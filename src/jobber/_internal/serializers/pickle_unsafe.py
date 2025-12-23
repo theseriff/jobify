@@ -2,20 +2,20 @@
 # pyright: reportExplicitAny=false
 
 import pickle  # nosec B403
+from typing import Any
 
 from typing_extensions import override
 
-from jobber._internal.serializers.base import JobsSerializer, SerializableTypes
+from jobber._internal.serializers.base import JobsSerializer
 
 
 class UnsafePickleSerializer(JobsSerializer):
     @override
-    def dumpb(self, data: SerializableTypes) -> bytes:
+    def dumpb(self, data: Any) -> bytes:
         # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
         return pickle.dumps(data)
 
     @override
-    def loadb(self, data: bytes) -> SerializableTypes:
+    def loadb(self, data: bytes) -> Any:
         # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
-        decoded: SerializableTypes = pickle.loads(data)  # noqa: S301 # nosec B301
-        return decoded
+        return pickle.loads(data)  # noqa: S301 # nosec B301

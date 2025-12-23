@@ -20,7 +20,7 @@ from jobber._internal.middleware.timeout import TimeoutMiddleware
 from jobber._internal.router.base import Registrator, Route, Router
 from jobber._internal.runner.runners import Runnable, create_run_strategy
 from jobber._internal.runner.scheduler import ScheduleBuilder
-from jobber._internal.type_registry import collect_structured_types
+from jobber._internal.serializers.json_extended import ExtendedJSONSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
@@ -159,10 +159,13 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             raise_app_already_started_error("register")
 
         if self._routes.get(name) is None:
-            _ = collect_structured_types(
-                get_type_hints(func).values(),
-                self._shared_state.type_registry,
-            )
+            if isinstance(
+                self._jobber_config.serializer,
+                ExtendedJSONSerializer,
+            ):
+                hints = get_type_hints(func)
+                self._jobber_config.serializer.registry_types(hints.values())
+
             strategy = create_run_strategy(
                 func,
                 self._jobber_config,

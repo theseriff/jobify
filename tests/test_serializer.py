@@ -1,15 +1,24 @@
-import dataclasses
-from dataclasses import dataclass, is_dataclass
-from typing import Any, NamedTuple
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+from enum import Enum
+from typing import Any, Generic, NamedTuple, TypeVar
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from jobber._internal.serializers.json_extended import SupportedTypes
 from jobber.serializers import (
+    ExtendedJSONSerializer,
     JobsSerializer,
     JSONSerializer,
-    SerializableTypes,
     UnsafePickleSerializer,
 )
+
+
+class EnumTest(Enum):
+    VALUE1 = "val1"
+    VALUE2 = "val2"
 
 
 class SimpleData(NamedTuple):
@@ -42,7 +51,28 @@ type_registry: dict[str, Any] = {
     "NestedData": NestedData,
     "PointDC": PointDC,
     "ComplexDC": ComplexDC,
+    "EnumTest": EnumTest,
 }
+
+T = TypeVar("T")
+
+
+@dataclass(slots=True, kw_only=True, frozen=True)
+class JobContext:  # This will trigger the JobContext check
+    task_id: str
+
+
+@dataclass(slots=True, kw_only=True, frozen=True)
+class GenericComplexDC(Generic[T]):  # This will trigger the get_args check
+    id: int
+    data: T  # This will be the generic part
+
+
+@dataclass(slots=True, kw_only=True, frozen=True)
+class SimpleType:  # A simple dataclass to be registered
+    name: str
+
+
 named_tuple_structures = (
     pytest.param(
         SimpleData(id=1, name="TestA", value=b"10.5"),
@@ -76,7 +106,7 @@ dataclass_structures = (
     "serializer",
     [
         pytest.param(UnsafePickleSerializer(), id="pickle"),
-        pytest.param(JSONSerializer(type_registry), id="json"),
+        pytest.param(ExtendedJSONSerializer(type_registry), id="ext_json"),
     ],
 )
 @pytest.mark.parametrize(
@@ -93,13 +123,19 @@ dataclass_structures = (
         pytest.param((1, "a", None, (2, "b", True))),
         pytest.param({"a": 1, "b": None}),
         pytest.param({1, "a", None}),
+        pytest.param(EnumTest.VALUE1, id="Enum"),
+        pytest.param(
+            datetime(2023, 1, 1, 12, 30, 45, tzinfo=ZoneInfo("UTC")),
+            id="Datetime",
+        ),
+        pytest.param(Decimal("123.456"), id="Decimal"),
         *named_tuple_structures,
         *dataclass_structures,
     ],
 )
-def test_serialization_all(
+def test_serialization_extended(
     serializer: JobsSerializer,
-    data: SerializableTypes,
+    data: SupportedTypes,
 ) -> None:
     """Tests that all serializers can [de]serialize basic Python types."""
     serialized = serializer.dumpb(data)
@@ -107,30 +143,57 @@ def test_serialization_all(
     assert deserialized == data
 
 
-def _ensure_has_param(param: str, params1: Any, params2: Any) -> bool:  # noqa: ANN401
-    return getattr(params1, param, True) is getattr(params2, param, True)
-
-
-@pytest.mark.parametrize("serializer", [JSONSerializer({})])
+@pytest.mark.parametrize(
+    "serializer",
+    [pytest.param(JSONSerializer(), id="json")],
+)
 @pytest.mark.parametrize(
     "data",
-    [*dataclass_structures, *named_tuple_structures],
+    [
+        pytest.param(
+            {
+                "0": None,
+                "1": True,
+                "2": False,
+                "3": 123,
+                "4": 123.45,
+                "5": "hello",
+                "7": [1, "a", None, [2, "b", True]],
+                "8": {"a": 1, "b": None},
+            }
+        )
+    ],
 )
-def test_serialization_fallback_create_structure(
-    serializer: JSONSerializer,
-    data: SerializableTypes,
+def test_serialization_simple(
+    serializer: JobsSerializer,
+    data: SupportedTypes,
 ) -> None:
+    """Tests that all serializers can [de]serialize basic Python types."""
     serialized = serializer.dumpb(data)
-    deserialized: Any = serializer.loadb(serialized)
+    deserialized = serializer.loadb(serialized)
+    assert deserialized == data
 
-    assert len(serializer.decoder_hook.registry) > 0
-    if is_dataclass(data):
-        assert dataclasses.asdict(data) == dataclasses.asdict(deserialized)
-        d_cls: Any = data.__class__
-        data_params = d_cls.__dataclass_params__
-        deser_params = deserialized.__class__.__dataclass_params__
-        assert data_params.frozen is deser_params.frozen
-        assert _ensure_has_param("kw_only", data_params, deser_params)
-        assert _ensure_has_param("slots", data_params, deser_params)
-    else:
-        assert data == deserialized
+
+def test_registry_types_coverage() -> None:
+    serializer = ExtendedJSONSerializer()
+
+    # Test JobContext skip
+    serializer.registry_types([JobContext])
+    assert "JobContext" not in serializer.registry
+
+    # Test generic structured type handling
+    serializer.registry_types([GenericComplexDC[SimpleType]])
+    assert "GenericComplexDC" not in serializer.registry
+    assert "SimpleType" in serializer.registry
+    assert serializer.registry["SimpleType"] is SimpleType
+
+    # Test a non-structured type, should be skipped
+    serializer.registry_types([int])
+    assert "int" not in serializer.registry
+
+    # Test an already registered type
+    initial_len = len(serializer.registry)
+    serializer.registry_types([SimpleType])
+    assert (
+        len(serializer.registry) == initial_len
+    )  # Should not re-register, length unchanged

@@ -11,9 +11,11 @@ from typing_extensions import Self
 from jobber._internal.configuration import JobberConfiguration, WorkerPools
 from jobber._internal.router.root import RootRouter
 from jobber._internal.serializers.json import JSONSerializer
+from jobber._internal.serializers.json_extended import ExtendedJSONSerializer
 from jobber._internal.shared_state import SharedState
 from jobber._internal.storage.dummy import DummyRepository
 from jobber._internal.storage.sqlite import SQLiteJobRepository
+from jobber._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobber.crontab import create_crontab
 
 if TYPE_CHECKING:
@@ -27,6 +29,7 @@ if TYPE_CHECKING:
     from jobber._internal.middleware.exceptions import MappingExceptionHandlers
     from jobber._internal.serializers.base import JobsSerializer
     from jobber._internal.storage.abc import JobRepository
+    from jobber._internal.typeadapter.base import Dumper, Loader
 
 
 AppT = TypeVar("AppT", bound="Jobber")
@@ -47,6 +50,8 @@ class Jobber(RootRouter):
         loop_factory: LoopFactory = lambda: asyncio.get_running_loop(),
         durable: JobRepository | Literal[False] | None = None,
         lifespan: Lifespan[AppT] | None = None,
+        dumper: Dumper | None = None,
+        loader: Loader | None = None,
         serializer: JobsSerializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
         exception_handlers: MappingExceptionHandlers | None = None,
@@ -55,14 +60,22 @@ class Jobber(RootRouter):
         cron_factory: CronFactory | None = None,
     ) -> None:
         """Initialize a `Jobber` instance."""
-        shared_state = SharedState()
-
         if durable is False:
             durable = DummyRepository()
         elif durable is None:
             durable = SQLiteJobRepository()
+
         if serializer is None:
-            serializer = JSONSerializer(shared_state.type_registry)
+            serializer = (
+                ExtendedJSONSerializer()
+                if dumper is None and loader is None
+                else JSONSerializer()
+            )
+
+        if dumper is None:
+            dumper = DummyDumper()
+        if loader is None:
+            loader = DummyLoader()
 
         self.jobber_config: JobberConfiguration = JobberConfiguration(
             loop_factory=loop_factory,
@@ -78,7 +91,7 @@ class Jobber(RootRouter):
         super().__init__(
             lifespan=lifespan,
             middleware=middleware,
-            shared_state=shared_state,
+            shared_state=SharedState(),
             jobber_config=self.jobber_config,
             exception_handlers=exception_handlers,
         )

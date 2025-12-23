@@ -3,9 +3,9 @@ from timeit import timeit
 from typing import Any, NamedTuple
 
 from jobber.serializers import (
+    ExtendedJSONSerializer,
     JobsSerializer,
-    JSONSerializer,
-    SerializableTypes,
+    SupportedTypes,
     UnsafePickleSerializer,
 )
 
@@ -34,7 +34,7 @@ bench_registry: dict[str, Any] = {
     "NestedBenchDataclass": NestedBenchDataclass,
     "BenchNamedTuple": BenchNamedTuple,
 }
-big_serializable_data: dict[str, SerializableTypes] = {
+big_serializable_data: dict[str, SupportedTypes] = {
     # Simple types
     "none_value": None,
     "boolean_true": True,
@@ -191,7 +191,7 @@ def serializers_measure() -> dict[str, dict[str, float]]:
     common_globs = {"serializer_case": serializer_case}
     stmt = "for _ in range(10): serializer_case(serializer)"
     for name, serializer in {
-        "json": JSONSerializer(bench_registry),
+        "json": ExtendedJSONSerializer(bench_registry),
         "pickle": UnsafePickleSerializer(),
     }.items():
         globs = common_globs | {"serializer": serializer}
