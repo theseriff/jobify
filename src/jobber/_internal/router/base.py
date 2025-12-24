@@ -21,7 +21,7 @@ from typing_extensions import Unpack, override
 
 from jobber._internal.common.constants import PATCH_SUFFIX
 from jobber._internal.common.datastructures import State
-from jobber._internal.exceptions import raise_route_already_registered_error
+from jobber._internal.exceptions import RouteAlreadyRegisteredError
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -175,7 +175,7 @@ class Registrator(ABC, Generic[Route_co]):
 
             name = options.get("name") or resolve_name(func)
             if name in self._routes:
-                raise_route_already_registered_error(name)
+                raise RouteAlreadyRegisteredError(name)
 
             return self.register(name, func, options)
 

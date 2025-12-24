@@ -90,6 +90,5 @@ class RouteOptions(TypedDict):
     cron: NotRequired[Cron | str]
     retry: NotRequired[int]
     timeout: NotRequired[float]
-    durable: NotRequired[bool]
     run_mode: NotRequired[RunMode]
     metadata: NotRequired[Mapping[str, Any]]

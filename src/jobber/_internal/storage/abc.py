@@ -16,13 +16,13 @@ class ScheduledJob:
 
 class Storage(Protocol, metaclass=ABCMeta):
     @abstractmethod
-    async def all(self) -> Iterable[ScheduledJob]:
+    async def get_schedules(self) -> Iterable[ScheduledJob]:
         raise NotImplementedError
 
     @abstractmethod
-    async def add(self, scheduled: ScheduledJob) -> None:
+    async def add_schedule(self, scheduled: ScheduledJob) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    async def delete(self, job_id: str) -> None:
+    async def delete_schedule(self, job_id: str) -> None:
         raise NotImplementedError

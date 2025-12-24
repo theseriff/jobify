@@ -154,7 +154,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             message=raw_message,
             status=job.status,
         )
-        await self._jobber_config.storage.add(scheduled_job)
+        await self._jobber_config.storage.add_schedule(scheduled_job)
         return job
 
     async def delay(
@@ -213,7 +213,7 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
-        await self._jobber_config.storage.delete(job_id=job.id)
+        await self._jobber_config.storage.delete_schedule(job_id=job.id)
         _ = self._shared_state.pending_jobs.pop(job.id, None)
 
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:

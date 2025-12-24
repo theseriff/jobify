@@ -20,13 +20,16 @@ def test_create_default_name(func: Callable[..., None]) -> None:
     if func.__name__ == "main":
         main.__module__ = "__main__"
 
+    name = func.__name__
+    module = func.__module__
+
     job_name = resolve_name(func)
     if func.__module__ == "__main__":
-        assert job_name.endswith(f"pytest:{main.__name__}")
+        assert job_name.endswith(f"pytest:{name}")
     elif func.__name__ == "<lambda>":
-        assert job_name.startswith("tests.test_func_wrapper:lambda")
+        assert job_name.startswith(f"{module}:lambda")
     else:
-        assert job_name == f"tests.test_func_wrapper:{somefunc.__name__}"
+        assert job_name == f"{module}:{name}"
 
 
 async def test_original_func_call() -> None:
@@ -69,6 +72,7 @@ def test_patch_job_name() -> None:
     assert t.func.__qualname__ == new_qualname
     assert t1_reg.func.__qualname__ == new_qualname
     assert t2_reg.func.__qualname__ == new_qualname
+
     assert t1_reg is not t
     assert t2_reg is not t
     assert t1_reg is not t2_reg

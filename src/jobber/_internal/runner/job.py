@@ -112,7 +112,7 @@ class Job(Generic[ReturnT]):
         _ = await self._event.wait()
 
     async def cancel(self) -> None:
-        await self._storage.delete(self.id)
+        await self._storage.delete_schedule(self.id)
         self._status = JobStatus.CANCELLED
         self._cancel()
 
