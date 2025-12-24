@@ -12,6 +12,7 @@ from jobber._internal.exceptions import (
     JobFailedError,
     JobNotCompletedError,
     JobTimeoutError,
+    RouteAlreadyRegisteredError,
 )
 
 __all__ = (
@@ -21,4 +22,5 @@ __all__ = (
     "JobFailedError",
     "JobNotCompletedError",
     "JobTimeoutError",
+    "RouteAlreadyRegisteredError",
 )

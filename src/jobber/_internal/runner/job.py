@@ -11,6 +11,8 @@ from jobber._internal.exceptions import JobFailedError, JobNotCompletedError
 if TYPE_CHECKING:
     from datetime import datetime
 
+    from jobber._internal.storage.abc import Storage
+
 ReturnT = TypeVar("ReturnT")
 
 
@@ -18,30 +20,33 @@ ReturnT = TypeVar("ReturnT")
 class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_event",
+        "_handler",
         "_pending_jobs",
         "_result",
         "_status",
-        "_timer_handler",
+        "_storage",
         "cron_expression",
         "exception",
         "exec_at",
         "id",
     )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         job_id: str,
         exec_at: datetime,
         pending_jobs: dict[str, Job[ReturnT]],
         job_status: JobStatus = JobStatus.SCHEDULED,
+        storage: Storage,
         cron_expression: str | None = None,
     ) -> None:
         self._event = asyncio.Event()
         self._pending_jobs = pending_jobs
         self._result: ReturnT = EMPTY
         self._status = job_status
-        self._timer_handler: asyncio.TimerHandle = EMPTY
+        self._storage = storage
+        self._handler: asyncio.Handle = EMPTY
         self.id = job_id
         self.exception: Exception | None = None
         self.cron_expression = cron_expression
@@ -86,7 +91,7 @@ class Job(Generic[ReturnT]):
     ) -> None:
         self._status = job_status
         self._event = asyncio.Event()
-        self._timer_handler = time_handler
+        self._handler = time_handler
         self.exec_at = exec_at
 
     def is_done(self) -> bool:
@@ -107,10 +112,11 @@ class Job(Generic[ReturnT]):
         _ = await self._event.wait()
 
     async def cancel(self) -> None:
+        await self._storage.delete(self.id)
         self._status = JobStatus.CANCELLED
         self._cancel()
 
     def _cancel(self) -> None:
         _ = self._pending_jobs.pop(self.id, None)
-        self._timer_handler.cancel()
+        self._handler.cancel()
         self._event.set()

@@ -13,8 +13,8 @@ from jobber._internal.router.root import RootRouter
 from jobber._internal.serializers.json import JSONSerializer
 from jobber._internal.serializers.json_extended import ExtendedJSONSerializer
 from jobber._internal.shared_state import SharedState
-from jobber._internal.storage.dummy import DummyRepository
-from jobber._internal.storage.sqlite import SQLiteSchedule
+from jobber._internal.storage.dummy import DummyStorage
+from jobber._internal.storage.sqlite import SQLiteStorage
 from jobber._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobber.crontab import create_crontab
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.middleware.exceptions import MappingExceptionHandlers
     from jobber._internal.serializers.base import JobsSerializer
-    from jobber._internal.storage.abc import ScheduleRepository
+    from jobber._internal.storage.abc import Storage
     from jobber._internal.typeadapter.base import Dumper, Loader
 
 
@@ -48,7 +48,7 @@ class Jobber(RootRouter):
         *,
         tz: ZoneInfo | None = None,
         loop_factory: LoopFactory = lambda: asyncio.get_running_loop(),
-        durable: ScheduleRepository | Literal[False] | None = None,
+        storage: Storage | Literal[False] | None = None,
         lifespan: Lifespan[AppT] | None = None,
         dumper: Dumper | None = None,
         loader: Loader | None = None,
@@ -60,10 +60,10 @@ class Jobber(RootRouter):
         cron_factory: CronFactory | None = None,
     ) -> None:
         """Initialize a `Jobber` instance."""
-        if durable is False:
-            durable = DummyRepository()
-        elif durable is None:
-            durable = SQLiteSchedule()
+        if storage is False:
+            storage = DummyStorage()
+        elif storage is None:
+            storage = SQLiteStorage()
 
         if serializer is None:
             serializer = (
@@ -81,7 +81,7 @@ class Jobber(RootRouter):
             tz=tz or ZoneInfo("UTC"),
             dumper=dumper,
             loader=loader,
-            durable=durable,
+            storage=storage,
             serializer=serializer,
             worker_pools=WorkerPools(
                 _processpool=processpool_executor,

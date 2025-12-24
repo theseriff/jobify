@@ -28,7 +28,7 @@ async def test_jobber_runtime_error() -> None:
         )
 
         with pytest.raises(ApplicationStateError, match=reason):
-            _ = jobber.task(f)
+            _ = jobber.task(f, name="test1")
 
         with pytest.raises(ApplicationStateError, match=reason):
             jobber.add_middleware(Mock())

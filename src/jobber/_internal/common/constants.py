@@ -5,6 +5,7 @@ from jobber._internal.common.datastructures import EmptyPlaceholder
 
 EMPTY: Any = EmptyPlaceholder()
 INFINITY = -1
+PATCH_SUFFIX = "__jobber_original"
 
 
 @unique

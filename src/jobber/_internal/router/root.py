@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, get_type_hints
 
 from typing_extensions import override
 
+from jobber._internal.common.constants import PATCH_SUFFIX
 from jobber._internal.configuration import Cron
 from jobber._internal.exceptions import (
     raise_app_already_started_error,
@@ -92,7 +93,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         # --------------------------------------------------------------------
 
         # Guard 1: Protect against double-renaming
-        if func.__name__.endswith("jobber_original"):
+        if func.__name__.endswith(PATCH_SUFFIX):
             return
 
         # Guard 2: Check if `register` is used as a decorator (@)
@@ -103,7 +104,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
             return
 
         # Apply the hack: rename and inject back into the module
-        new_name = f"{func.__name__}__jobber_original"
+        new_name = f"{func.__name__}{PATCH_SUFFIX}"
         func.__name__ = new_name
         if hasattr(func, "__qualname__"):  # pragma: no cover
             original_qualname = func.__qualname__.rsplit(".", 1)
@@ -163,38 +164,35 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
         if self._jobber_config.app_started is True:
             raise_app_already_started_error("register")
 
-        if self._routes.get(name) is None:
-            if isinstance(
-                self._jobber_config.serializer,
-                ExtendedJSONSerializer,
-            ):
-                hints = get_type_hints(func)
-                self._jobber_config.serializer.registry_types(hints.values())
-            strategy = create_run_strategy(
-                func,
-                self._jobber_config,
-                mode=options.get("run_mode"),
-            )
-            route = RootRoute(
-                name=name,
-                func=func,
-                func_spec=make_func_spec(func),
-                state=self.state,
-                options=options,
-                strategy=strategy,
-                shared_state=self._shared_state,
-                jobber_config=self._jobber_config,
-            )
-            _ = functools.update_wrapper(route, func)
-            self._routes[name] = route
+        if isinstance(self._jobber_config.serializer, ExtendedJSONSerializer):
+            hints = get_type_hints(func)
+            self._jobber_config.serializer.registry_types(hints.values())
 
-            if cron := options.get("cron"):
-                if isinstance(cron, str):
-                    cron = Cron(cron)
-                p = (route, route.name, cron)
-                self.state.setdefault(PENDING_CRON_JOBS, []).append(p)
+        strategy = create_run_strategy(
+            func,
+            self._jobber_config,
+            mode=options.get("run_mode"),
+        )
+        route = RootRoute(
+            name=name,
+            func=func,
+            func_spec=make_func_spec(func),
+            state=self.state,
+            options=options,
+            strategy=strategy,
+            shared_state=self._shared_state,
+            jobber_config=self._jobber_config,
+        )
+        _ = functools.update_wrapper(route, func)
+        self._routes[name] = route
 
-        return cast("RootRoute[ParamsT, ReturnT]", self._routes[name])
+        if cron := options.get("cron"):
+            if isinstance(cron, str):
+                cron = Cron(cron)
+            p = (route, route.name, cron)  # route.name as job_id
+            self.state.setdefault(PENDING_CRON_JOBS, []).append(p)
+
+        return route
 
     async def start_pending_crons(self) -> None:
         if crons := self.state.pop(PENDING_CRON_JOBS, []):

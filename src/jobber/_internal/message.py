@@ -1,18 +1,14 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from jobber._internal.configuration import Cron
+from jobber._internal.configuration import Cron
 
 
 @dataclass(slots=True, kw_only=True)
 class Message:
     route_name: str
     job_id: str
-    kwargs: dict[str, Any]
-    args: list[Any]
+    arguments: dict[str, Any]
     cron: Cron | None = None
-    options: dict[str, Any]
     at_timestamp: float | None = None
+    options: dict[str, Any]

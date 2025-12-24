@@ -28,7 +28,7 @@ async def test_job() -> None:
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELLED
     assert job2.id not in job2._pending_jobs
-    assert job2._timer_handler.cancelled()
+    assert job2._handler.cancelled()
 
 
 async def test_all_jobs_completed(amock: AsyncMock) -> None:

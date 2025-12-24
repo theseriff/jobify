@@ -91,3 +91,14 @@ def raise_app_already_started_error(operation: str) -> NoReturn:
             "Move this call outside/before the 'async with jobber:' block."
         ),
     )
+
+
+class RouteAlreadyRegisteredError(BaseJobberError):
+    """A route with this name has already been registered."""
+
+
+def raise_route_already_registered_error(
+    route_name: str,
+) -> NoReturn:
+    msg = f"A route with the name {route_name!r} has already been registered."
+    raise RouteAlreadyRegisteredError(msg)

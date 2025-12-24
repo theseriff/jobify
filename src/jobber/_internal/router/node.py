@@ -66,12 +66,10 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
         func: Callable[ParamsT, ReturnT],
         options: RouteOptions,
     ) -> NodeRoute[ParamsT, ReturnT]:
-        if self._routes.get(name) is None:
-            route = NodeRoute(name, func, options)
-            _ = functools.update_wrapper(route, func)
-            self._routes[name] = route
-
-        return cast("NodeRoute[ParamsT, ReturnT]", self._routes[name])
+        route = NodeRoute(name, func, options)
+        _ = functools.update_wrapper(route, func)
+        self._routes[name] = route
+        return route
 
 
 class NodeRouter(Router):

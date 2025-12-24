@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import functools
+import itertools
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from itertools import count
 from typing import TYPE_CHECKING, Generic, TypedDict, TypeVar
 from uuid import uuid4
 
@@ -16,7 +15,9 @@ from jobber._internal.common.datastructures import RequestState, State
 from jobber._internal.configuration import Cron
 from jobber._internal.context import JobContext
 from jobber._internal.exceptions import DuplicateJobError, JobTimeoutError
+from jobber._internal.message import Message
 from jobber._internal.runner.job import Job
+from jobber._internal.storage.abc import ScheduledJob
 
 if TYPE_CHECKING:
     from jobber._internal.configuration import (
@@ -56,7 +57,7 @@ class CronContext(Generic[ReturnT]):
     cron: Cron
     cron_parser: CronParser
     failure_count: int = 0
-    exec_count: count[int] = field(default_factory=count)
+    exec_count: itertools.count[int] = field(default_factory=itertools.count)
 
     def is_run_allowed_by_limit(self) -> bool:
         if self.cron.max_runs == INFINITY:
@@ -97,7 +98,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self.route_name: str = route_name
         self.route_options: RouteOptions = options
 
-    def _validate_job_id(self, job_id: str) -> str:
+    def ensure_job_id(self, job_id: str) -> str:
         if job_id in self._shared_state.pending_jobs:
             raise DuplicateJobError(job_id)
         return job_id
@@ -106,7 +107,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         return datetime.now(tz=self._jobber_config.tz)
 
     def _calculate_delay_seconds(self, now: datetime, at: datetime) -> float:
-        return max(0, at.timestamp() - now.timestamp())
+        return at.timestamp() - now.timestamp()
 
     async def cron(
         self,
@@ -114,7 +115,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         /,
         **options: Unpack[CronOptions],
     ) -> Job[ReturnT]:
-        job_id = self._validate_job_id(options["job_id"])
+        job_id = self.ensure_job_id(options["job_id"])
         now = options.get("now") or self._now()
 
         if isinstance(cron, str):
@@ -128,15 +129,32 @@ class ScheduleBuilder(Generic[ReturnT]):
             job_id=job_id,
             pending_jobs=self._shared_state.pending_jobs,
             cron_expression=cron.expression,
+            storage=self._jobber_config.storage,
         )
         cron_ctx = CronContext(job=job, cron=cron, cron_parser=cron_parser)
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         loop = self._jobber_config.loop
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._pre_exec_cron, cron_ctx)
-        job._timer_handler = time_handler
+        job._handler = time_handler
         self._shared_state.pending_jobs[job.id] = job
 
+        message = Message(
+            route_name=self.route_name,
+            job_id=job_id,
+            arguments=self._runnable.bound.arguments,
+            cron=cron,
+            options={"job_id": job_id, "now": now},
+        )
+        formatted = self._jobber_config.dumper.dump(message, Message)
+        raw_message = self._jobber_config.serializer.dumpb(formatted)
+        scheduled_job = ScheduledJob(
+            job_id=job_id,
+            route_name=self.route_name,
+            message=raw_message,
+            status=job.status,
+        )
+        await self._jobber_config.storage.add(scheduled_job)
         return job
 
     async def delay(
@@ -168,55 +186,35 @@ class ScheduleBuilder(Generic[ReturnT]):
         now: datetime,
         job_id: str | None,
     ) -> Job[ReturnT]:
-        job_id = self._validate_job_id(job_id) if job_id else uuid4().hex
+        job_id = self.ensure_job_id(job_id) if job_id else uuid4().hex
 
         job = Job(
             exec_at=at,
             job_id=job_id,
             pending_jobs=self._shared_state.pending_jobs,
+            storage=self._jobber_config.storage,
         )
         loop = self._jobber_config.loop
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
-        when = loop.time() + delay_seconds
-        time_handler = loop.call_at(when, self._pre_exec_job, job)
-        job._timer_handler = time_handler
+        if delay_seconds <= 0:
+            handler = loop.call_soon(self._pre_exec_at, job)
+        else:
+            when = loop.time() + delay_seconds
+            handler = loop.call_at(when, self._pre_exec_at, job)
+
+        job._handler = handler
         self._shared_state.pending_jobs[job.id] = job
         return job
 
-    def _pre_exec_job(self, job: Job[ReturnT]) -> None:
-        task = asyncio.create_task(self._exec_job(job), name=job.id)
+    def _pre_exec_at(self, job: Job[ReturnT]) -> None:
+        task = asyncio.create_task(self._exec_at(job), name=job.id)
         self._shared_state.pending_tasks.add(task)
-        task.add_done_callback(functools.partial(self._post_exec_job, job))
+        task.add_done_callback(self._shared_state.pending_tasks.discard)
 
-    def _post_exec_job(
-        self,
-        job: Job[ReturnT],
-        task: asyncio.Task[None],
-    ) -> None:
-        self._shared_state.pending_tasks.discard(task)
+    async def _exec_at(self, job: Job[ReturnT]) -> None:
+        await self._exec_job(job)
+        await self._jobber_config.storage.delete(job_id=job.id)
         _ = self._shared_state.pending_jobs.pop(job.id, None)
-
-    async def _exec_job(self, job: Job[ReturnT]) -> None:
-        job._status = JobStatus.RUNNING
-        job_context = JobContext(
-            job=job,
-            state=self._state,
-            request_state=RequestState(),
-            runnable=self._runnable,
-            route_options=self.route_options,
-            jobber_config=self._jobber_config,
-        )
-        try:
-            result = await self._chain_middleware(job_context)
-        except JobTimeoutError as exc:
-            job.set_exception(exc, status=JobStatus.TIMEOUT)
-        except Exception as exc:
-            logger.exception("Job %s failed with unexpected error", job.id)
-            job.set_exception(exc, status=JobStatus.FAILED)
-        else:
-            job.set_result(result, status=JobStatus.SUCCESS)
-        finally:
-            job._event.set()
 
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
@@ -262,3 +260,25 @@ class ScheduleBuilder(Generic[ReturnT]):
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,
         )
+
+    async def _exec_job(self, job: Job[ReturnT]) -> None:
+        job._status = JobStatus.RUNNING
+        job_context = JobContext(
+            job=job,
+            state=self._state,
+            request_state=RequestState(),
+            runnable=self._runnable,
+            route_options=self.route_options,
+            jobber_config=self._jobber_config,
+        )
+        try:
+            result = await self._chain_middleware(job_context)
+        except JobTimeoutError as exc:
+            job.set_exception(exc, status=JobStatus.TIMEOUT)
+        except Exception as exc:
+            logger.exception("Job %s failed with unexpected error", job.id)
+            job.set_exception(exc, status=JobStatus.FAILED)
+        else:
+            job.set_result(result, status=JobStatus.SUCCESS)
+        finally:
+            job._event.set()

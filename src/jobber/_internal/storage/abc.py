@@ -10,11 +10,11 @@ from jobber._internal.common.constants import JobStatus
 class ScheduledJob:
     job_id: str
     route_name: str
-    status: JobStatus
     message: bytes
+    status: JobStatus
 
 
-class ScheduleRepository(Protocol, metaclass=ABCMeta):
+class Storage(Protocol, metaclass=ABCMeta):
     @abstractmethod
     async def all(self) -> Iterable[ScheduledJob]:
         raise NotImplementedError

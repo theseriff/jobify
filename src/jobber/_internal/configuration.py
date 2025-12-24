@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from jobber._internal.common.types import LoopFactory
     from jobber._internal.cron_parser import CronFactory
     from jobber._internal.serializers.base import JobsSerializer
-    from jobber._internal.storage.abc import ScheduleRepository
+    from jobber._internal.storage.abc import Storage
     from jobber._internal.typeadapter.base import Dumper, Loader
 
 
@@ -52,7 +52,7 @@ class JobberConfiguration:
     tz: ZoneInfo
     dumper: Dumper
     loader: Loader
-    durable: ScheduleRepository
+    storage: Storage
     serializer: JobsSerializer
     worker_pools: WorkerPools
     loop_factory: LoopFactory

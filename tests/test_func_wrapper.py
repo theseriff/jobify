@@ -4,6 +4,7 @@ import pytest
 
 from jobber import Jobber
 from jobber._internal.router.base import resolve_name
+from jobber.exceptions import RouteAlreadyRegisteredError
 
 
 def somefunc() -> None:
@@ -48,20 +49,26 @@ def test_patch_job_name() -> None:
     jobber = Jobber()
 
     @jobber.task
-    @jobber.task
     def t() -> None:
         pass
 
-    t1_reg = jobber.task(t)
-    t2_reg = jobber.task(t)
+    match = f"A route with the name {t.name!r} has already been registered."
+    with pytest.raises(RouteAlreadyRegisteredError, match=match):
+        _ = jobber.task(t)
+
+    t1_reg = jobber.task(t, name="test1")
+    t2_reg = jobber.task(t, name="test2")
 
     new_name = "t__jobber_original"
     new_qualname = f"test_patch_job_name.<locals>.{new_name}"
 
+    assert t.func.__name__ == new_name
     assert t.func.__name__ == new_name
     assert t1_reg.func.__name__ == new_name
     assert t2_reg.func.__name__ == new_name
     assert t.func.__qualname__ == new_qualname
     assert t1_reg.func.__qualname__ == new_qualname
     assert t2_reg.func.__qualname__ == new_qualname
-    assert t1_reg is t2_reg is t
+    assert t1_reg is not t
+    assert t2_reg is not t
+    assert t1_reg is not t2_reg

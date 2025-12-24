@@ -13,12 +13,15 @@ from typing import (
     Generic,
     ParamSpec,
     TypeVar,
+    cast,
     overload,
 )
 
 from typing_extensions import Unpack, override
 
+from jobber._internal.common.constants import PATCH_SUFFIX
 from jobber._internal.common.datastructures import State
+from jobber._internal.exceptions import raise_route_already_registered_error
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -89,7 +92,7 @@ async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
 
 
 def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
-    name = func.__name__
+    name = func.__name__.removesuffix(PATCH_SUFFIX)
     fmodule = func.__module__
     if name == "<lambda>":
         name = f"lambda_{uuid.uuid4().hex}"
@@ -167,7 +170,13 @@ class Registrator(ABC, Generic[Route_co]):
         def wrapper(
             func: Callable[ParamsT, Return_co],
         ) -> Route[ParamsT, Return_co]:
+            if isinstance(func, Route):
+                func = cast("Callable[ParamsT, Return_co]", func.func)
+
             name = options.get("name") or resolve_name(func)
+            if name in self._routes:
+                raise_route_already_registered_error(name)
+
             return self.register(name, func, options)
 
         return wrapper
