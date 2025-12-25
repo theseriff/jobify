@@ -10,8 +10,8 @@ import pytest
 from jobber._internal.serializers.json_extended import SupportedTypes
 from jobber.serializers import (
     ExtendedJSONSerializer,
-    JobsSerializer,
     JSONSerializer,
+    Serializer,
     UnsafePickleSerializer,
 )
 
@@ -116,7 +116,7 @@ dataclass_structures = (
     ],
 )
 def test_serialization_extended(
-    serializer: JobsSerializer,
+    serializer: Serializer,
     data: SupportedTypes,
 ) -> None:
     """Tests that all serializers can [de]serialize basic Python types."""
@@ -147,7 +147,7 @@ def test_serialization_extended(
     ],
 )
 def test_serialization_simple(
-    serializer: JobsSerializer,
+    serializer: Serializer,
     data: SupportedTypes,
 ) -> None:
     """Tests that all serializers can [de]serialize basic Python types."""

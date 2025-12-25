@@ -2,9 +2,9 @@ from collections.abc import Callable
 
 import pytest
 
-from jobber import Jobber
 from jobber._internal.router.base import resolve_name
 from jobber.exceptions import RouteAlreadyRegisteredError
+from tests.conftest import create_app
 
 
 def somefunc() -> None:
@@ -33,7 +33,7 @@ def test_create_default_name(func: Callable[..., None]) -> None:
 
 
 async def test_original_func_call() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task
     def t1(num: int) -> int:
@@ -49,7 +49,7 @@ async def test_original_func_call() -> None:
 
 
 def test_patch_job_name() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task
     def t() -> None:

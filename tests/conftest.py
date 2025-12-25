@@ -47,4 +47,4 @@ def create_factory_cron() -> CronFactory:
 
 
 def create_app() -> Jobber:
-    return Jobber(cron_factory=create_factory_cron())
+    return Jobber(cron_factory=create_factory_cron(), storage=False)

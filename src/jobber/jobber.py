@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Literal, TypeVar
+import functools
+from typing import TYPE_CHECKING, Literal, ParamSpec, TypeVar
 from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
@@ -19,7 +20,7 @@ from jobber._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobber.crontab import create_crontab
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from types import TracebackType
 
@@ -27,12 +28,28 @@ if TYPE_CHECKING:
     from jobber._internal.cron_parser import CronFactory
     from jobber._internal.middleware.base import BaseMiddleware
     from jobber._internal.middleware.exceptions import MappingExceptionHandlers
-    from jobber._internal.serializers.base import JobsSerializer
+    from jobber._internal.serializers.base import Serializer
     from jobber._internal.storage.abc import Storage
     from jobber._internal.typeadapter.base import Dumper, Loader
 
 
 AppT = TypeVar("AppT", bound="Jobber")
+ReturnT = TypeVar("ReturnT")
+ParamsT = ParamSpec("ParamsT")
+
+
+def cache_result(f: Callable[ParamsT, ReturnT]) -> Callable[ParamsT, ReturnT]:
+    """Cache the result of the first function call."""
+    result: ReturnT | None = None
+
+    @functools.wraps(f)
+    def wrapper(*args: ParamsT.args, **kwargs: ParamsT.kwargs) -> ReturnT:
+        nonlocal result
+        if result is None:
+            result = f(*args, **kwargs)
+        return result
+
+    return wrapper
 
 
 class Jobber(RootRouter):
@@ -47,23 +64,28 @@ class Jobber(RootRouter):
         self,
         *,
         tz: ZoneInfo | None = None,
-        loop_factory: LoopFactory = lambda: asyncio.get_running_loop(),
-        storage: Storage | Literal[False] | None = None,
-        lifespan: Lifespan[AppT] | None = None,
         dumper: Dumper | None = None,
         loader: Loader | None = None,
-        serializer: JobsSerializer | None = None,
+        storage: Storage | Literal[False] | None = None,
+        lifespan: Lifespan[AppT] | None = None,
+        serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
+        cron_factory: CronFactory | None = None,
+        loop_factory: LoopFactory = lambda: asyncio.get_running_loop(),
         exception_handlers: MappingExceptionHandlers | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
-        cron_factory: CronFactory | None = None,
     ) -> None:
         """Initialize a `Jobber` instance."""
+        getloop = cache_result(loop_factory)
+
         if storage is False:
             storage = DummyStorage()
         elif storage is None:
-            storage = SQLiteStorage()
+            storage = SQLiteStorage(
+                getloop=getloop,
+                threadpool=threadpool_executor,
+            )
 
         if serializer is None:
             serializer = (
@@ -82,12 +104,12 @@ class Jobber(RootRouter):
             dumper=dumper,
             loader=loader,
             storage=storage,
+            getloop=getloop,
             serializer=serializer,
             worker_pools=WorkerPools(
                 _processpool=processpool_executor,
                 threadpool=threadpool_executor,
             ),
-            loop_factory=loop_factory,
             cron_factory=cron_factory or create_crontab,
         )
         super().__init__(
@@ -152,6 +174,7 @@ class Jobber(RootRouter):
 
         """
         self.jobber_config.app_started = True
+        await self.jobber_config.storage.startup()
         await self._propagate_startup(self)
         await self.task.start_pending_crons()
 
@@ -187,6 +210,7 @@ class Jobber(RootRouter):
 
         self.jobber_config.close()
         await self._propagate_shutdown()
+        await self.jobber_config.storage.shutdown()
 
     async def __aenter__(self) -> Self:
         """Enter the Jobber context manager.

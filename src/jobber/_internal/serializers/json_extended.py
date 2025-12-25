@@ -11,7 +11,7 @@ from typing import Any, ClassVar, Protocol, TypeAlias, get_args, get_type_hints
 
 from typing_extensions import TypeIs, override
 
-from jobber._internal.serializers.base import JobsSerializer, JSONCompat
+from jobber._internal.serializers.base import JSONCompat, Serializer
 
 
 class DataclassType(Protocol):
@@ -148,7 +148,7 @@ class JsonDecoderHook:
         return dct
 
 
-class ExtendedJSONSerializer(JobsSerializer):
+class ExtendedJSONSerializer(Serializer):
     def __init__(self, registry: TypeRegistry | None = None) -> None:
         self.registry: TypeRegistry = registry or {}
         self.decoder_hook: JsonDecoderHook = JsonDecoderHook(self.registry)

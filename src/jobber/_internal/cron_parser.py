@@ -3,7 +3,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol, TypeAlias, runtime_checkable
 
-CronFactory: TypeAlias = Callable[[str], "CronParser"]
+Expression: TypeAlias = str
+CronFactory: TypeAlias = Callable[[Expression], "CronParser"]
 
 
 @runtime_checkable

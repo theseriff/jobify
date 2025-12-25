@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from jobber import Jobber
 from jobber._internal.common.constants import JobStatus
 from jobber._internal.exceptions import DuplicateJobError
+from tests.conftest import create_app
 
 
 async def test_job() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task(name="t")
     def t(num: int) -> int:
@@ -32,7 +32,7 @@ async def test_job() -> None:
 
 
 async def test_all_jobs_completed(amock: AsyncMock) -> None:
-    app = Jobber()
+    app = create_app()
     f = app.task(amock)
 
     async with app:
@@ -58,7 +58,7 @@ async def test_all_jobs_completed(amock: AsyncMock) -> None:
 
 
 async def test_duplicate_job_error(amock: AsyncMock) -> None:
-    app = Jobber()
+    app = create_app()
     f = app.task(amock)
     async with app:
         _ = await f.schedule().delay(0, job_id="test")

@@ -4,16 +4,16 @@ from unittest.mock import Mock
 
 import pytest
 
-from jobber import Jobber
 from jobber._internal.exceptions import (
     ApplicationStateError,
     JobNotCompletedError,
     JobTimeoutError,
 )
+from tests.conftest import create_app
 
 
 async def test_jobber_runtime_error() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task
     def f() -> None: ...
@@ -38,7 +38,7 @@ async def test_jobber_runtime_error() -> None:
 
 
 async def test_job_not_completed() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task(name="f1")
     def f1(num: int) -> int:
@@ -57,7 +57,7 @@ async def test_job_not_completed() -> None:
 
 async def test_job_timeout() -> None:
     timeout = 0.005
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task(timeout=timeout)
     async def f1() -> None:

@@ -116,15 +116,15 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         cron_ctx = CronContext(job=job, cron=cron, cron_parser=cron_parser)
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
-        loop = self._jobber_config.loop
+        loop = self._jobber_config.getloop()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._pre_exec_cron, cron_ctx)
         job._handler = time_handler
         self._shared_state.pending_jobs[job.id] = job
 
         message = Message(
-            route_name=self.route_name,
             job_id=job_id,
+            route_name=self.route_name,
             arguments=self._runnable.bound.arguments,
             cron={"cron": cron, "job_id": job_id, "now": now},
         )
@@ -179,7 +179,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             pending_jobs=self._shared_state.pending_jobs,
             storage=self._jobber_config.storage,
         )
-        loop = self._jobber_config.loop
+        loop = self._jobber_config.getloop()
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         if delay_seconds <= 0:
             handler = loop.call_soon(self._pre_exec_at, job)
@@ -189,6 +189,22 @@ class ScheduleBuilder(Generic[ReturnT]):
 
         job._handler = handler
         self._shared_state.pending_jobs[job.id] = job
+
+        message = Message(
+            job_id=job_id,
+            route_name=self.route_name,
+            arguments=self._runnable.bound.arguments,
+            at={"at": at, "job_id": job_id, "now": now},
+        )
+        formatted = self._jobber_config.dumper.dump(message, Message)
+        raw_message = self._jobber_config.serializer.dumpb(formatted)
+        scheduled_job = ScheduledJob(
+            job_id=job_id,
+            route_name=self.route_name,
+            message=raw_message,
+            status=job.status,
+        )
+        await self._jobber_config.storage.add_schedule(scheduled_job)
         return job
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
@@ -236,7 +252,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         now = self._now()
         next_at = ctx.cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
-        loop = self._jobber_config.loop
+        loop = self._jobber_config.getloop()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._pre_exec_cron, ctx)
         job = ctx.job

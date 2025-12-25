@@ -2,10 +2,10 @@ import json
 
 from typing_extensions import override
 
-from jobber._internal.serializers.base import JobsSerializer, JSONCompat
+from jobber._internal.serializers.base import JSONCompat, Serializer
 
 
-class JSONSerializer(JobsSerializer):
+class JSONSerializer(Serializer):
     @override
     def dumpb(self, data: JSONCompat) -> bytes:
         return json.dumps(data).encode("utf-8")

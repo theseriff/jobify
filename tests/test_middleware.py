@@ -5,8 +5,9 @@ from unittest.mock import call
 
 from typing_extensions import override
 
-from jobber import Jobber, JobContext, JobStatus
+from jobber import JobContext, JobStatus
 from jobber.middleware import BaseMiddleware, CallNext
+from tests.conftest import create_app
 
 
 class MyMiddleware(BaseMiddleware):
@@ -22,7 +23,7 @@ class MyMiddleware(BaseMiddleware):
 
 
 async def test_common_case(amock: mock.AsyncMock) -> None:
-    jobber = Jobber()
+    jobber = create_app()
     jobber.add_middleware(MyMiddleware())
     f = jobber.task(amock)
 
@@ -39,7 +40,7 @@ async def test_common_case(amock: mock.AsyncMock) -> None:
 
 
 async def test_exception() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task
     async def f1() -> None:
@@ -73,7 +74,7 @@ async def test_retry(
     amock.side_effect = ValueError
 
     retry = 3
-    jobber = Jobber()
+    jobber = create_app()
     f = jobber.task(amock, retry=retry)
     async with jobber:
         job = await f.schedule().delay(0)

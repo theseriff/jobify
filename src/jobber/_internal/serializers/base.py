@@ -14,7 +14,7 @@ JSONCompat: TypeAlias = (
 )
 
 
-class JobsSerializer(Protocol, metaclass=ABCMeta):
+class Serializer(Protocol, metaclass=ABCMeta):
     @abstractmethod
     def dumpb(self, data: Any) -> bytes:  # noqa: ANN401
         raise NotImplementedError

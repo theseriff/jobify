@@ -17,7 +17,7 @@ async def test_lifespan_with_state() -> None:
         async with client:
             yield {"client": client}
 
-    jobber = Jobber(lifespan=lifespan)
+    jobber = Jobber(lifespan=lifespan, storage=False)
 
     assert not hasattr(jobber.state, "client")
 

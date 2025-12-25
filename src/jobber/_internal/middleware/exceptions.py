@@ -44,7 +44,7 @@ class ExceptionMiddleware(BaseMiddleware):
                 if asyncio.iscoroutinefunction(handler):
                     await handler(exc, context)
                 else:
-                    loop = self.jobber_config.loop
+                    loop = self.jobber_config.getloop()
                     thread = self.jobber_config.worker_pools.threadpool
                     await loop.run_in_executor(thread, handler, exc, context)  # pyright: ignore[reportUnusedCallResult]
             raise

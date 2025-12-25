@@ -5,6 +5,14 @@ from jobber._internal.storage.abc import ScheduledJob, Storage
 
 class DummyStorage(Storage):
     @override
+    async def startup(self) -> None:
+        pass
+
+    @override
+    async def shutdown(self) -> None:
+        pass
+
+    @override
     async def get_schedules(self) -> list[ScheduledJob]:
         return []
 

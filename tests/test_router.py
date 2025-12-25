@@ -1,7 +1,8 @@
 import pytest
 
-from jobber import Jobber, JobRouter
+from jobber import JobRouter
 from jobber._internal.router.base import resolve_name
+from tests.conftest import create_app
 
 
 def test_nested_prefix() -> None:
@@ -19,7 +20,7 @@ def test_nested_prefix() -> None:
     router2.include_router(router3)
     router3.include_router(router4)
 
-    app = Jobber()
+    app = create_app()
     app.include_router(router1)
 
     assert repr(router1) == "<NodeRouter>"
@@ -44,7 +45,7 @@ def test_nested_name() -> None:
 
     router1.include_router(router2)
 
-    app = Jobber()
+    app = create_app()
     app.include_router(router1)
     app.include_router(router3)
 
@@ -68,7 +69,7 @@ async def test_router_include() -> None:
     with pytest.raises(RuntimeError, match=match):
         _ = f.schedule()
 
-    app = Jobber()
+    app = create_app()
     app.include_router(router1)
 
     async with app:
@@ -80,7 +81,7 @@ async def test_router_include() -> None:
 
 def test_router_wrong_usage() -> None:
     router = JobRouter()
-    app = Jobber()
+    app = create_app()
     app.include_router(router)
 
     with pytest.raises(

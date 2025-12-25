@@ -5,17 +5,16 @@ from typing import Any, TypedDict
 from jobber._internal.configuration import Cron
 
 
-class CommonArguments(TypedDict):
-    now: datetime
-    job_id: str
-
-
-class CronArguments(CommonArguments):
+class CronArguments(TypedDict):
     cron: Cron
+    job_id: str
+    now: datetime
 
 
-class AtArguments(CommonArguments):
+class AtArguments(TypedDict):
     at: datetime
+    job_id: str
+    now: datetime
 
 
 @dataclass(slots=True, kw_only=True)

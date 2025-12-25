@@ -58,17 +58,17 @@ class AsyncStrategy(RunStrategy[ParamsT, ReturnT]):
 
 
 class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
-    __slots__: tuple[str, ...] = ("executor", "loop_factory")
+    __slots__: tuple[str, ...] = ("executor", "getloop")
 
     def __init__(
         self,
         func: Callable[ParamsT, ReturnT],
         executor: Executor | None,
-        loop_factory: LoopFactory,
+        getloop: LoopFactory,
     ) -> None:
         super().__init__(func)
         self.executor: Executor | None = executor
-        self.loop_factory: LoopFactory = loop_factory
+        self.getloop: LoopFactory = getloop
 
     @override
     async def __call__(
@@ -77,8 +77,7 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
         **kwargs: ParamsT.kwargs,
     ) -> ReturnT:
         func_call = functools.partial(self.func, *args, **kwargs)
-        loop = self.loop_factory()
-        return await loop.run_in_executor(self.executor, func_call)
+        return await self.getloop().run_in_executor(self.executor, func_call)
 
 
 class Runnable(Generic[ReturnT]):
@@ -127,9 +126,9 @@ def create_run_strategy(
     match mode:
         case RunMode.PROCESS:
             processpool = jobber_config.worker_pools.processpool
-            return PoolStrategy(func, processpool, lambda: jobber_config.loop)
+            return PoolStrategy(func, processpool, jobber_config.getloop)
         case RunMode.THREAD:
             threadpool = jobber_config.worker_pools.threadpool
-            return PoolStrategy(func, threadpool, lambda: jobber_config.loop)
+            return PoolStrategy(func, threadpool, jobber_config.getloop)
         case _:
             return SyncStrategy(func)

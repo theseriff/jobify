@@ -12,6 +12,7 @@ from jobber._internal.injection import inject_context
 from jobber._internal.runner.runners import Runnable, create_run_strategy
 from jobber.exceptions import JobFailedError
 from jobber.middleware import BaseMiddleware, CallNext
+from tests.conftest import create_app
 
 
 class _MyMiddleware(BaseMiddleware):
@@ -22,7 +23,8 @@ class _MyMiddleware(BaseMiddleware):
 
 
 async def test_injection() -> None:
-    jobber = Jobber(middleware=[_MyMiddleware()])
+    jobber = create_app()
+    jobber.add_middleware(_MyMiddleware())
 
     job_id: str | None = None
     request_test_num: int | None = None
@@ -56,7 +58,7 @@ async def test_injection() -> None:
 
 
 async def test_injection_wrong_usage() -> None:
-    jobber = Jobber()
+    jobber = create_app()
 
     @jobber.task
     @no_type_check

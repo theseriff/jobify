@@ -6,10 +6,10 @@ from typing import Any
 
 from typing_extensions import override
 
-from jobber._internal.serializers.base import JobsSerializer
+from jobber._internal.serializers.base import Serializer
 
 
-class UnsafePickleSerializer(JobsSerializer):
+class UnsafePickleSerializer(Serializer):
     @override
     def dumpb(self, data: Any) -> bytes:
         # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
