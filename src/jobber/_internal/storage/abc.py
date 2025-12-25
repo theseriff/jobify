@@ -1,13 +1,11 @@
 from abc import ABCMeta, abstractmethod
 from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 from jobber._internal.common.constants import JobStatus
 
 
-@dataclass(slots=True, kw_only=True)
-class ScheduledJob:
+class ScheduledJob(NamedTuple):
     job_id: str
     route_name: str
     message: bytes

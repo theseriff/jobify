@@ -64,13 +64,13 @@ class SQLiteStorage(Storage):
             CREATE_SCHEDULED_TABLE_QUERY.format(table_name)
         )
         self.select_schedules_query: str = SELECT_SCHEDULES_QUERY.format(
-            table_name
+            table_name,
         )
         self.insert_schedule_query: str = INSERT_SCHEDULE_QUERY.format(
-            table_name
+            table_name,
         )
         self.delete_schedule_query: str = DELETE_SCHEDULE_QUERY.format(
-            table_name
+            table_name,
         )
 
     async def _to_thread(
@@ -100,15 +100,7 @@ class SQLiteStorage(Storage):
         def stmt() -> list[ScheduledJob]:
             with sqlite3.connect(self.db_name, timeout=self.timeout) as conn:
                 cursor = conn.execute(self.select_schedules_query)
-                return [
-                    ScheduledJob(
-                        job_id=row[0],
-                        route_name=row[1],
-                        message=row[2],
-                        status=row[3],
-                    )
-                    for row in cursor.fetchall()
-                ]
+                return [ScheduledJob(*row) for row in cursor.fetchall()]
 
         return await self._to_thread(stmt)
 
@@ -116,15 +108,7 @@ class SQLiteStorage(Storage):
     async def add_schedule(self, scheduled: ScheduledJob) -> None:
         def stmt() -> None:
             with sqlite3.connect(self.db_name, timeout=self.timeout) as conn:
-                _ = conn.execute(
-                    self.insert_schedule_query,
-                    (
-                        scheduled.job_id,
-                        scheduled.route_name,
-                        scheduled.message,
-                        scheduled.status,
-                    ),
-                )
+                _ = conn.execute(self.insert_schedule_query, scheduled)
                 conn.commit()
 
         return await self._to_thread(stmt)

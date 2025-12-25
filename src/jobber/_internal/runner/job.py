@@ -20,7 +20,7 @@ ReturnT = TypeVar("ReturnT")
 class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_event",
-        "_handler",
+        "_handle",
         "_pending_jobs",
         "_result",
         "_status",
@@ -46,7 +46,7 @@ class Job(Generic[ReturnT]):
         self._result: ReturnT = EMPTY
         self._status = job_status
         self._storage = storage
-        self._handler: asyncio.Handle = EMPTY
+        self._handle: asyncio.Handle = EMPTY
         self.id = job_id
         self.exception: Exception | None = None
         self.cron_expression = cron_expression
@@ -63,6 +63,9 @@ class Job(Generic[ReturnT]):
             f"instance_id={id(self)}, "
             f"exec_at={self.exec_at.isoformat()}"
         )
+
+    def bind_handle(self, handle: asyncio.Handle) -> None:
+        self._handle = handle
 
     def result(self) -> ReturnT:
         if self.status is JobStatus.SUCCESS or self._result is not EMPTY:
@@ -91,7 +94,7 @@ class Job(Generic[ReturnT]):
     ) -> None:
         self._status = job_status
         self._event = asyncio.Event()
-        self._handler = time_handler
+        self._handle = time_handler
         self.exec_at = exec_at
 
     def is_done(self) -> bool:
@@ -112,11 +115,11 @@ class Job(Generic[ReturnT]):
         _ = await self._event.wait()
 
     async def cancel(self) -> None:
-        await self._storage.delete_schedule(self.id)
         self._status = JobStatus.CANCELLED
         self._cancel()
+        await self._storage.delete_schedule(self.id)
 
     def _cancel(self) -> None:
         _ = self._pending_jobs.pop(self.id, None)
-        self._handler.cancel()
+        self._handle.cancel()
         self._event.set()
