@@ -59,7 +59,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         "_runnable",
         "_shared_state",
         "_state",
-        "route_name",
+        "func_name",
         "route_options",
     )
 
@@ -71,7 +71,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         jobber_config: JobberConfiguration,
         runnable: Runnable[ReturnT],
         chain_middleware: CallNext,
-        route_name: str,
+        func_name: str,
         options: RouteOptions,
     ) -> None:
         self._state: State = state
@@ -79,7 +79,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self._jobber_config: JobberConfiguration = jobber_config
         self._runnable: Runnable[ReturnT] = runnable
         self._chain_middleware: CallNext = chain_middleware
-        self.route_name: str = route_name
+        self.func_name: str = func_name
         self.route_options: RouteOptions = options
 
     def _now(self) -> datetime:
@@ -132,7 +132,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         if self._should_persist():
             message = Message(
                 job_id=job_id,
-                route_name=self.route_name,
+                func_name=self.func_name,
                 arguments=self._runnable.bound.arguments,
                 cron={"cron": cron, "job_id": job_id, "now": now},
             )
@@ -185,23 +185,22 @@ class ScheduleBuilder(Generic[ReturnT]):
         loop = self._jobber_config.getloop()
         delay_seconds = self._calculate_delay_seconds(now=now, at=at)
         if delay_seconds <= 0:
-            handle = loop.call_soon(self._pre_exec_at_without_persist, job)
+            handle = loop.call_soon(self._pre_exec_at, job)
             job.bind_handle(handle)
             return job
 
         when = loop.time() + delay_seconds
         if self._should_persist():
-            handle = loop.call_at(when, self._pre_exec_at, job)
+            handle = loop.call_at(when, self._pre_exec_at_with_persist, job)
             message = Message(
                 job_id=job_id,
-                route_name=self.route_name,
+                func_name=self.func_name,
                 arguments=self._runnable.bound.arguments,
                 at={"at": at, "job_id": job_id, "now": now},
             )
             await self._save_scheduled(message, job.status)
-
         else:
-            handle = loop.call_at(when, self._pre_exec_at_without_persist, job)
+            handle = loop.call_at(when, self._pre_exec_at, job)
 
         job.bind_handle(handle)
         return job
@@ -211,20 +210,11 @@ class ScheduleBuilder(Generic[ReturnT]):
         raw_message = self._jobber_config.serializer.dumpb(formatted)
         scheduled_job = ScheduledJob(
             job_id=msg.job_id,
-            route_name=self.route_name,
+            func_name=self.func_name,
             message=raw_message,
             status=status,
         )
         await self._jobber_config.storage.add_schedule(scheduled_job)
-
-    def _pre_exec_at_without_persist(self, job: Job[ReturnT]) -> None:
-        task = asyncio.create_task(self._exec_at(job), name=job.id)
-        self._shared_state.pending_tasks.add(task)
-        task.add_done_callback(self._shared_state.pending_tasks.discard)
-
-    async def _exec_at_without_persist(self, job: Job[ReturnT]) -> None:
-        await self._exec_job(job)
-        _ = self._shared_state.pending_jobs.pop(job.id, None)
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)
@@ -234,8 +224,21 @@ class ScheduleBuilder(Generic[ReturnT]):
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
         _ = self._shared_state.pending_jobs.pop(job.id, None)
-        if self._should_persist():
-            await self._jobber_config.storage.delete_schedule(job_id=job.id)
+        job._event.set()
+
+    def _pre_exec_at_with_persist(self, job: Job[ReturnT]) -> None:
+        task = asyncio.create_task(
+            self._exec_at_with_persist(job),
+            name=job.id,
+        )
+        self._shared_state.pending_tasks.add(task)
+        task.add_done_callback(self._shared_state.pending_tasks.discard)
+
+    async def _exec_at_with_persist(self, job: Job[ReturnT]) -> None:
+        await self._exec_job(job)
+        _ = self._shared_state.pending_jobs.pop(job.id, None)
+        await self._jobber_config.storage.delete_schedule(job.id)
+        job._event.set()
 
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
@@ -249,6 +252,8 @@ class ScheduleBuilder(Generic[ReturnT]):
             ctx.failure_count = 0
         else:
             ctx.failure_count += 1
+
+        job._event.set()
         if (
             job.is_reschedulable()
             and ctx.is_run_allowed_by_limit()
@@ -301,5 +306,3 @@ class ScheduleBuilder(Generic[ReturnT]):
             job.set_exception(exc, status=JobStatus.FAILED)
         else:
             job.set_result(result, status=JobStatus.SUCCESS)
-        finally:
-            job._event.set()

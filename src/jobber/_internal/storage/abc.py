@@ -7,7 +7,7 @@ from jobber._internal.common.constants import JobStatus
 
 class ScheduledJob(NamedTuple):
     job_id: str
-    route_name: str
+    func_name: str
     message: bytes
     status: JobStatus
 

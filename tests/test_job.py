@@ -11,7 +11,7 @@ from tests.conftest import create_app
 async def test_job() -> None:
     jobber = create_app()
 
-    @jobber.task(name="t")
+    @jobber.task(func_name="t")
     def t(num: int) -> int:
         return num + 1
 

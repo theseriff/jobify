@@ -19,8 +19,8 @@ class AtArguments(TypedDict):
 
 @dataclass(slots=True, kw_only=True)
 class Message:
-    route_name: str
     job_id: str
+    func_name: str
     arguments: dict[str, Any]
     cron: CronArguments | None = None
     at: AtArguments | None = None

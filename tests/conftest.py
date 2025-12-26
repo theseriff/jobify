@@ -30,7 +30,7 @@ def amock() -> AsyncMock:
     return mock
 
 
-def create_factory_cron() -> CronFactory:
+def create_cron_factory() -> CronFactory:
     def scope() -> Callable[[datetime], datetime]:
         ms = 0
 
@@ -47,4 +47,4 @@ def create_factory_cron() -> CronFactory:
 
 
 def create_app() -> Jobber:
-    return Jobber(cron_factory=create_factory_cron(), storage=False)
+    return Jobber(cron_factory=create_cron_factory(), storage=False)

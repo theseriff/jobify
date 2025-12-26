@@ -58,9 +58,6 @@ class JobberConfiguration:
     cron_factory: CronFactory
     app_started: bool = False
 
-    def close(self) -> None:
-        self.worker_pools.close()
-
 
 @dataclass(slots=True, kw_only=True, frozen=True)
 class Cron:
@@ -78,7 +75,7 @@ class Cron:
 
 
 class RouteOptions(TypedDict):
-    name: NotRequired[str]
+    func_name: NotRequired[str]
     cron: NotRequired[Cron | str]
     retry: NotRequired[int]
     timeout: NotRequired[float]

@@ -1,18 +1,22 @@
-import functools
 import sqlite3
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from typing import ParamSpec, TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, TypeVar
 
 from typing_extensions import override
 
-from jobber._internal.common.types import LoopFactory
+from jobber._internal.common.constants import EMPTY
 from jobber._internal.storage.abc import ScheduledJob, Storage
+
+if TYPE_CHECKING:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from jobber._internal.common.types import LoopFactory
 
 CREATE_SCHEDULED_TABLE_QUERY = """
 CREATE TABLE IF NOT EXISTS {} (
     job_id TEXT PRIMARY KEY,
-    route_name TEXT,
+    func_name TEXT,
     message BLOB,
     status TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -21,15 +25,15 @@ CREATE TABLE IF NOT EXISTS {} (
 """
 
 SELECT_SCHEDULES_QUERY = """
-SELECT job_id, route_name, message, status
+SELECT job_id, func_name, message, status
 FROM {};
 """
 
 INSERT_SCHEDULE_QUERY = """
-INSERT INTO {} (job_id, route_name, message, status)
+INSERT INTO {} (job_id, func_name, message, status)
 VALUES (?, ?, ?, ?)
 ON CONFLICT (job_id) DO UPDATE SET
-    route_name = EXCLUDED.route_name,
+    func_name = EXCLUDED.func_name,
     message = EXCLUDED.message,
     status = EXCLUDED.status,
     updated_at = CURRENT_TIMESTAMP;
@@ -41,24 +45,24 @@ DELETE FROM {} WHERE job_id = ?;
 
 
 ReturnT = TypeVar("ReturnT")
-ParamsT = ParamSpec("ParamsT")
 
 
 class SQLiteStorage(Storage):
     def __init__(
         self,
         *,
-        db_name: str = "jobber.db",
+        db_path: str | Path = "jobber.db",
         table_name: str = "jobber_schedules",
         timeout: float = 20.0,
-        getloop: LoopFactory,
-        threadpool: ThreadPoolExecutor | None,
     ) -> None:
-        self.db_name: str = db_name
+        self.db_path: Path = (
+            Path(db_path) if isinstance(db_path, str) else db_path
+        )
         self.table_name: str = table_name
         self.timeout: float = timeout
-        self.getloop: LoopFactory = getloop
-        self.threadpool: ThreadPoolExecutor | None = threadpool
+        self.getloop: LoopFactory = EMPTY
+        self.threadpool: ThreadPoolExecutor | None = EMPTY
+        self._conn: sqlite3.Connection | None = None
 
         self.create_scheduled_table_query: str = (
             CREATE_SCHEDULED_TABLE_QUERY.format(table_name)
@@ -73,51 +77,72 @@ class SQLiteStorage(Storage):
             table_name,
         )
 
-    async def _to_thread(
-        self,
-        func: Callable[ParamsT, ReturnT],
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> ReturnT:
+    @property
+    def conn(self) -> sqlite3.Connection:
+        if self._conn is None:
+            msg = "Database not initialized. Call startup() first."
+            raise RuntimeError(msg)
+        return self._conn
+
+    async def _to_thread(self, func: Callable[[], ReturnT]) -> ReturnT:
         loop = self.getloop()
-        func_call = functools.partial(func, *args, **kwargs)
-        return await loop.run_in_executor(self.threadpool, func_call)
+        return await loop.run_in_executor(self.threadpool, func)
 
     @override
     async def startup(self) -> None:
-        with sqlite3.connect(self.db_name) as conn:
-            _ = conn.execute("PRAGMA journal_mode=WAL;")
-            _ = conn.execute("PRAGMA synchronous=NORMAL;")
-            _ = conn.execute(self.create_scheduled_table_query)
-            conn.commit()
+        conn = sqlite3.connect(
+            database=self.db_path,
+            timeout=self.timeout,
+            check_same_thread=False,
+        )
+        _ = conn.execute("PRAGMA journal_mode=WAL;")
+        _ = conn.execute("PRAGMA synchronous=NORMAL;")
+        _ = conn.execute(self.create_scheduled_table_query)
+        conn.commit()
+        self._conn = conn
 
     @override
     async def shutdown(self) -> None:
-        pass
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     @override
     async def get_schedules(self) -> list[ScheduledJob]:
-        def stmt() -> list[ScheduledJob]:
-            with sqlite3.connect(self.db_name, timeout=self.timeout) as conn:
-                cursor = conn.execute(self.select_schedules_query)
-                return [ScheduledJob(*row) for row in cursor.fetchall()]
+        def get() -> list[ScheduledJob]:
+            cursor = self.conn.execute(self.select_schedules_query)
+            return [
+                ScheduledJob(
+                    job_id=row[0],
+                    func_name=row[1],
+                    message=row[2],
+                    status=row[3],
+                )
+                for row in cursor.fetchall()
+            ]
 
-        return await self._to_thread(stmt)
+        return await self._to_thread(get)
 
     @override
     async def add_schedule(self, scheduled: ScheduledJob) -> None:
-        def stmt() -> None:
-            with sqlite3.connect(self.db_name, timeout=self.timeout) as conn:
-                _ = conn.execute(self.insert_schedule_query, scheduled)
-                conn.commit()
+        def insert() -> None:
+            with self.conn as conn:
+                _ = conn.execute(
+                    self.insert_schedule_query,
+                    (
+                        scheduled.job_id,
+                        scheduled.func_name,
+                        scheduled.message,
+                        scheduled.status,
+                    ),
+                )
 
-        return await self._to_thread(stmt)
+        return await self._to_thread(insert)
 
     @override
     async def delete_schedule(self, job_id: str) -> None:
-        def stmt() -> None:
-            with sqlite3.connect(self.db_name, timeout=self.timeout) as conn:
+        def delete() -> None:
+            with self.conn as conn:
                 _ = conn.execute(self.delete_schedule_query, (job_id,))
-                conn.commit()
 
-        return await self._to_thread(stmt)
+        return await self._to_thread(delete)

@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from typing_extensions import Self
 
 from jobber._internal.configuration import JobberConfiguration, WorkerPools
+from jobber._internal.message import Message
 from jobber._internal.router.root import RootRouter
 from jobber._internal.serializers.json import JSONSerializer
 from jobber._internal.serializers.json_extended import ExtendedJSONSerializer
@@ -82,14 +83,15 @@ class Jobber(RootRouter):
         if storage is False:
             storage = DummyStorage()
         elif storage is None:
-            storage = SQLiteStorage(
-                getloop=getloop,
-                threadpool=threadpool_executor,
-            )
+            storage = SQLiteStorage()
+
+        if isinstance(storage, SQLiteStorage):
+            storage.getloop = getloop
+            storage.threadpool = threadpool_executor
 
         if serializer is None:
             serializer = (
-                ExtendedJSONSerializer()
+                ExtendedJSONSerializer({"Message": Message})
                 if dumper is None and loader is None
                 else JSONSerializer()
             )
@@ -99,7 +101,7 @@ class Jobber(RootRouter):
         if loader is None:
             loader = DummyLoader()
 
-        self.jobber_config: JobberConfiguration = JobberConfiguration(
+        self.configs: JobberConfiguration = JobberConfiguration(
             tz=tz or ZoneInfo("UTC"),
             dumper=dumper,
             loader=loader,
@@ -116,7 +118,7 @@ class Jobber(RootRouter):
             lifespan=lifespan,
             middleware=middleware,
             shared_state=SharedState(),
-            jobber_config=self.jobber_config,
+            jobber_config=self.configs,
             exception_handlers=exception_handlers,
         )
 
@@ -173,8 +175,8 @@ class Jobber(RootRouter):
             issues or router initialization errors.
 
         """
-        self.jobber_config.app_started = True
-        await self.jobber_config.storage.startup()
+        self.configs.app_started = True
+        await self.configs.storage.startup()
         await self._propagate_startup(self)
         await self.task.start_pending_crons()
 
@@ -196,7 +198,7 @@ class Jobber(RootRouter):
             tasks to prevent shutdown from being interrupted by task exception.
 
         """
-        self.jobber_config.app_started = False
+        self.configs.app_started = False
 
         if tasks := self.task._shared_state.pending_tasks:
             for task in tuple(tasks):
@@ -208,9 +210,9 @@ class Jobber(RootRouter):
             for job in jobs:
                 job._cancel()
 
-        self.jobber_config.close()
+        self.configs.worker_pools.close()
         await self._propagate_shutdown()
-        await self.jobber_config.storage.shutdown()
+        await self.configs.storage.shutdown()
 
     async def __aenter__(self) -> Self:
         """Enter the Jobber context manager.

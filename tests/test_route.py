@@ -59,8 +59,8 @@ def test_patch_job_name() -> None:
     with pytest.raises(RouteAlreadyRegisteredError, match=match):
         _ = jobber.task(t)
 
-    t1_reg = jobber.task(t, name="test1")
-    t2_reg = jobber.task(t, name="test2")
+    t1_reg = jobber.task(t, func_name="test1")
+    t2_reg = jobber.task(t, func_name="test2")
 
     new_name = "t__jobber_original"
     new_qualname = f"test_patch_job_name.<locals>.{new_name}"

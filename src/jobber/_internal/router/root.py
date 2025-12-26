@@ -126,7 +126,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
-            route_name=self.name,
+            func_name=self.name,
             shared_state=self._shared_state,
             jobber_config=self.jobber_config,
             chain_middleware=self._chain_middleware,
