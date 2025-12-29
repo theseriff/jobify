@@ -208,7 +208,10 @@ skip = "*.pyi,*.pyc,./site"
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 commit_parser = "conventional"
-build_command = "uv build"
+build_command = "uv lock --upgrade-package jobber && uv build"
+tag_format = "v{version}"
+major_on_zero = false
+allow_zero_version = true
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
@@ -231,3 +234,7 @@ exclude_commit_patterns = [
     '''build\((?!deps\): .+)''',
     '''Initial [Cc]ommit.*''', # codespell:ignore ommit
 ]
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
+upload_to_vcs_release = true

@@ -1,4 +1,4 @@
 rules:
   template-injection:
     ignore:
-      - publish_pypi.yml:46
+      - publish_pypi.yml:45

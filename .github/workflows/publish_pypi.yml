@@ -33,7 +33,6 @@ jobs:
         id: update-version
         run: |
           semantic-release version --no-commit
-          uv lock
           echo "VERSION=$(semantic-release version --print)" >> $GITHUB_ENV
       - name: Push uv.lock and pyproject.toml with new version
         run: |
