@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
@@ -25,26 +27,26 @@ jobs:
         with:
           version: "latest"
           enable-cache: false
-      - name: Install python-semantic-release
-        run: uv pip install python-semantic-release
-      - name: Update version
+
+      - name: Semantic Release (Version, Tag, Build, Push)
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        id: update-version
         run: |
-          semantic-release version --no-commit
-          echo "VERSION=$(semantic-release version --print)" >> $GITHUB_ENV
-      - name: Push uv.lock and pyproject.toml with new version
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add uv.lock pyproject.toml
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "chore(release): release v${{ env.VERSION }}"
-            git push
-            git push --tags
-          fi
+          uvx semantic-release publish --no-dist-push
+
       - name: Publish to pypi
-        run: uv publish --trusted-publishing always
+        run: |
+          if [ -d "dist" ]; then
+            uv publish --trusted-publishing always
+          else
+            echo "No distribution found, skipping publish."
+          fi
+
+  update-docs:
+      needs: version_and_pypi
+      uses: ./.github/workflows/docs.yml
+      permissions:
+        contents: read
+        pages: write
+        id-token: write

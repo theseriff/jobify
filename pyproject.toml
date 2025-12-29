@@ -8,7 +8,7 @@ module-root = "src"
 [project]
 name = "jobber"
 version = "0.1.0"
-description = "This is a modern, light and strong task manager with an easy-to-use interface. It uses the low-level asyncio API."
+description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10,<5"
 readme = "README.md"
 license = { text = "MIT" }
@@ -88,11 +88,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Maclovi/jobber"
-Repository = "https://github.com/Maclovi/jobber"
-Documentation = "https://github.com/Maclovi/jobber/README.md"
-Changelog = "https://github.com/Maclovi/jobber/blob/main/docs/CHANGELOG.md"
-Issues = "https://github.com/Maclovi/jobber/issues"
+Homepage = "https://github.com/theseriff/jobber"
+Repository = "https://github.com/theseriff/jobber"
+Documentation = "https://github.com/theseriff/jobber/README.md"
+Changelog = "https://github.com/theseriff/jobber/blob/main/docs/CHANGELOG.md"
+Issues = "https://github.com/theseriff/jobber/issues"
 
 # Tests
 [tool.pytest.ini_options]
@@ -223,7 +223,11 @@ skip = "*.pyi,*.pyc,./site"
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 commit_parser = "conventional"
-build_command = "uv lock --upgrade-package jobber && uv build"
+build_command = """
+    uv lock --upgrade-package jobber
+    git add uv.lock
+    uv build
+"""
 tag_format = "v{version}"
 major_on_zero = false
 allow_zero_version = true
