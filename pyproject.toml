@@ -231,6 +231,8 @@ build_command = """
 tag_format = "v{version}"
 major_on_zero = false
 allow_zero_version = true
+upload_to_repository = false
+upload_to_vcs_release = true
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]

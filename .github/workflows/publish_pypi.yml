@@ -33,7 +33,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          uvx --from python-semantic-release semantic-release publish --no-dist-push
+          uvx --from python-semantic-release semantic-release version
 
       - name: Publish to pypi
         run: |
