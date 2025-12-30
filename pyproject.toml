@@ -241,7 +241,7 @@ parse_squash_commits = true
 ignore_merge_commits = true
 
 [tool.semantic_release.changelog.default_templates]
-changelog_file = "docs/src/CHANGELOG.md"
+changelog_file = "docs/CHANGELOG.md"
 output_format = "md"
 
 [tool.semantic_release.changelog]
