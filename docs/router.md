@@ -72,6 +72,7 @@ def generate_weekly_report() -> None: ...
 ```
 
 If you include this router in your app, the tasks will have the following names:
+
 - `reports:generate_daily_report`
 - `reports:weekly`
 
