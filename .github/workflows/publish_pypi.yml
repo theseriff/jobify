@@ -29,9 +29,12 @@ jobs:
           version: "latest"
           enable-cache: false
 
-      - name: Force SSH for Git
+      - name: Force Git to use SSH
         run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin git@github.com:${{ github.repository }}.git
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
 
       - name: Semantic Release (Version, Tag, Build, Push)
         id: release
