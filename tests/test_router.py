@@ -1,7 +1,7 @@
 import pytest
 
-from jobber import JobRouter
-from jobber._internal.router.base import resolve_name
+from jobify import JobRouter
+from jobify._internal.router.base import resolve_name
 from tests.conftest import create_app
 
 
@@ -63,7 +63,7 @@ async def test_router_include() -> None:
         return "test"
 
     match = (
-        f"Job {f.name!r} is not attached to any Jobber app."
+        f"Job {f.name!r} is not attached to any Jobify app."
         " Did you forget to call app.include_router()?"
     )
     with pytest.raises(RuntimeError, match=match):

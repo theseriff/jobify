@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from jobber._internal.serializers.json_extended import SupportedTypes
-from jobber.serializers import (
+from jobify._internal.serializers.json_extended import SupportedTypes
+from jobify.serializers import (
     ExtendedJSONSerializer,
     JSONSerializer,
     Serializer,

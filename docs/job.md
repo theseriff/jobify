@@ -9,9 +9,9 @@ You do not create `Job` objects directly.
 ```python
 import asyncio
 
-from jobber import Jobber
+from jobify import Jobify
 
-app = Jobber()
+app = Jobify()
 
 
 @app.task

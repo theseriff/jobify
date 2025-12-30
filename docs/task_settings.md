@@ -3,9 +3,9 @@
 You can also configure individual tasks by passing arguments to the `@app.task` decorator.
 
 ```python
-from jobber import Cron, Jobber, RunMode
+from jobify import Cron, Jobify, RunMode
 
-app = Jobber()
+app = Jobify()
 
 
 @app.task(
@@ -31,7 +31,7 @@ A cron expression is used to schedule a task to be executed repeatedly.
 You can pass either a simple cron expression or an instance of the `Cron` class to have more control over the scheduling of the job.
 
 ```python
-from jobber import Cron
+from jobify import Cron
 
 @app.task(
     cron=Cron("0 18 * * 1-5", max_runs=100, max_failures=5)
@@ -65,7 +65,7 @@ The maximum time allowed for the task to complete before it is stopped and consi
 - **Type**: `bool`
 - **Default**: `True`
 
-If `True`, the job will be stored in a persistent location and will survive a restart of the application. `Durable` jobs are restored when the Jobber app starts up.
+If `True`, the job will be stored in a persistent location and will survive a restart of the application. `Durable` jobs are restored when the Jobify app starts up.
 
 ## `run_mode`
 
@@ -84,4 +84,4 @@ Specifies the mode of execution for the task.
 - **Default**: `None`
 
 A dictionary of key-value pairs that can be used to attach custom metadata to a job.
-This data is not used directly by Jobber, but it can be useful for other parts of your application, such as middleware or debugging tools.
+This data is not used directly by Jobify, but it can be useful for other parts of your application, such as middleware or debugging tools.

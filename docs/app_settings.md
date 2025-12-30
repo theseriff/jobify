@@ -1,6 +1,6 @@
-# Jobber Configuration
+# Jobify Configuration
 
-These arguments are passed to the `Jobber` class instance.
+These arguments are passed to the `Jobify` class instance.
 
 ```python
 import asyncio
@@ -11,18 +11,18 @@ from zoneinfo import ZoneInfo
 
 from adaptix import Retort
 
-from jobber import Jobber
-from jobber.crontab import create_crontab
-from jobber.serializers import JSONSerializer
-from jobber.storage import SQLiteStorage
+from jobify import Jobify
+from jobify.crontab import create_crontab
+from jobify.serializers import JSONSerializer
+from jobify.storage import SQLiteStorage
 
 
 @asynccontextmanager
-async def mylifespan(_: Jobber) -> AsyncIterator[None]:
+async def mylifespan(_: Jobify) -> AsyncIterator[None]:
     yield None
 
 
-app = Jobber(
+app = Jobify(
     tz=ZoneInfo("UTC"),
     dumper=Retort(),
     loader=Retort(),
@@ -65,13 +65,13 @@ By default, they do nothing.
 
 Configures the persistence layer for jobs.
 
-- **`None` (default)**: Uses `SQLiteStorage`, which saves jobs to a local SQLite database file (`jobber.sqlite`). This is the recommended option for single-node storage.
+- **`None` (default)**: Uses `SQLiteStorage`, which saves jobs to a local SQLite database file (`jobify.sqlite`). This is the recommended option for single-node storage.
 - **`False`**: Uses `DummyStorage`, which is an in-memory storage. Jobs are not saved and will be lost if the application is restarted.
-- **Custom Storage**: You can provide an instance of a class that implements the `jobber._internal.storage.abc.Storage` abstract base class to customize the persistence logic (for example, using a different database).
+- **Custom Storage**: You can provide an instance of a class that implements the `jobify._internal.storage.abc.Storage` abstract base class to customize the persistence logic (for example, using a different database).
 
 ## `lifespan`
 
-- **Type**: `Lifespan[Jobber] | None`
+- **Type**: `Lifespan[Jobify] | None`
 - **Default**: `None`
 
 An async context manager for executing code during application startup and shutdown,
@@ -89,7 +89,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, NewType, TypedDict
 
-from jobber import Jobber
+from jobify import Jobify
 
 Cache = NewType("Cache", dict[str, Any])
 Database = NewType("Database", dict[str, Any])
@@ -101,7 +101,7 @@ class State(TypedDict):
 
 
 @asynccontextmanager
-async def lifespan(app: Jobber) -> AsyncIterator[State]:
+async def lifespan(app: Jobify) -> AsyncIterator[State]:
     print("Application starting up!")
     # e.g., initialize database connections
     db = Database({})
@@ -111,7 +111,7 @@ async def lifespan(app: Jobber) -> AsyncIterator[State]:
     # e.g., close connections gracefully
 
 
-app = Jobber(lifespan=lifespan)
+app = Jobify(lifespan=lifespan)
 
 
 async def main() -> None:
@@ -133,7 +133,7 @@ The primary serializer for converting job data, such as function arguments, into
 
 - If `dumper` and `loader` are not specified, the default value is `ExtendedJSONSerializer`, which supports common types such as `datetime`.
 - Otherwise, it will fall back to the simpler `JSONSerializer`.
-- You can provide your own custom serializer instance that implements the `jobber._internal.serializers.base.Serializer` interface.
+- You can provide your own custom serializer instance that implements the `jobify._internal.serializers.base.Serializer` interface.
 
 ## `middleware`
 
@@ -150,9 +150,9 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from jobber import Jobber
-from jobber._internal.context import JobContext
-from jobber._internal.middleware.base import BaseMiddleware
+from jobify import Jobify
+from jobify._internal.context import JobContext
+from jobify._internal.middleware.base import BaseMiddleware
 
 logging.basicConfig(level=logging.INFO)
 
@@ -170,7 +170,7 @@ class LoggingMiddleware(BaseMiddleware):
             logging.info("Job %s has finished.", context.job.id)
 
 
-app = Jobber(middleware=[LoggingMiddleware()])
+app = Jobify(middleware=[LoggingMiddleware()])
 
 
 @app.task
@@ -223,7 +223,7 @@ class SkipMiddleware(BaseMiddleware):
 ## `cron_factory`
 
 - **Type**: `CronFactory | None`
-- **Default**: `jobber.crontab.create_crontab`
+- **Default**: `jobify.crontab.create_crontab`
 
 A factory function for parsing cron expression strings, which supports the standard cron syntax by default, with an optional field for seconds.
 
@@ -251,4 +251,4 @@ Executors for running tasks in separate threads or processes.
 - `threadpool_executor`: To run synchronous, I/O-bound functions without blocking the main `asyncio` event loop.
 - `processpool_executor`: This is used for running synchronous, CPU-intensive functions in a separate process in order to avoid blocking the main event loop and the Global Interpreter Lock (GIL).
 
-If not specified, `Jobber` will automatically create and manage executors as needed.
+If not specified, `Jobify` will automatically create and manage executors as needed.

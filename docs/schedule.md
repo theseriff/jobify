@@ -4,7 +4,7 @@ You can schedule tasks in two main ways: using recurring cron expressions or dyn
 
 ## Cron Expressions
 
-`Jobber` uses the [crontab](https://pypi.org/project/crontab/) library to parse and schedule jobs from cron expressions. This provides a flexible and powerful way to define recurring tasks.
+`Jobify` uses the [crontab](https://pypi.org/project/crontab/) library to parse and schedule jobs from cron expressions. This provides a flexible and powerful way to define recurring tasks.
 
 ### Syntax
 
@@ -84,9 +84,9 @@ To run a task after a specified delay, use the `delay()` method of the builder.
 
 ```python
 import asyncio
-from jobber import Jobber
+from jobify import Jobify
 
-app = Jobber()
+app = Jobify()
 
 @app.task
 def send_email(to: str, subject: str) -> None:
@@ -113,9 +113,9 @@ To run a task at a specific `datetime`, use the `.at()` method.
 ```python
 import asyncio
 from datetime import datetime, timedelta
-from jobber import Jobber
+from jobify import Jobify
 
-app = Jobber()
+app = Jobify()
 
 @app.task
 def generate_report(report_id: int) -> None:

@@ -3,8 +3,8 @@ from datetime import datetime
 
 import pytest
 
-from jobber import Cron, Jobber, JobRouter, RunMode
-from jobber._internal.router.base import Router
+from jobify import Cron, Jobify, JobRouter, RunMode
+from jobify._internal.router.base import Router
 from tests.conftest import create_app
 
 
@@ -38,7 +38,7 @@ async def f2(num: int) -> int:
         pytest.param("delay", 2, 3),
     ],
 )
-async def test_jobber(  # noqa: PLR0913
+async def test_jobify(  # noqa: PLR0913
     now: datetime,
     node: Router,
     *,
@@ -49,7 +49,7 @@ async def test_jobber(  # noqa: PLR0913
 ) -> None:
     f1_reg = node.task(f1, func_name="f1_reg", run_mode=run_mode)
     f2_reg = node.task(f2, func_name="f2_reg", run_mode=run_mode)
-    if type(node) is Jobber:
+    if type(node) is Jobify:
         app = node
     else:
         app = create_app()

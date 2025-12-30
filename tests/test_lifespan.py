@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from typing import TypedDict
 from unittest.mock import AsyncMock
 
-from jobber import Jobber
+from jobify import Jobify
 
 
 async def test_lifespan_with_state() -> None:
@@ -13,21 +13,21 @@ async def test_lifespan_with_state() -> None:
         client: AsyncMock
 
     @asynccontextmanager
-    async def lifespan(_: Jobber) -> AsyncIterator[State]:
+    async def lifespan(_: Jobify) -> AsyncIterator[State]:
         async with client:
             yield {"client": client}
 
-    jobber = Jobber(lifespan=lifespan, storage=False)
+    app = Jobify(lifespan=lifespan, storage=False)
 
-    assert not hasattr(jobber.state, "client")
+    assert not hasattr(app.state, "client")
 
-    await jobber.startup()
+    await app.startup()
 
-    assert hasattr(jobber.state, "client")
+    assert hasattr(app.state, "client")
 
     client.__aenter__.assert_awaited_once()
     client.__aexit__.assert_not_awaited()
 
-    await jobber.shutdown()
+    await app.shutdown()
 
     client.__aexit__.assert_awaited_once()

@@ -3,20 +3,20 @@ from unittest.mock import ANY, AsyncMock
 
 import pytest
 
-from jobber import Job
-from jobber._internal.common.constants import JobStatus
-from jobber._internal.exceptions import DuplicateJobError
+from jobify import Job
+from jobify._internal.common.constants import JobStatus
+from jobify._internal.exceptions import DuplicateJobError
 from tests.conftest import create_app
 
 
 async def test_job() -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task(func_name="t")
+    @app.task(func_name="t")
     def t(num: int) -> int:
         return num + 1
 
-    async with jobber:
+    async with app:
         job1 = await t.schedule(1).delay(0)
         job2 = await t.schedule(1).delay(1)
         await job2.cancel()

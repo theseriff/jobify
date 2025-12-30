@@ -5,8 +5,8 @@ from unittest.mock import call
 
 from typing_extensions import override
 
-from jobber import JobContext, JobStatus
-from jobber.middleware import BaseMiddleware, CallNext
+from jobify import JobContext, JobStatus
+from jobify.middleware import BaseMiddleware, CallNext
 from tests.conftest import create_app
 
 
@@ -23,11 +23,11 @@ class MyMiddleware(BaseMiddleware):
 
 
 async def test_common_case(amock: mock.AsyncMock) -> None:
-    jobber = create_app()
-    jobber.add_middleware(MyMiddleware())
-    f = jobber.task(amock)
+    app = create_app()
+    app.add_middleware(MyMiddleware())
+    f = app.task(amock)
 
-    async with jobber:
+    async with app:
         job = await f.schedule(2).delay(0)
         await job.wait()
         assert job.status is JobStatus.SUCCESS
@@ -40,22 +40,22 @@ async def test_common_case(amock: mock.AsyncMock) -> None:
 
 
 async def test_exception() -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task
+    @app.task
     async def f1() -> None:
         raise ValueError
 
-    @jobber.task
+    @app.task
     async def f2() -> None:
         raise ZeroDivisionError
 
     sync_handler = mock.Mock()
     async_handler = mock.AsyncMock()
-    jobber.add_exception_handler(ValueError, sync_handler)
-    jobber.add_exception_handler(ZeroDivisionError, async_handler)
+    app.add_exception_handler(ValueError, sync_handler)
+    app.add_exception_handler(ZeroDivisionError, async_handler)
 
-    async with jobber:
+    async with app:
         job1 = await f1.schedule().delay(0)
         job2 = await f2.schedule().delay(0)
         await job1.wait()
@@ -74,9 +74,9 @@ async def test_retry(
     amock.side_effect = ValueError
 
     retry = 3
-    jobber = create_app()
-    f = jobber.task(amock, retry=retry)
-    async with jobber:
+    app = create_app()
+    f = app.task(amock, retry=retry)
+    async with app:
         job = await f.schedule().delay(0)
         await job.wait()
 
