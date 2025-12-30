@@ -1,6 +1,6 @@
 # Jobify
 
-[![Run all tests](https://github.com/suiseriff/jobify/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/suiseriff/jobify/actions/workflows/pr_tests.yml)
+[![Run all tests](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
