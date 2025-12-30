@@ -9,10 +9,11 @@ on:
     branches:
       - main
       - develop
-    paths:
-      - src/**
   schedule:
     - cron: "39 20 * * 0"
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
