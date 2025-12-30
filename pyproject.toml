@@ -7,7 +7,7 @@ module-root = "src"
 
 [project]
 name = "jobber"
-version = "0.1.0"
+version = "0.0.1"
 description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10,<5"
 readme = "README.md"
@@ -229,6 +229,7 @@ build_command = """
     uv build
 """
 tag_format = "v{version}"
+changelog_file = "docs/CHANGELOG.md"
 major_on_zero = false
 allow_zero_version = true
 upload_to_repository = false
@@ -239,10 +240,6 @@ minor_tags = ["feat"]
 patch_tags = ["fix", "perf"]
 parse_squash_commits = true
 ignore_merge_commits = true
-
-[tool.semantic_release.changelog.default_templates]
-changelog_file = "docs/CHANGELOG.md"
-output_format = "md"
 
 [tool.semantic_release.changelog]
 # Recommended patterns for conventional commits parser that is scope aware
