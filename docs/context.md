@@ -20,11 +20,11 @@ Using `JobContext` allows for:
 - `job: Job[Any]`: Contains live information about the task being executed, such as its ID, status, and metadata.
 - `state: State`: Represents the global `app.state`. This is a shared dictionary where you can store anything, including resources initialized via the `lifespan` manager (like database connections). It's accessible across all jobs.
 - `runnable: Runnable[Any]`: An internal object that holds the execution strategy for the job's function, along with its bound arguments (`inspect.BoundArguments`).
-- `request_state: RequestState`: A temporary state object that exists *only* for the duration of a single job execution. Middleware can use it to dynamically add attributes and pass data to subsequent middleware or even to the final job function.
+- `request_state: RequestState`: A temporary state object that exists _only_ for the duration of a single job execution. Middleware can use it to dynamically add attributes and pass data to subsequent middleware or even to the final job function.
 - `route_options: RouteOptions`: The configuration options passed to the task decorator itself, e.g., `timeout`, `retry`, and other settings from `@app.task(**options)`.
 - `jobber_config: JobberConfiguration`: The main `Jobber` application configuration object, containing all global settings passed to the `Jobber(...)` constructor.
 
-## Dependency Injection
+## Context Injection
 
 While middleware has direct access to the `JobContext`, your job function can also access it, or parts of it, through dependency injection. This is the recommended way to get execution information within your task.
 

@@ -12,8 +12,6 @@ app = Jobber()
     func_name="my_daily_report",
     # When the app restarts, the max_runs is set to 0 and the app again runs 30 times.
     cron=Cron("* * * * *", max_runs=30, max_failures=4),
-
-
     retry=3,
     timeout=300,  # in seconds
     durable=True,
