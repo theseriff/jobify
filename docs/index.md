@@ -1,166 +1,91 @@
----
-icon: lucide/rocket
----
+# Jobber
 
-# Get started
+**Jobber** is a powerful asynchronous job scheduling and management framework for Python.
+It allows you to define and schedule background jobs with an intuitive decorator-based API,
+similar to modern web frameworks like FastAPI.
 
-For full documentation visit [zensical.org](https://zensical.org/docs/).
+## Key Features
 
-## Commands
+- **Async First**: Built on top of `asyncio`.
+- **Flexible Scheduling**: Run jobs immediately, after a delay, at a specific time, or via Cron expressions.
+- **Persistence**: Built-in SQLite storage ensures scheduled jobs survive application restarts.
+- **Modular**: Organize tasks using `JobRouter`s (similar to FastAPI routers).
+- **Resilient**: Middleware support for automatic retries, timeouts, and error handling.
+- **Concurrency**: Support for `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor`.
 
-* [`zensical new`][new] - Create a new project
-* [`zensical serve`][serve] - Start local web server
-* [`zensical build`][build] - Build your site
+## Comparison
 
-  [new]: https://zensical.org/docs/usage/new/
-  [serve]: https://zensical.org/docs/usage/preview/
-  [build]: https://zensical.org/docs/usage/build/
+You might have seen other libraries like `APScheduler`, `Celery`, or `Taskiq`.
+Below is a comparison of features to help you decide if Jobber fits your needs.
 
-## Examples
+| Feature name                   |       Jobber        |      Taskiq       | APScheduler (v3) |      Celery       |
+| :----------------------------- | :-----------------: | :---------------: | :--------------: | :---------------: |
+| **Async Native (asyncio)**     |         ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
+| **Zero-config Persistence**    | ✅ (SQLite default) | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
+| **Dependency Injection**       |         ✅          |        ✅         |        ❌        |        ❌         |
+| **FastAPI-style Routing**      |         ✅          |        ❌         |        ❌        |        ❌         |
+| **Middleware Support**         |         ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
+| **Job Cancellation**           |         ✅          |        ❌         |        ✅        |        ✅         |
+| **Cron Scheduling**            |         ✅          |        ✅         |        ✅        |        ✅         |
+| **Run Modes (Thread/Process)** |         ✅          |        ✅         |        ✅        |        ✅         |
+| **Rich Typing Support**        |         ✅          |        ✅         |        ❌        |        ❌         |
+| **Broker-backend execution**   |      ❌ (soon)      |        ✅         |        ❌        |        ✅         |
 
-### Admonitions
+## Quick Start
 
-> Go to [documentation](https://zensical.org/docs/authoring/admonitions/)
+### Installation
 
-!!! note
-
-    This is a **note** admonition. Use it to provide helpful information.
-
-!!! warning
-
-    This is a **warning** admonition. Be careful!
-
-### Details
-
-> Go to [documentation](https://zensical.org/docs/authoring/admonitions/#collapsible-blocks)
-
-??? info "Click to expand for more info"
-
-    This content is hidden until you click to expand it.
-    Great for FAQs or long explanations.
-
-## Code Blocks
-
-> Go to [documentation](https://zensical.org/docs/authoring/code-blocks/)
-
-``` python hl_lines="2" title="Code blocks"
-def greet(name):
-    print(f"Hello, {name}!") # (1)!
-
-greet("Python")
+```bash
+pip install jobber
 ```
 
-1.  > Go to [documentation](https://zensical.org/docs/authoring/code-blocks/#code-annotations)
+### Basic Usage
 
-    Code annotations allow to attach notes to lines of code.
+Here is a simple example showing how to define a task and schedule it.
 
-Code can also be highlighted inline: `#!python print("Hello, Python!")`.
+```python linenums="1" hl_lines="27 29 31"
+import asyncio
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
-## Content tabs
+from jobber import Jobber
 
-> Go to [documentation](https://zensical.org/docs/authoring/content-tabs/)
+UTC = ZoneInfo("UTC")
+# 1. Initialize Jobber
+app = Jobber(tz=UTC)
 
-=== "Python"
 
-    ``` python
-    print("Hello from Python!")
-    ```
+@app.task(cron="* * * * * * *")  # Runs every seconds
+async def my_cron() -> None:
+    print("Hello! cron running every seconds")
 
-=== "Rust"
 
-    ``` rs
-    println!("Hello from Rust!");
-    ```
+@app.task
+def my_job(name: str) -> None:
+    now = datetime.now(tz=UTC)
+    print(f"Hello, {name}! job running at: {now!r}")
 
-## Diagrams
 
-> Go to [documentation](https://zensical.org/docs/authoring/diagrams/)
+async def main() -> None:
+    # 4. Run the Jobber application context
+    async with app:
+        run_next_day = datetime.now(tz=UTC) + timedelta(days=1)
+        job_at = await my_job.schedule("Connor").at(run_next_day)
 
-``` mermaid
-graph LR
-  A[Start] --> B{Error?};
-  B -->|Yes| C[Hmm...];
-  C --> D[Debug];
-  D --> B;
-  B ---->|No| E[Yay!];
+        job_delay = await my_job.schedule("Sara").delay(20)
+
+        job_cron = await my_cron.schedule("Mike").cron("* * * * *")
+
+        await job_at.wait()
+        await job_delay.wait()
+        await job_cron.wait()
+        # You can also use the `await app.wait_all()` method to wait for
+        # all currently running jobs to complete.
+        # Note: If there are infinitely running cron jobs, like `my_cron`,
+        # `app.wait_all()` will block indefinitely until a timeout is set.
+        # await app.wait_all()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
-
-## Footnotes
-
-> Go to [documentation](https://zensical.org/docs/authoring/footnotes/)
-
-Here's a sentence with a footnote.[^1]
-
-Hover it, to see a tooltip.
-
-[^1]: This is the footnote.
-
-
-## Formatting
-
-> Go to [documentation](https://zensical.org/docs/authoring/formatting/)
-
-- ==This was marked (highlight)==
-- ^^This was inserted (underline)^^
-- ~~This was deleted (strikethrough)~~
-- H~2~O
-- A^T^A
-- ++ctrl+alt+del++
-
-## Icons, Emojis
-
-> Go to [documentation](https://zensical.org/docs/authoring/icons-emojis/)
-
-* :sparkles: `:sparkles:`
-* :rocket: `:rocket:`
-* :tada: `:tada:`
-* :memo: `:memo:`
-* :eyes: `:eyes:`
-
-## Maths
-
-> Go to [documentation](https://zensical.org/docs/authoring/math/)
-
-$$
-\cos x=\sum_{k=0}^{\infty}\frac{(-1)^k}{(2k)!}x^{2k}
-$$
-
-!!! warning "Needs configuration"
-    Note that MathJax is included via a `script` tag on this page and is not
-    configured in the generated default configuration to avoid including it
-    in a pages that do not need it. See the documentation for details on how
-    to configure it on all your pages if they are more Maths-heavy than these
-    simple starter pages.
-
-<script id="MathJax-script" async src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [["\\(", "\\)"]],
-      displayMath: [["\\[", "\\]"]],
-      processEscapes: true,
-      processEnvironments: true
-    },
-    options: {
-      ignoreHtmlClass: ".*|",
-      processHtmlClass: "arithmatex"
-    }
-  };
-</script>
-
-## Task Lists
-
-> Go to [documentation](https://zensical.org/docs/authoring/lists/#using-task-lists)
-
-* [x] Install Zensical
-* [x] Configure `zensical.toml`
-* [x] Write amazing documentation
-* [ ] Deploy anywhere
-
-## Tooltips
-
-> Go to [documentation](https://zensical.org/docs/authoring/tooltips/)
-
-[Hover me][example]
-
-  [example]: https://example.com "I'm a tooltip!"
