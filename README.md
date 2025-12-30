@@ -1,11 +1,11 @@
-# Jobber
+# Jobify
 
-[![Run all tests](https://github.com/suiseriff/jobber/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/suiseriff/jobber/actions/workflows/pr_tests.yml)
+[![Run all tests](https://github.com/suiseriff/jobify/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/suiseriff/jobify/actions/workflows/pr_tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
-**Jobber** is a robust solution that was built from the ground up to handle asynchronous tasks. It offers a clean and modern API that is inspired by leading frameworks.
+**Jobify** is a robust solution that was built from the ground up to handle asynchronous tasks. It offers a clean and modern API that is inspired by leading frameworks.
 
 ## Key features
 
@@ -19,9 +19,9 @@
 
 ## Quick Start
 
-Install Jobber from PyPI:
+Install Jobify from PyPI:
 ```bash
-pip install jobber
+pip install jobify
 ```
 
 Here is a simple example of how to schedule and run a job:
@@ -31,12 +31,12 @@ import asyncio
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from jobber import Jobber
+from jobify import Jobify
 
 
 UTC = ZoneInfo("UTC")
-# 1. Initialize Jobber
-app = Jobber(tz=UTC)
+# 1. Initialize Jobify
+app = Jobify(tz=UTC)
 
 
 @app.task(cron="* * * * * * *")  # Runs every seconds
@@ -51,7 +51,7 @@ def my_job(name: str) -> None:
 
 
 async def main() -> None:
-    # 4. Run the Jobber application context
+    # 4. Run the Jobify application context
     async with app:
         run_next_day = datetime.now(tz=UTC) + timedelta(days=1)
         job_at = await my_job.schedule("Connor").at(run_next_day)

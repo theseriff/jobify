@@ -6,8 +6,8 @@ build-backend = "uv_build"
 module-root = "src"
 
 [project]
-name = "jobber"
-version = "0.1.0"
+name = "jobify"
+version = "0.0.1"
 description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10,<5"
 readme = "README.md"
@@ -88,11 +88,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/theseriff/jobber"
-Repository = "https://github.com/theseriff/jobber"
-Documentation = "https://github.com/theseriff/jobber/README.md"
-Changelog = "https://github.com/theseriff/jobber/blob/main/docs/CHANGELOG.md"
-Issues = "https://github.com/theseriff/jobber/issues"
+Homepage = "https://github.com/theseriff/jobify"
+Repository = "https://github.com/theseriff/jobify"
+Documentation = "https://github.com/theseriff/jobify/README.md"
+Changelog = "https://github.com/theseriff/jobify/blob/main/docs/CHANGELOG.md"
+Issues = "https://github.com/theseriff/jobify/issues"
 
 # Tests
 [tool.pytest.ini_options]
@@ -119,15 +119,15 @@ dynamic_context = "test_function"
 [tool.coverage.paths]
 source = [
     "src",
-    "/home/runner/work/jobber/jobber/src",
-    "/Users/runner/work/jobber/jobber/src",
-    "D:\\a\\jobber\\jobber\\src",
+    "/home/runner/work/jobify/jobify/src",
+    "/Users/runner/work/jobify/jobify/src",
+    "D:\\a\\jobify\\jobify\\src",
 ]
 tests = [
     "tests",
-    "/home/runner/work/jobber/jobber/tests",
-    "/Users/runner/work/jobber/jobber/tests",
-    "D:\\a\\jobber\\jobber\\tests",
+    "/home/runner/work/jobify/jobify/tests",
+    "/Users/runner/work/jobify/jobify/tests",
+    "D:\\a\\jobify\\jobify\\tests",
 ]
 
 [tool.coverage.report]
@@ -207,7 +207,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "benchmarks/**" = ["D", "S101"]
 "tests/**" = ["S101", "D", "SLF001"]
-"src/jobber/_internal/routing.py" = ["ERA001", "FIX004"]
+"src/jobify/_internal/routing.py" = ["ERA001", "FIX004"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -224,23 +224,22 @@ skip = "*.pyi,*.pyc,./site"
 version_toml = ["pyproject.toml:project.version"]
 commit_parser = "conventional"
 build_command = """
-    uv lock --upgrade-package jobber
+    uv lock --upgrade-package jobify
     git add uv.lock
     uv build
 """
 tag_format = "v{version}"
+changelog_file = "docs/CHANGELOG.md"
 major_on_zero = false
 allow_zero_version = true
+upload_to_repository = false
+upload_to_vcs_release = true
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf"]
 parse_squash_commits = true
 ignore_merge_commits = true
-
-[tool.semantic_release.changelog.default_templates]
-changelog_file = "docs/src/CHANGELOG.md"
-output_format = "md"
 
 [tool.semantic_release.changelog]
 # Recommended patterns for conventional commits parser that is scope aware
@@ -257,3 +256,7 @@ exclude_commit_patterns = [
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
+
+[tool.semantic_release.remote]
+type = "github"
+ignore_token_for_push = true

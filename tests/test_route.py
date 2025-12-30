@@ -2,8 +2,8 @@ from collections.abc import Callable
 
 import pytest
 
-from jobber._internal.router.base import resolve_name
-from jobber.exceptions import RouteAlreadyRegisteredError
+from jobify._internal.router.base import resolve_name
+from jobify.exceptions import RouteAlreadyRegisteredError
 from tests.conftest import create_app
 
 
@@ -33,13 +33,13 @@ def test_create_default_name(func: Callable[..., None]) -> None:
 
 
 async def test_original_func_call() -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task
+    @app.task
     def t1(num: int) -> int:
         return num + 1
 
-    @jobber.task
+    @app.task
     async def t2(num: int) -> int:
         return num + 1
 
@@ -49,20 +49,20 @@ async def test_original_func_call() -> None:
 
 
 def test_patch_job_name() -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task
+    @app.task
     def t() -> None:
         pass
 
     match = f"A route with the name {t.name!r} has already been registered."
     with pytest.raises(RouteAlreadyRegisteredError, match=match):
-        _ = jobber.task(t)
+        _ = app.task(t)
 
-    t1_reg = jobber.task(t, func_name="test1")
-    t2_reg = jobber.task(t, func_name="test2")
+    t1_reg = app.task(t, func_name="test1")
+    t2_reg = app.task(t, func_name="test2")
 
-    new_name = "t__jobber_original"
+    new_name = "t__jobify_original"
     new_qualname = f"test_patch_job_name.<locals>.{new_name}"
 
     assert t.func.__name__ == new_name

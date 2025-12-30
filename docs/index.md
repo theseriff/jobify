@@ -1,6 +1,6 @@
-# Jobber
+# Jobify
 
-**Jobber** is a powerful asynchronous job scheduling and management framework for Python.
+**Jobify** is a powerful asynchronous job scheduling and management framework for Python.
 It allows you to define and schedule background jobs with an intuitive decorator-based API,
 similar to modern web frameworks like FastAPI.
 
@@ -16,9 +16,9 @@ similar to modern web frameworks like FastAPI.
 ## Comparison
 
 You might have seen other libraries like `APScheduler`, `Celery`, or `Taskiq`.
-Below is a comparison of features to help you decide if Jobber fits your needs.
+Below is a comparison of features to help you decide if Jobify fits your needs.
 
-| Feature name                   |       Jobber        |      Taskiq       | APScheduler (v3) |      Celery       |
+| Feature name                   |       Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
 | :----------------------------- | :-----------------: | :---------------: | :--------------: | :---------------: |
 | **Async Native (asyncio)**     |         ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
 | **Zero-config Persistence**    | ✅ (SQLite default) | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
@@ -36,7 +36,7 @@ Below is a comparison of features to help you decide if Jobber fits your needs.
 ### Installation
 
 ```bash
-pip install jobber
+pip install jobify
 ```
 
 ### Basic Usage
@@ -48,11 +48,11 @@ import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from jobber import Jobber
+from jobify import Jobify
 
 UTC = ZoneInfo("UTC")
-# 1. Initialize Jobber
-app = Jobber(tz=UTC)
+# 1. Initialize Jobify
+app = Jobify(tz=UTC)
 
 
 @app.task(cron="* * * * * * *")  # Runs every seconds
@@ -67,7 +67,7 @@ def my_job(name: str) -> None:
 
 
 async def main() -> None:
-    # 4. Run the Jobber application context
+    # 4. Run the Jobify application context
     async with app:
         run_next_day = datetime.now(tz=UTC) + timedelta(days=1)
         job_at = await my_job.schedule("Connor").at(run_next_day)

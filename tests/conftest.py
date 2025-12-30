@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from jobber import Jobber
-from jobber._internal.cron_parser import CronFactory, CronParser
+from jobify import Jobify
+from jobify._internal.cron_parser import CronFactory, CronParser
 
 
 @pytest.fixture(scope="session")
@@ -49,5 +49,5 @@ def create_cron_factory() -> CronFactory:
     return Mock(return_value=cron)
 
 
-def create_app() -> Jobber:
-    return Jobber(cron_factory=create_cron_factory(), storage=False)
+def create_app() -> Jobify:
+    return Jobify(cron_factory=create_cron_factory(), storage=False)

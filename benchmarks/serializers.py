@@ -2,10 +2,10 @@ from dataclasses import dataclass
 from timeit import timeit
 from typing import Any, NamedTuple
 
-from jobber._internal.serializers.json_extended import SupportedTypes
-from jobber.serializers import (
+from jobify._internal.serializers.json_extended import SupportedTypes
+from jobify.serializers import (
     ExtendedJSONSerializer,
-    JobsSerializer,
+    Serializer,
     UnsafePickleSerializer,
 )
 
@@ -180,7 +180,7 @@ big_serializable_data: dict[str, SupportedTypes] = {
 }
 
 
-def serializer_case(serializer: JobsSerializer) -> None:
+def serializer_case(serializer: Serializer) -> None:
     encoded = serializer.dumpb(big_serializable_data)
     decoded = serializer.loadb(encoded)
     assert decoded == big_serializable_data

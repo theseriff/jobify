@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from jobber._internal.common.datastructures import EmptyPlaceholder, State
+from jobify._internal.common.datastructures import EmptyPlaceholder, State
 
 
 def test_empty_placeholder() -> None:

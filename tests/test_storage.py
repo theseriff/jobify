@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
-from jobber import Cron, Job, Jobber, JobStatus
-from jobber._internal.cron_parser import CronParser
-from jobber._internal.message import Message
-from jobber._internal.storage.abc import ScheduledJob
-from jobber._internal.storage.sqlite import SQLiteStorage
-from jobber.serializers import ExtendedJSONSerializer
+from jobify import Cron, Job, Jobify, JobStatus
+from jobify._internal.cron_parser import CronParser
+from jobify._internal.message import Message
+from jobify._internal.storage.abc import ScheduledJob
+from jobify._internal.storage.sqlite import SQLiteStorage
+from jobify.serializers import ExtendedJSONSerializer
 from tests.conftest import create_cron_factory, cron_next_run
 
 
@@ -40,8 +40,8 @@ async def test_sqlite() -> None:
         db.unlink()
 
 
-async def test_sqlite_with_jobber(now: datetime) -> None:
-    app = Jobber(
+async def test_sqlite_with_jobify(now: datetime) -> None:
+    app = Jobify(
         storage=SQLiteStorage(":memory:"),
         cron_factory=create_cron_factory(),
     )
@@ -130,7 +130,7 @@ async def test_restore_schedules(
     async def _f(name: str) -> str:
         return name
 
-    app = Jobber(storage=storage)
+    app = Jobify(storage=storage)
 
     f = app.task(_f, func_name="test_name")
     async with app:
@@ -154,7 +154,7 @@ async def test_restore_schedules(
     cron.next_run.side_effect = cron_next_run(init=microseconds)
     cron_factory_mock = Mock(return_value=cron)
 
-    app2 = Jobber(storage=storage, cron_factory=cron_factory_mock)
+    app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
     _ = app2.task(_f, func_name="test_name")
 
     async with app2:
@@ -223,7 +223,7 @@ async def test_restore_schedules_invalid_jobs() -> None:
     ]
     mock_storage.delete_schedule = AsyncMock()
 
-    app = Jobber(storage=mock_storage)
+    app = Jobify(storage=mock_storage)
 
     @app.task(func_name="job_unexpected_arguments")
     def _() -> None:

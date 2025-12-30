@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from jobber import Cron
-from jobber.crontab import create_crontab
+from jobify import Cron
+from jobify.crontab import create_crontab
 from tests.conftest import create_app
 
 
@@ -24,13 +24,13 @@ def test_cronparser() -> None:
 
 
 async def test_cron_reschedule(now: datetime) -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task
+    @app.task
     def t(name: str) -> str:
         return f"hello, {name}!"
 
-    async with jobber:
+    async with app:
         job = await t.schedule("Biba").cron(
             "* * * * *",
             job_id="test",
@@ -48,14 +48,14 @@ async def test_cron_reschedule(now: datetime) -> None:
 async def test_max_cron_failures(amock: mock.AsyncMock) -> None:
     amock.side_effect = ValueError
 
-    jobber = create_app()
+    app = create_app()
     match = "max_cron_failures must be >= 1. Use 1 for 'stop on first error'."
     with pytest.raises(ValueError, match=match):
-        _ = jobber.task(amock, cron=Cron("", max_failures=-1))
+        _ = app.task(amock, cron=Cron("", max_failures=-1))
 
     max_failures = 1
-    f = jobber.task(amock)
-    async with jobber:
+    f = app.task(amock)
+    async with app:
         expression = "* * * * * * *"  # every seconds
         job = await f.schedule().cron(
             Cron(expression, max_failures=max_failures),
@@ -68,32 +68,32 @@ async def test_max_cron_failures(amock: mock.AsyncMock) -> None:
 
 
 async def test_cron_declarative() -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task(cron="* * * * * * *")
+    @app.task(cron="* * * * * * *")
     async def _() -> str:
         return "ok"
 
-    async with jobber:
-        job = jobber.task._shared_state.pending_jobs.popitem()[1]
+    async with app:
+        job = app.task._shared_state.pending_jobs.popitem()[1]
         await job.wait()
 
     assert job.result() == "ok"
 
 
 async def test_cron_shutdown_graceful() -> None:
-    jobber = create_app()
+    app = create_app()
 
-    @jobber.task(cron="* * * * * * *")
+    @app.task(cron="* * * * * * *")
     async def _() -> None:
         await asyncio.sleep(3)
 
-    async with jobber:
+    async with app:
         await asyncio.sleep(0.005)
-        task = jobber.task._shared_state.pending_tasks.pop()
+        task = app.task._shared_state.pending_tasks.pop()
         _is_cancelled = task.cancel()
 
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    assert len(jobber.task._shared_state.pending_jobs) == 0
+    assert len(app.task._shared_state.pending_jobs) == 0

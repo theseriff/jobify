@@ -12,7 +12,7 @@ First, create a `JobRouter` instance. A router is a mini-application that can de
 
 ```python
 # in tasks/email.py
-from jobber import JobRouter
+from jobify import JobRouter
 
 router = JobRouter()
 
@@ -23,18 +23,18 @@ async def send_welcome_email(user_id: int) -> None:
 ```
 
 This task is currently registered with the `router`, but it is not yet active.
-In order to make it available for scheduling, you will need to include the router in your main `Jobber` application.
+In order to make it available for scheduling, you will need to include the router in your main `jobify` application.
 
 ```python
 # in main.py
 from tasks.email import router as email_router
 from tasks.email import send_welcome_email
 
-from jobber import Jobber
+from jobify import Jobify
 
 
 async def main() -> None:
-    app = Jobber()
+    app = Jobify()
     # Include the router in the main app
     app.include_router(email_router)
     async with app:
@@ -57,7 +57,7 @@ This prefix will be added to the names of all tasks and subrouters that are regi
 
 ```python
 # in tasks/reports.py
-from jobber import JobRouter
+from jobify import JobRouter
 
 # This prefix will apply to all tasks in this router
 router = JobRouter(prefix="reports")
@@ -82,7 +82,7 @@ You can build complex task hierarchies by including routers within other routers
 
 ```python
 # in services/analytics.py
-from jobber import JobRouter
+from jobify import JobRouter
 
 # Sub-router for user-related analytics
 users_router = JobRouter(prefix="users")
@@ -96,10 +96,10 @@ analytics_router = JobRouter(prefix="analytics")
 analytics_router.include_router(users_router)
 
 # in main.py
-from jobber import Jobber
+from jobify import Jobify
 from services.analytics import analytics_router
 
-app = Jobber()
+app = Jobify()
 app.include_router(analytics_router)
 ```
 
@@ -108,13 +108,13 @@ The prefixes are separated by a dot (`.`) for sub-routers, and the final path is
 
 ## Scheduling Tasks from Routers
 
-As shown in the first example, you can only schedule a task on a router after that router has been added to the main `Jobber` application.
+As shown in the first example, you can only schedule a task on a router after that router has been added to the main `jobify` application.
 
 Attempting to schedule a task from a detached router will result in a `RuntimeError`.
 
 ```python
 import pytest
-from jobber import Jobber, JobRouter
+from jobify import Jobify, JobRouter
 
 router = JobRouter()
 
@@ -127,7 +127,7 @@ with pytest.raises(RuntimeError):
     _ = my_task.schedule()
 
 # Correct way:
-app = Jobber()
+app = Jobify()
 app.include_router(router)
 
 # Now, this will work:
@@ -137,7 +137,7 @@ async with app:
 
 ## Router-level Lifespan and Middleware
 
-Just like the main `Jobber` app, each `JobRouter` can have its own `middleware` and `lifespan` events.
+Just like the main `Jobify` app, each `JobRouter` can have its own `middleware` and `lifespan` events.
 
 - **Middleware** applied to a parent router will also be applied to all of its sub-routers, in addition to any middleware they have defined.
 - **Lifespan** events on a router can be useful for managing resources related to a specific group of tasks, such as connecting to a particular service.
@@ -145,7 +145,7 @@ Just like the main `Jobber` app, each `JobRouter` can have its own `middleware` 
 ```python
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from jobber import Jobber, JobRouter
+from jobify import Jobify, JobRouter
 
 @asynccontextmanager
 async def reports_lifespan(router: JobRouter) -> AsyncIterator[None]:
@@ -159,7 +159,7 @@ async def reports_lifespan(router: JobRouter) -> AsyncIterator[None]:
 reports_router = JobRouter(prefix="reports", lifespan=reports_lifespan)
 # ... define tasks on reports_router ...
 
-app = Jobber()
+app = Jobify()
 app.include_router(reports_router)
 ```
 

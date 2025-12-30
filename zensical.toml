@@ -7,14 +7,14 @@
 # ============================================================================
 
 [project]
-repo_name = "theseriff/jobber"
-repo_url = "https://github.com/theseriff/jobber"
+repo_name = "theseriff/jobify"
+repo_url = "https://github.com/theseriff/jobify"
 edit_uri = "edit/main/docs/"
 
 # The site_name is shown in the page header and the browser window title
 #
 # Read more: https://zensical.org/docs/setup/basics/#site_name
-site_name = "Jobber"
+site_name = "jobify"
 
 # The site_description is included in the HTML head and should contain a
 # meaningful description of the site content for use by search engines.
@@ -30,7 +30,7 @@ site_author = "Sergey Yavorsky"
 # The site_url is the canonical URL for your site. When building online
 # documentation you should set this.
 # Read more: https://zensical.org/docs/setup/basics/#site_url
-site_url = "https://theseriff.github.io/jobber"
+site_url = "https://theseriff.github.io/jobify"
 
 # The copyright notice appears in the page footer and can contain an HTML
 # fragment.
@@ -47,7 +47,7 @@ copyright = "&copy; 2026 Sergey Yavorsky"
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Quickstart" = "index.md" },
-  { "Jobber settings" = "app_settings.md" },
+  { "jobify settings" = "app_settings.md" },
   { "Task settings" = "task_settings.md" },
   { "Schedule" = "schedule.md" },
   { "Job" = "job.md" },
