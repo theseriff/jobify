@@ -7,7 +7,7 @@ module-root = "src"
 
 [project]
 name = "jobify"
-version = "0.0.1"
+version = "0.1.0"
 description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10,<5"
 readme = "README.md"
