@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from jobify._internal.shared_state import SharedState
 
 
-logger = logging.getLogger("jobify.runner")
+logger = logging.getLogger("jobify.scheduler")
 
 
 ReturnT = TypeVar("ReturnT")
