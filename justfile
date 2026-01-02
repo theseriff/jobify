@@ -104,7 +104,7 @@ test-all +param="tests/":
 [doc("Run all tests with coverage")]
 [group("tests")]
 test-coverage-all +param="tests/":
-  just _setup_test {{param}} --cov --cov-report=term:skip-covered
+  just _setup_test {{param}} --cov --cov-context=test --cov-report=term:skip-covered
 
 alias ta := test-all
 alias tca := test-coverage-all

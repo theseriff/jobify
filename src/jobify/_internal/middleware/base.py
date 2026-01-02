@@ -23,10 +23,7 @@ def build_middleware(
     /,
     func: Callable[[JobContext], Awaitable[ReturnT]],
 ) -> CallNext:
-    async def target(context: JobContext) -> ReturnT:
-        return await func(context)
-
-    chain_of_middlewares = target
+    chain_of_middlewares = func
     for m in reversed(middleware):
         chain_of_middlewares = functools.partial(m, chain_of_middlewares)
 

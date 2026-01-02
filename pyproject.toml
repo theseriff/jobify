@@ -114,7 +114,6 @@ branch = true
 concurrency = ["thread", "multiprocessing"]
 source = ["src", "tests"]
 omit = ["**/__init__.py"]
-dynamic_context = "test_function"
 
 [tool.coverage.paths]
 source = [
