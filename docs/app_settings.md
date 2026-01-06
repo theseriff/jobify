@@ -144,22 +144,16 @@ Example:
 ```python
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
 from typing import Any
 
-from jobify import Jobify
-from jobify._internal.context import JobContext
-from jobify._internal.middleware.base import BaseMiddleware
+from jobify import JobContext, Jobify
+from jobify.middleware import BaseMiddleware, CallNext
 
 logging.basicConfig(level=logging.INFO)
 
 
 class LoggingMiddleware(BaseMiddleware):
-    async def __call__(
-        self,
-        call_next: Callable[[JobContext], Awaitable[Any]],
-        context: JobContext,
-    ) -> Any:
+    async def __call__(self, call_next: CallNext, context: JobContext) -> Any:
         logging.info("Job %s is starting.", context.job.id)
         try:
             return await call_next(context)
@@ -205,11 +199,7 @@ For example, this middleware will skip any job that has `skip: True` in its meta
 
 ```python
 class SkipMiddleware(BaseMiddleware):
-    async def __call__(
-        self,
-        call_next: Callable[[JobContext], Awaitable[Any]],
-        context: JobContext,
-    ) -> Any:
+    async def __call__(self, call_next: CallNext, context: JobContext) -> Any:
         if context.route_options["metadata"].get("skip") is True:
             logging.warning("Job %s was skipped by middleware.", context.job.id)
             return None  # Do not call call_next, stopping execution

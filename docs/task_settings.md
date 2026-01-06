@@ -36,7 +36,7 @@ from jobify import Cron
 @app.task(
     cron=Cron("0 18 * * 1-5", max_runs=100, max_failures=5)
 )
-def my_daily_report():
+def my_daily_report() -> None:
     ...
 ```
 

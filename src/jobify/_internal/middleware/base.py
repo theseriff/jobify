@@ -3,12 +3,12 @@ from __future__ import annotations
 import functools
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 from jobify._internal.context import JobContext
 
 ReturnT = TypeVar("ReturnT")
-CallNext = Callable[[JobContext], Awaitable[Any]]
+CallNext: TypeAlias = Callable[[JobContext], Awaitable[Any]]
 
 
 @runtime_checkable
