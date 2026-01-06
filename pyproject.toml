@@ -232,6 +232,7 @@ major_on_zero = false
 allow_zero_version = true
 upload_to_repository = false
 upload_to_vcs_release = true
+commit_message = "chore(release): release v{version} [skip ci]"
 
 
 [tool.semantic_release.commit_parser_options]
