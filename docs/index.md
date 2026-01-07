@@ -18,18 +18,28 @@ similar to modern web frameworks like FastAPI.
 You might have seen other libraries like `APScheduler`, `Celery`, or `Taskiq`.
 Below is a comparison of features to help you decide if Jobify fits your needs.
 
-| Feature name                   |       Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
-| :----------------------------- | :-----------------: | :---------------: | :--------------: | :---------------: |
-| **Async Native (asyncio)**     |         ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
-| **Zero-config Persistence**    | ✅ (SQLite default) | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
-| **Context Injection**          |         ✅          |        ✅         |        ❌        |        ❌         |
-| **FastAPI-style Routing**      |         ✅          |        ❌         |        ❌        |        ❌         |
-| **Middleware Support**         |         ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
-| **Job Cancellation**           |         ✅          |        ❌         |        ✅        |        ✅         |
-| **Cron Scheduling**            |         ✅          |        ✅         |        ✅        |        ✅         |
-| **Run Modes (Thread/Process)** |         ✅          |        ✅         |        ✅        |        ✅         |
-| **Rich Typing Support**        |         ✅          |        ✅         |        ❌        |        ❌         |
-| **Broker-backend execution**   |      ❌ (soon)      |        ✅         |        ❌        |        ✅         |
+| Feature name                   |        Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
+| :----------------------------- | :------------------: | :---------------: | :--------------: | :---------------: |
+| **Event-driven Scheduling**    | ✅ (Low-level timer) | ❌ (Polling/Loop) |  ❌ (Interval)   | ❌ (Polling/Loop) |
+| **Async Native (asyncio)**     |          ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
+| **Context Injection**          |          ✅          |        ✅         |        ❌        |        ❌         |
+| **FastAPI-style Routing**      |          ✅          |        ❌         |        ❌        |        ❌         |
+| **Middleware Support**         |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
+| **Job Cancellation**           |          ✅          |        ❌         |        ✅        |        ✅         |
+| **Cron Scheduling**            |          ✅          |        ✅         |        ✅        |        ✅         |
+| **Run Modes (Thread/Process)** |          ✅          |        ✅         |        ✅        |        ✅         |
+| **Rich Typing Support**        |          ✅          |        ✅         |        ❌        |        ❌         |
+| **Zero-config Persistence**    | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
+| **Broker-backend execution**   |      ❌ (soon)       |        ✅         |        ❌        |        ✅         |
+
+### Why Jobify?
+
+Unlike many other frameworks that use a while True loop to continuously check the current time against scheduled tasks (polling),
+Jobify uses the low-level asyncio.loop.call_at API.
+
+1. **Efficiency**: The scheduler does not consume CPU cycles if there are no tasks to process.
+2. **Precision**: Tasks are triggered precisely by the internal timer of the event loop, ensuring sub-millisecond accuracy and avoiding the "jitter" that can be associated with sleep intervals.
+3. **Native**: It works in harmony with OS-level event notification systems (epoll/kqueue).
 
 ## Quick Start
 

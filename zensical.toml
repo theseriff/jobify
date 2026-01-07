@@ -47,7 +47,7 @@ copyright = "&copy; 2026 Sergey Yavorsky"
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Quickstart" = "index.md" },
-  { "jobify settings" = "app_settings.md" },
+  { "Jobify settings" = "app_settings.md" },
   { "Task settings" = "task_settings.md" },
   { "Schedule" = "schedule.md" },
   { "Job" = "job.md" },

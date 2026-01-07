@@ -74,7 +74,7 @@ async def main() -> None:
 
         # Or
         # It is blocked indefinitely because the cron has infinite planning.
-        await app.wait_all()
+        # await app.wait_all()
 
 
 if __name__ == "__main__":

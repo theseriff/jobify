@@ -130,51 +130,6 @@ class Jobify(RootRouter):
             exception_handlers=exception_handlers,
         )
 
-    async def _restore_schedules(self) -> None:
-        schedules = await self.configs.storage.get_schedules()
-        for sch in schedules:
-            if self.find_job(sch.job_id):
-                msg = (
-                    f"Job {sch.job_id} is already active (code defined)."
-                    "Skipping DB restore."
-                )
-                logger.debug(msg)
-                continue
-            try:
-                await self._feed_message(sch.message)
-            except (KeyError, TypeError, ValueError) as exc:
-                # KeyError: The function has been removed from the router
-                #   (the code has changed).
-                # TypeError: The arguments in the database do not match the new
-                #   function signature.
-                # ValueError: Serializer error.
-                msg = (
-                    f"Cannot restore job {sch.job_id} ({sch.func_name}). "
-                    f"Exception Type: {type(exc)}. "
-                    f"Reason: {exc}. Removing from storage."
-                )
-                logger.warning(msg)
-                await self.configs.storage.delete_schedule(sch.job_id)
-            except Exception:  # pragma: no cover
-                msg = f"Unexpected error restoring job {sch.job_id}"
-                logger.exception(msg)
-
-    async def _feed_message(self, raw_msg: bytes) -> None:
-        de_message = self.configs.serializer.loadb(raw_msg)
-        msg = self.configs.loader.load(de_message, Message)
-        route = self.task._routes[msg.func_name]
-        for name, arg in msg.arguments.items():
-            msg.arguments[name] = self.configs.loader.load(
-                arg,
-                route.func_spec.params_type[name],
-            )
-        bound = route.func_spec.signature.bind(**msg.arguments)
-        builder = route.create_builder(bound)
-        if "cron" in msg.trigger:
-            _ = builder._cron(**msg.trigger)
-        else:
-            _ = builder._at(**msg.trigger)
-
     def find_job(self, id_: str, /) -> Job[ReturnT] | None:
         """Find an active job by its ID.
 
@@ -228,6 +183,51 @@ class Jobify(RootRouter):
 
         await asyncio.wait_for(target(), timeout=timeout)
 
+    async def _restore_schedules(self) -> None:
+        schedules = await self.configs.storage.get_schedules()
+        for sch in schedules:
+            if self.find_job(sch.job_id):
+                msg = (
+                    f"Job {sch.job_id} is already active (code defined)."
+                    "Skipping DB restore."
+                )
+                logger.debug(msg)
+                continue
+            try:
+                await self._feed_message(sch.message)
+            except (KeyError, TypeError, ValueError) as exc:
+                # KeyError: The function has been removed from the router
+                #   (the code has changed).
+                # TypeError: The arguments in the database do not match the new
+                #   function signature.
+                # ValueError: Serializer error.
+                msg = (
+                    f"Cannot restore job {sch.job_id} ({sch.func_name}). "
+                    f"Exception Type: {type(exc)}. "
+                    f"Reason: {exc}. Removing from storage."
+                )
+                logger.warning(msg)
+                await self.configs.storage.delete_schedule(sch.job_id)
+            except Exception:  # pragma: no cover
+                msg = f"Unexpected error restoring job {sch.job_id}"
+                logger.exception(msg)
+
+    async def _feed_message(self, raw_msg: bytes) -> None:
+        de_message = self.configs.serializer.loadb(raw_msg)
+        msg = self.configs.loader.load(de_message, Message)
+        route = self.task._routes[msg.func_name]
+        for name, arg in msg.arguments.items():
+            msg.arguments[name] = self.configs.loader.load(
+                arg,
+                route.func_spec.params_type[name],
+            )
+        bound = route.func_spec.signature.bind(**msg.arguments)
+        builder = route.create_builder(bound)
+        if "cron" in msg.trigger:
+            _ = builder._cron(**msg.trigger)
+        else:
+            _ = builder._at(**msg.trigger)
+
     async def startup(self) -> None:
         """Initialize the Jobify application.
 
@@ -244,8 +244,8 @@ class Jobify(RootRouter):
         self.configs.app_started = True
         await self.configs.storage.startup()
         await self._propagate_startup(self)
-        self.task.start_pending_crons()
         await self._restore_schedules()
+        await self.task.start_pending_crons()
 
     async def shutdown(self) -> None:
         """Gracefully shut down the Jobify application.
@@ -267,7 +267,7 @@ class Jobify(RootRouter):
         """
         self.configs.app_started = False
 
-        if tasks := self.task._shared_state.pending_tasks:
+        if tasks := self.task._shared_state.pending_tasks:  # pragma: no cover
             for task in tuple(tasks):
                 _ = task.cancel()
             _ = await asyncio.gather(*tasks, return_exceptions=True)

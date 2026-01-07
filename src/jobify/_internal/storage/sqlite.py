@@ -1,4 +1,3 @@
-import functools
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -87,7 +86,6 @@ class SQLiteStorage(Storage):
         return self._conn
 
     async def _to_thread(self, func: Callable[[], ReturnT]) -> ReturnT:
-        @functools.wraps(func)
         def thread_safe() -> ReturnT:
             with self._lock:
                 return func()

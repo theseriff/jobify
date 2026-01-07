@@ -36,7 +36,7 @@ from jobify import Cron
 @app.task(
     cron=Cron("0 18 * * 1-5", max_runs=100, max_failures=5)
 )
-def my_daily_report():
+def my_daily_report() -> None:
     ...
 ```
 
@@ -66,6 +66,11 @@ The maximum time allowed for the task to complete before it is stopped and consi
 - **Default**: `True`
 
 If `True`, the job will be stored in a persistent location and will survive a restart of the application. `Durable` jobs are restored when the Jobify app starts up.
+
+!!! note
+    If you use a high-frequency cron job (for example, every second `* * * * * * *`), it is recommended to set "durable=False".
+    This will help to prevent excessive load on the database when updating the task's status and improve overall performance.
+    For such frequent tasks, it is usually not necessary to save the state between restarts.
 
 ## `run_mode`
 

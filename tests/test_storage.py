@@ -2,17 +2,16 @@ import asyncio
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, call
+from unittest.mock import AsyncMock, call
 
 import pytest
 
 from jobify import Cron, Job, Jobify, JobStatus
-from jobify._internal.cron_parser import CronParser
 from jobify._internal.message import Message
 from jobify._internal.storage.abc import ScheduledJob
 from jobify._internal.storage.sqlite import SQLiteStorage
 from jobify.serializers import ExtendedJSONSerializer
-from tests.conftest import create_cron_factory, cron_next_run
+from tests.conftest import create_cron_factory
 
 
 async def test_sqlite() -> None:
@@ -149,10 +148,8 @@ async def test_restore_schedules(
     finally:
         await storage.shutdown()
 
-    microseconds = int(3e4)  # 0.03 milliseconds
-    cron = Mock(spec=CronParser)
-    cron.next_run.side_effect = cron_next_run(init=microseconds)
-    cron_factory_mock = Mock(return_value=cron)
+    microseconds = 30000  # 0.03 milliseconds
+    cron_factory_mock = create_cron_factory(init=microseconds)
 
     app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
     _ = app2.task(_f, func_name="test_name")
@@ -163,7 +160,9 @@ async def test_restore_schedules(
         assert job_at_restored
         assert job_cron_restored
 
+        await app2.task.start_pending_crons()
         await app2._restore_schedules()
+
         expected_jobs = 2
         assert len(app2.task._shared_state.pending_jobs) == expected_jobs
         assert job_cron_restored is app2.find_job(job_cron.id)
@@ -237,3 +236,37 @@ async def test_restore_schedules_invalid_jobs() -> None:
             call("job_unexpected_arguments"),
         ],
     )
+
+
+async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
+    microseconds = 30000  # 0.03 milliseconds
+    cron_factory_mock = create_cron_factory(init=microseconds)
+    app = Jobify(storage=storage, cron_factory=cron_factory_mock)
+
+    @app.task(cron=Cron("* * * * * * *", max_runs=2))
+    async def _f() -> str:
+        return "test"
+
+    async with app:
+        scheduled_job1 = list(await app.configs.storage.get_schedules()).pop()
+        job = app.task._shared_state.pending_jobs.popitem()[1]
+        await job.wait()
+        assert job.result() == "test"
+
+    app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
+    _ = app2.task(_f)
+
+    async with app2:
+        scheduled_job2 = list(await app2.configs.storage.get_schedules()).pop()
+        job = app2.task._shared_state.pending_jobs.popitem()[1]
+        await job.wait()
+        assert job.result() == "test"
+
+    now_old: datetime = app.configs.serializer.loadb(
+        scheduled_job1.message,
+    ).trigger["now"]
+    now_new: datetime = app2.configs.serializer.loadb(
+        scheduled_job2.message,
+    ).trigger["now"]
+
+    assert now_old < now_new
