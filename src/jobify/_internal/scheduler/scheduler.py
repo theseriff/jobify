@@ -86,7 +86,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self.func_spec: FuncSpec[ReturnT] = func_spec
         self.route_options: RouteOptions = options
 
-    def _now(self) -> datetime:
+    def now(self) -> datetime:
         return datetime.now(tz=self._configs.tz)
 
     def _calculate_delay_seconds(self, now: datetime, at: datetime) -> float:
@@ -110,7 +110,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         now: datetime | None = None,
     ) -> Job[ReturnT]:
         self._ensure_job_id(job_id)
-        now = now or self._now()
+        now = now or self.now()
         if isinstance(cron, str):
             cron = Cron(cron)
         job = self._cron(cron=cron, job_id=job_id, now=now)
@@ -147,7 +147,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id: str | None = None,
         now: datetime | None = None,
     ) -> Job[ReturnT]:
-        now = now or self._now()
+        now = now or self.now()
         at = now + timedelta(seconds=seconds)
         return await self.at(at=at, now=now, job_id=job_id)
 
@@ -160,7 +160,7 @@ class ScheduleBuilder(Generic[ReturnT]):
     ) -> Job[ReturnT]:
         job_id = job_id or uuid4().hex
         self._ensure_job_id(job_id)
-        now = now or self._now()
+        now = now or self.now()
         job = self._at(at=at, now=now, job_id=job_id)
 
         if self._is_persist():
@@ -216,8 +216,9 @@ class ScheduleBuilder(Generic[ReturnT]):
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)
         self._shared_state.pending_tasks.add(task)
+        event = job._event
         task.add_done_callback(self._shared_state.pending_tasks.discard)
-        task.add_done_callback(lambda _: job._event.set())
+        task.add_done_callback(lambda _: event.set())
 
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
@@ -228,7 +229,9 @@ class ScheduleBuilder(Generic[ReturnT]):
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
         self._shared_state.pending_tasks.add(task)
+        event = ctx.job._event
         task.add_done_callback(self._shared_state.pending_tasks.discard)
+        task.add_done_callback(lambda _: event.set())
 
     async def _exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         job = ctx.job
@@ -238,14 +241,20 @@ class ScheduleBuilder(Generic[ReturnT]):
         else:
             ctx.failure_count += 1
 
-        job._event.set()
         if (
             job.is_reschedulable()
             and ctx.is_run_allowed_by_limit()
             and self._configs.app_started
         ):
             if ctx.is_failure_allowed_by_limit():
-                self._reschedule_cron(ctx)
+                now = self._reschedule_cron(ctx)
+                if self._is_persist():
+                    trigger_with_new_now = CronArguments(
+                        cron=ctx.cron,
+                        job_id=job.id,
+                        now=now,
+                    )
+                    await self._save_scheduled(trigger_with_new_now, job)
             else:
                 job._status = JobStatus.PERMANENTLY_FAILED
                 logger.warning(
@@ -258,8 +267,8 @@ class ScheduleBuilder(Generic[ReturnT]):
         else:
             _ = self._shared_state.pending_jobs.pop(job.id, None)
 
-    def _reschedule_cron(self, ctx: CronContext[ReturnT]) -> None:
-        now = self._now()
+    def _reschedule_cron(self, ctx: CronContext[ReturnT]) -> datetime:
+        now = self.now()
         next_at = ctx.cron_parser.next_run(now=now)
         delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
         loop = self._configs.getloop()
@@ -271,6 +280,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,
         )
+        return now
 
     async def _exec_job(self, job: Job[ReturnT]) -> None:
         job._status = JobStatus.RUNNING

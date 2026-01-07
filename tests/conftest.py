@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from datetime import datetime, timedelta
 from itertools import count
 from typing import Any
@@ -31,22 +30,15 @@ def amock() -> AsyncMock:
     return mock
 
 
-def cron_next_run(
-    init: int = 10,
-    step: int = 300,
-) -> Callable[[datetime], datetime]:
+def create_cron_factory(init: int = 10, step: int = 300) -> CronFactory:
     cnt = count(init, step=step)
 
     def next_run(now: datetime) -> datetime:
         return now + timedelta(microseconds=next(cnt))
 
-    return next_run
-
-
-def create_cron_factory() -> CronFactory:
     cron = Mock(spec=CronParser)
-    cron.next_run.side_effect = cron_next_run()
-    return Mock(return_value=cron)
+    cron.next_run.side_effect = next_run
+    return Mock(return_value=cron, spec=CronFactory)
 
 
 def create_app() -> Jobify:

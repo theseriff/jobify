@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 import sys
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, get_type_hints
 
@@ -44,6 +45,8 @@ if TYPE_CHECKING:
     from jobify._internal.runners import RunStrategy
     from jobify._internal.shared_state import SharedState
 
+
+logger = logging.getLogger("Jobify.router")
 
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
@@ -196,15 +199,18 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
         if cron := options.get("cron"):
             if isinstance(cron, str):
                 cron = Cron(cron)
-            p = (route, cron, route.name)  # route.name as job_id
+            job_id = f"{route.name}__jobify_cron_definition"
+            p = (route, cron, job_id)
             self.state.setdefault(PENDING_CRON_JOBS, []).append(p)
 
         return route
 
-    def start_pending_crons(self) -> None:
-        for route, cron, func_name in self.state.pop(PENDING_CRON_JOBS, []):
-            builder = route.schedule()
-            builder._cron(cron=cron, job_id=func_name, now=builder._now())
+    async def start_pending_crons(self) -> None:
+        for route, cron, job_id in self.state.pop(PENDING_CRON_JOBS, []):
+            if job_id in self._shared_state.pending_jobs:
+                continue  # Skip if already scheduled
+            builder: ScheduleBuilder[Any] = route.schedule()
+            _ = await builder.cron(cron=cron, job_id=job_id, now=builder.now())
 
 
 class RootRouter(Router):
