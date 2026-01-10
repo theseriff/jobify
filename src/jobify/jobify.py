@@ -16,6 +16,7 @@ from jobify._internal.configuration import (
     WorkerPools,
 )
 from jobify._internal.message import Message
+from jobify._internal.misfire_policy import GracePolicy, MisfirePolicy
 from jobify._internal.router.root import RootRouter
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
@@ -99,7 +100,9 @@ class Jobify(RootRouter):
 
         if serializer is None:
             serializer = (
-                ExtendedJSONSerializer({"Message": Message, "Cron": Cron})
+                ExtendedJSONSerializer(
+                    (Message, Cron, MisfirePolicy, GracePolicy)
+                )
                 if dumper is None and loader is None
                 else JSONSerializer()
             )
@@ -185,7 +188,10 @@ class Jobify(RootRouter):
 
     async def _restore_schedules(self) -> None:
         schedules = await self.configs.storage.get_schedules()
+        pending_crons = await self.task.start_pending_crons()
         for sch in schedules:
+            if sch.job_id in pending_crons:
+                pass
             if self.find_job(sch.job_id):
                 msg = (
                     f"Job {sch.job_id} is already active (code defined)."
@@ -194,6 +200,10 @@ class Jobify(RootRouter):
                 logger.debug(msg)
                 continue
             try:
+                route = self.task._routes[sch.func_name]
+                if route.options.get("durable") is False:
+                    await self.configs.storage.delete_schedule(sch.job_id)
+
                 await self._feed_message(sch.message)
             except (KeyError, TypeError, ValueError) as exc:
                 # KeyError: The function has been removed from the router
@@ -245,7 +255,6 @@ class Jobify(RootRouter):
         await self.configs.storage.startup()
         await self._propagate_startup(self)
         await self._restore_schedules()
-        await self.task.start_pending_crons()
 
     async def shutdown(self) -> None:
         """Gracefully shut down the Jobify application.

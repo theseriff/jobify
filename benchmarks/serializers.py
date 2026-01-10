@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from timeit import timeit
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from jobify._internal.serializers.json_extended import SupportedTypes
 from jobify.serializers import (
@@ -29,11 +29,6 @@ class BenchNamedTuple(NamedTuple):
     label: str
 
 
-bench_registry: dict[str, Any] = {
-    "BenchDataclass": BenchDataclass,
-    "NestedBenchDataclass": NestedBenchDataclass,
-    "BenchNamedTuple": BenchNamedTuple,
-}
 big_serializable_data: dict[str, SupportedTypes] = {
     # Simple types
     "none_value": None,
@@ -191,7 +186,9 @@ def serializers_measure() -> dict[str, dict[str, float]]:
     common_globs = {"serializer_case": serializer_case}
     stmt = "for _ in range(10): serializer_case(serializer)"
     for name, serializer in {
-        "json": ExtendedJSONSerializer(bench_registry),
+        "json": ExtendedJSONSerializer(
+            (BenchDataclass, NestedBenchDataclass, BenchNamedTuple)
+        ),
         "pickle": UnsafePickleSerializer(),
     }.items():
         globs = common_globs | {"serializer": serializer}

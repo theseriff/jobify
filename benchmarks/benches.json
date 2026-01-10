@@ -1,6 +1,6 @@
 {
   "serializers": {
-    "pickle": 0.68,
-    "json": 3.82
+    "pickle": 0.58,
+    "json": 3.2
   }
 }

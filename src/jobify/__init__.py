@@ -12,6 +12,7 @@ from jobify._internal.common.datastructures import RequestState, State
 from jobify._internal.configuration import Cron
 from jobify._internal.context import JobContext
 from jobify._internal.injection import INJECT
+from jobify._internal.misfire_policy import MisfirePolicy
 from jobify._internal.router.node import NodeRouter as JobRouter
 from jobify._internal.runners import Runnable
 from jobify._internal.scheduler.job import Job
@@ -27,6 +28,7 @@ __all__ = (
     "JobRouter",
     "JobStatus",
     "Jobify",
+    "MisfirePolicy",
     "RequestState",
     "RunMode",
     "Runnable",

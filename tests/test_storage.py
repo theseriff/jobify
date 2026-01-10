@@ -160,7 +160,7 @@ async def test_restore_schedules(
         assert job_at_restored
         assert job_cron_restored
 
-        await app2.task.start_pending_crons()
+        _ = await app2.task.start_pending_crons()
         await app2._restore_schedules()
 
         expected_jobs = 2

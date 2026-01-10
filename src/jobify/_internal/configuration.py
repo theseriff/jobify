@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from typing_extensions import NotRequired
 
 from jobify._internal.common.constants import INFINITY
+from jobify._internal.misfire_policy import GracePolicy, MisfirePolicy
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -64,6 +65,7 @@ class Cron:
     expression: str = field(kw_only=False)
     max_runs: int = INFINITY
     max_failures: int = 10
+    misfire_policy: MisfirePolicy | GracePolicy = MisfirePolicy.ONCE
 
     def __post_init__(self) -> None:
         if self.max_failures < 1:
