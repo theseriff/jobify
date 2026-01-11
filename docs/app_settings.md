@@ -130,7 +130,7 @@ The primary serializer for converting job data, such as function arguments, into
 
 - If `dumper` and `loader` are not specified, the default value is `ExtendedJSONSerializer`, which supports common types such as `datetime`.
 - Otherwise, it will fall back to the simpler `JSONSerializer`.
-- You can provide your own custom serializer instance that implements the `jobify._internal.serializers.base.Serializer` interface.
+- You can provide your own custom serializer instance that implements the `jobify.serializers.Serializer` interface.
 
 ## `middleware`
 
