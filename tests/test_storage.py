@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -127,7 +127,6 @@ def storage() -> Iterator[SQLiteStorage]:
     s.database.unlink()
 
 
-@pytest.mark.skip
 async def test_restore_schedules(
     storage: SQLiteStorage,
     now: datetime,
@@ -165,8 +164,6 @@ async def test_restore_schedules(
         job_cron_restored: Job[str] | None = app2.find_job(job_cron.id)
         assert job_at_restored
         assert job_cron_restored
-
-        await app2._restore_schedules()
 
         expected_jobs = 2
         assert len(app2.task._shared_state.pending_jobs) == expected_jobs
@@ -222,13 +219,12 @@ async def test_restore_schedules_invalid_jobs() -> None:
         status=JobStatus.SCHEDULED,
         next_run_at=now,
     )
+
+    schedules = [missing_route_job, invalid_payload_job, invalid_argument_job]
+
     mock_storage = AsyncMock()
-    mock_storage.get_schedules.return_value = [
-        missing_route_job,
-        invalid_payload_job,
-        invalid_argument_job,
-    ]
-    mock_storage.delete_schedule = AsyncMock()
+    mock_storage.get_schedules.return_value = schedules
+    mock_storage.delete_schedule_many = AsyncMock()
 
     app = Jobify(storage=mock_storage)
 
@@ -237,12 +233,8 @@ async def test_restore_schedules_invalid_jobs() -> None:
         pass
 
     await app._restore_schedules()
-    mock_storage.delete_schedule.assert_has_awaits(
-        [
-            call("job_missing_route"),
-            call("corrupted_data_001"),
-            call("job_unexpected_arguments"),
-        ],
+    mock_storage.delete_schedule_many.assert_awaited_once_with(
+        [s.job_id for s in schedules]
     )
 
 

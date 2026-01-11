@@ -102,6 +102,49 @@ class ScheduleBuilder(Generic[ReturnT]):
             and self.route_options.get("durable", True) is True
         )
 
+    def _create_scheduled(
+        self,
+        trigger: CronArguments | AtArguments,
+        job_id: str,
+        job_status: JobStatus,
+        next_run_at: datetime,
+    ) -> ScheduledJob:
+        msg = Message(
+            job_id=job_id,
+            func_name=self.func_name,
+            arguments=self._runnable.bound.arguments,
+            trigger=trigger,
+        )
+        for name, arg in msg.arguments.items():
+            msg.arguments[name] = self._configs.dumper.dump(
+                arg,
+                self.func_spec.params_type[name],
+            )
+        formatted = self._configs.dumper.dump(msg, Message)
+        raw_message = self._configs.serializer.dumpb(formatted)
+        return ScheduledJob(
+            job_id=job_id,
+            func_name=self.func_name,
+            message=raw_message,
+            status=job_status,
+            next_run_at=next_run_at,
+        )
+
+    async def _save_scheduled(
+        self,
+        trigger: CronArguments | AtArguments,
+        job_id: str,
+        job_status: JobStatus,
+        next_run_at: datetime,
+    ) -> None:
+        scheduled_job = self._create_scheduled(
+            trigger,
+            job_id,
+            job_status,
+            next_run_at,
+        )
+        await self._configs.storage.add_schedule(scheduled_job)
+
     async def cron(
         self,
         cron: str | Cron,
@@ -111,19 +154,43 @@ class ScheduleBuilder(Generic[ReturnT]):
     ) -> Job[ReturnT]:
         self._ensure_job_id(job_id)
         now = now or self.now()
+
         if isinstance(cron, str):
             cron = Cron(cron)
-        job = self._cron(cron=cron, job_id=job_id, now=now)
+
+        cron_parser = self._configs.cron_factory(cron.expression)
+        next_run_at = cron_parser.next_run(now=now)
 
         if self._is_persist():
             trigger = CronArguments(cron=cron, job_id=job_id, now=now)
-            await self._save_scheduled(trigger, job)
+            await self._save_scheduled(
+                trigger,
+                job_id=job_id,
+                job_status=JobStatus.SCHEDULED,
+                next_run_at=next_run_at,
+            )
+        return self._cron(
+            cron=cron,
+            job_id=job_id,
+            now=now,
+            next_run_at=next_run_at,
+            cron_parser=cron_parser,
+        )
 
-        return job
+    def _cron(
+        self,
+        *,
+        cron: Cron,
+        job_id: str,
+        now: datetime,
+        next_run_at: datetime | None = None,
+        cron_parser: CronParser | None = None,
+    ) -> Job[ReturnT]:
+        cron_parser = cron_parser or self._configs.cron_factory(
+            cron.expression
+        )
+        next_run_at = next_run_at or cron_parser.next_run(now=now)
 
-    def _cron(self, *, cron: Cron, job_id: str, now: datetime) -> Job[ReturnT]:
-        cron_parser = self._configs.cron_factory(cron.expression)
-        next_run_at = cron_parser.next_run(now=now)
         job = Job(
             exec_at=next_run_at,
             job_id=job_id,
@@ -161,13 +228,16 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id = job_id or uuid4().hex
         self._ensure_job_id(job_id)
         now = now or self.now()
-        job = self._at(at=at, now=now, job_id=job_id)
 
         if self._is_persist():
             trigger = AtArguments(at=at, job_id=job_id, now=now)
-            await self._save_scheduled(trigger, job)
-
-        return job
+            await self._save_scheduled(
+                trigger,
+                job_id=job_id,
+                job_status=JobStatus.SCHEDULED,
+                next_run_at=at,
+            )
+        return self._at(at=at, now=now, job_id=job_id)
 
     def _at(self, *, at: datetime, now: datetime, job_id: str) -> Job[ReturnT]:
         job = Job(
@@ -186,40 +256,6 @@ class ScheduleBuilder(Generic[ReturnT]):
             handle = loop.call_at(when, self._pre_exec_at, job)
         job.bind_handle(handle)
         return job
-
-    def _create_scheduled(
-        self,
-        trigger: CronArguments | AtArguments,
-        job: Job[ReturnT],
-    ) -> ScheduledJob:
-        msg = Message(
-            job_id=job.id,
-            func_name=self.func_name,
-            arguments=self._runnable.bound.arguments,
-            trigger=trigger,
-        )
-        for name, arg in msg.arguments.items():
-            msg.arguments[name] = self._configs.dumper.dump(
-                arg,
-                self.func_spec.params_type[name],
-            )
-        formatted = self._configs.dumper.dump(msg, Message)
-        raw_message = self._configs.serializer.dumpb(formatted)
-        return ScheduledJob(
-            job_id=msg.job_id,
-            func_name=self.func_name,
-            message=raw_message,
-            status=job.status,
-            next_run_at=job.exec_at,
-        )
-
-    async def _save_scheduled(
-        self,
-        trigger: CronArguments | AtArguments,
-        job: Job[ReturnT],
-    ) -> None:
-        scheduled_job = self._create_scheduled(trigger, job)
-        await self._configs.storage.add_schedule(scheduled_job)
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)
@@ -262,7 +298,12 @@ class ScheduleBuilder(Generic[ReturnT]):
                         job_id=job.id,
                         now=now,
                     )
-                    await self._save_scheduled(trigger_with_new_now, job)
+                    await self._save_scheduled(
+                        trigger_with_new_now,
+                        job.id,
+                        job.status,
+                        job.exec_at,
+                    )
             else:
                 job._status = JobStatus.PERMANENTLY_FAILED
                 logger.warning(
@@ -309,3 +350,6 @@ class ScheduleBuilder(Generic[ReturnT]):
             job.set_exception(exc, status=JobStatus.FAILED)
         else:
             job.set_result(result, status=JobStatus.SUCCESS)
+
+    def _handle_misfire(self, _next_run_at: datetime, _now: datetime) -> None:
+        pass

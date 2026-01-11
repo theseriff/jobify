@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
+from jobify._internal.common.constants import JobStatus
 from jobify._internal.configuration import (
     Cron,
     JobifyConfiguration,
@@ -193,57 +194,75 @@ class Jobify(RootRouter):
 
         await asyncio.wait_for(target(), timeout=timeout)
 
-    def _start_pending_crons(self) -> dict[str, ScheduledJob]:
+    async def _start_pending_crons(
+        self,
+        db_map: dict[str, ScheduledJob],
+    ) -> None:
         pending_crons: PendingCronJobs = self.state.pop(PENDING_CRON_JOBS, {})
-        actual_scheduled_jobs: dict[str, ScheduledJob] = {}
+        scheduled_to_update: list[ScheduledJob] = []
 
         for job_id, (route, cron) in pending_crons.items():
             builder = route.schedule()
             now = builder.now()
-            job = builder._cron(cron=cron, job_id=job_id, now=now)
 
-            if builder._is_persist():
+            if not builder._is_persist():
+                _ = builder._cron(cron=cron, job_id=job_id, now=now)
+                continue
+
+            if job_id in db_map:
+                next_run_at = db_map[job_id].next_run_at
                 trigger = CronArguments(cron=cron, job_id=job_id, now=now)
-                scheduled = builder._create_scheduled(trigger, job)
-                actual_scheduled_jobs[job_id] = scheduled
+                scheduled = builder._create_scheduled(
+                    trigger,
+                    job_id,
+                    JobStatus.SCHEDULED,
+                    next_run_at=next_run_at,
+                )
+                scheduled_to_update.append(scheduled)
+                db_map[job_id] = scheduled
+                continue
 
-        return actual_scheduled_jobs
+            _ = await builder.cron(cron=cron, job_id=job_id, now=now)
+
+        await self.configs.storage.add_schedule(*scheduled_to_update)
 
     async def _restore_schedules(self) -> None:
         db_map = {
             sch.job_id: sch
             for sch in await self.configs.storage.get_schedules()
         }
-        actual_scheduled_jobs = self._start_pending_crons()
-        await self.configs.storage.add_schedule(
-            *actual_scheduled_jobs.values()
-        )
-        for job_id, sch in db_map.items():
-            try:
-                route = self.task._routes[sch.func_name]
-                if route.options.get("durable") is False:
-                    await self.configs.storage.delete_schedule(job_id)
+        await self._start_pending_crons(db_map)
+        scheduled_to_delete: list[str] = []
 
-                await self._feed_message(sch.message)
-            except (KeyError, TypeError, ValueError) as exc:  # noqa: PERF203
+        for sch in db_map.values():
+            route = self.task._routes.get(sch.func_name)
+            if route is None or route.options.get("durable") is False:
+                scheduled_to_delete.append(sch.job_id)
+                continue
+
+            try:
+                await self._feed_message(sch)
+            except (KeyError, TypeError, ValueError) as exc:
                 # KeyError: The function has been removed from the router
                 #   (the code has changed).
                 # TypeError: The arguments in the database do not match the new
                 #   function signature.
                 # ValueError: Serializer error.
                 msg = (
-                    f"Cannot restore job {job_id} ({sch.func_name}). "
+                    f"Cannot restore job {sch.job_id} ({sch.func_name}). "
                     f"Exception Type: {type(exc)}. "
                     f"Reason: {exc}. Removing from storage."
                 )
                 logger.warning(msg)
-                await self.configs.storage.delete_schedule(job_id)
+                scheduled_to_delete.append(sch.job_id)
             except Exception:  # pragma: no cover
-                msg = f"Unexpected error restoring job {job_id}"
+                msg = f"Unexpected error restoring job {sch.job_id}"
                 logger.exception(msg)
 
-    async def _feed_message(self, raw_msg: bytes) -> None:
-        de_message = self.configs.serializer.loadb(raw_msg)
+        await self.configs.storage.delete_schedule_many(scheduled_to_delete)
+
+    async def _feed_message(self, sch: ScheduledJob) -> None:
+        de_message = self.configs.serializer.loadb(sch.message)
         msg = self.configs.loader.load(de_message, Message)
         route = self.task._routes[msg.func_name]
         for name, arg in msg.arguments.items():
@@ -254,6 +273,7 @@ class Jobify(RootRouter):
         bound = route.func_spec.signature.bind(**msg.arguments)
         builder = route.create_builder(bound)
         if "cron" in msg.trigger:
+            builder._handle_misfire(sch.next_run_at, msg.trigger["now"])
             _ = builder._cron(**msg.trigger)
         else:
             _ = builder._at(**msg.trigger)
