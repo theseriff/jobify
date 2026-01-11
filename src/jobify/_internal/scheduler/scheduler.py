@@ -123,9 +123,9 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     def _cron(self, *, cron: Cron, job_id: str, now: datetime) -> Job[ReturnT]:
         cron_parser = self._configs.cron_factory(cron.expression)
-        at = cron_parser.next_run(now=now)
+        next_run_at = cron_parser.next_run(now=now)
         job = Job(
-            exec_at=at,
+            exec_at=next_run_at,
             job_id=job_id,
             pending_jobs=self._shared_state.pending_jobs,
             cron_expression=cron.expression,
@@ -133,7 +133,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         self._shared_state.pending_jobs[job.id] = job
         cron_ctx = CronContext(job=job, cron=cron, cron_parser=cron_parser)
-        delay_seconds = self._calculate_delay_seconds(now=now, at=at)
+        delay_seconds = self._calculate_delay_seconds(now=now, at=next_run_at)
         loop = self._configs.getloop()
         when = loop.time() + delay_seconds
         handle = loop.call_at(when, self._pre_exec_cron, cron_ctx)
@@ -187,11 +187,11 @@ class ScheduleBuilder(Generic[ReturnT]):
         job.bind_handle(handle)
         return job
 
-    async def _save_scheduled(
+    def _create_scheduled(
         self,
         trigger: CronArguments | AtArguments,
         job: Job[ReturnT],
-    ) -> None:
+    ) -> ScheduledJob:
         msg = Message(
             job_id=job.id,
             func_name=self.func_name,
@@ -205,12 +205,20 @@ class ScheduleBuilder(Generic[ReturnT]):
             )
         formatted = self._configs.dumper.dump(msg, Message)
         raw_message = self._configs.serializer.dumpb(formatted)
-        scheduled_job = ScheduledJob(
+        return ScheduledJob(
             job_id=msg.job_id,
             func_name=self.func_name,
             message=raw_message,
             status=job.status,
+            next_run_at=job.exec_at,
         )
+
+    async def _save_scheduled(
+        self,
+        trigger: CronArguments | AtArguments,
+        job: Job[ReturnT],
+    ) -> None:
+        scheduled_job = self._create_scheduled(trigger, job)
         await self._configs.storage.add_schedule(scheduled_job)
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
