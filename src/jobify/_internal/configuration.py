@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from typing_extensions import NotRequired
 
 from jobify._internal.common.constants import INFINITY
-from jobify._internal.misfire_policy import GracePolicy, MisfirePolicy
+from jobify._internal.scheduler.misfire_policy import (
+    GracePolicy,
+    MisfirePolicy,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

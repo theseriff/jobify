@@ -15,9 +15,16 @@ from jobify._internal.configuration import (
     JobifyConfiguration,
     WorkerPools,
 )
-from jobify._internal.message import Message
-from jobify._internal.misfire_policy import GracePolicy, MisfirePolicy
-from jobify._internal.router.root import RootRouter
+from jobify._internal.message import CronArguments, Message
+from jobify._internal.router.root import (
+    PENDING_CRON_JOBS,
+    PendingCronJobs,
+    RootRouter,
+)
+from jobify._internal.scheduler.misfire_policy import (
+    GracePolicy,
+    MisfirePolicy,
+)
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
 from jobify._internal.shared_state import SharedState
@@ -37,7 +44,7 @@ if TYPE_CHECKING:
     from jobify._internal.middleware.exceptions import MappingExceptionHandlers
     from jobify._internal.scheduler.job import Job
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import Storage
+    from jobify._internal.storage.abc import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 
@@ -186,40 +193,53 @@ class Jobify(RootRouter):
 
         await asyncio.wait_for(target(), timeout=timeout)
 
+    def _start_pending_crons(self) -> dict[str, ScheduledJob]:
+        pending_crons: PendingCronJobs = self.state.pop(PENDING_CRON_JOBS, {})
+        actual_scheduled_jobs: dict[str, ScheduledJob] = {}
+
+        for job_id, (route, cron) in pending_crons.items():
+            builder = route.schedule()
+            now = builder.now()
+            job = builder._cron(cron=cron, job_id=job_id, now=now)
+
+            if builder._is_persist():
+                trigger = CronArguments(cron=cron, job_id=job_id, now=now)
+                scheduled = builder._create_scheduled(trigger, job)
+                actual_scheduled_jobs[job_id] = scheduled
+
+        return actual_scheduled_jobs
+
     async def _restore_schedules(self) -> None:
-        schedules = await self.configs.storage.get_schedules()
-        pending_crons = await self.task.start_pending_crons()
-        for sch in schedules:
-            if sch.job_id in pending_crons:
-                pass
-            if self.find_job(sch.job_id):
-                msg = (
-                    f"Job {sch.job_id} is already active (code defined)."
-                    "Skipping DB restore."
-                )
-                logger.debug(msg)
-                continue
+        db_map = {
+            sch.job_id: sch
+            for sch in await self.configs.storage.get_schedules()
+        }
+        actual_scheduled_jobs = self._start_pending_crons()
+        await self.configs.storage.add_schedule(
+            *actual_scheduled_jobs.values()
+        )
+        for job_id, sch in db_map.items():
             try:
                 route = self.task._routes[sch.func_name]
                 if route.options.get("durable") is False:
-                    await self.configs.storage.delete_schedule(sch.job_id)
+                    await self.configs.storage.delete_schedule(job_id)
 
                 await self._feed_message(sch.message)
-            except (KeyError, TypeError, ValueError) as exc:
+            except (KeyError, TypeError, ValueError) as exc:  # noqa: PERF203
                 # KeyError: The function has been removed from the router
                 #   (the code has changed).
                 # TypeError: The arguments in the database do not match the new
                 #   function signature.
                 # ValueError: Serializer error.
                 msg = (
-                    f"Cannot restore job {sch.job_id} ({sch.func_name}). "
+                    f"Cannot restore job {job_id} ({sch.func_name}). "
                     f"Exception Type: {type(exc)}. "
                     f"Reason: {exc}. Removing from storage."
                 )
                 logger.warning(msg)
-                await self.configs.storage.delete_schedule(sch.job_id)
+                await self.configs.storage.delete_schedule(job_id)
             except Exception:  # pragma: no cover
-                msg = f"Unexpected error restoring job {sch.job_id}"
+                msg = f"Unexpected error restoring job {job_id}"
                 logger.exception(msg)
 
     async def _feed_message(self, raw_msg: bytes) -> None:

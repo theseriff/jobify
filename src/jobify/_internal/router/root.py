@@ -214,13 +214,6 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
 
         return route
 
-    async def start_pending_crons(self) -> PendingCronJobs:
-        pending_crons: PendingCronJobs = self.state.pop(PENDING_CRON_JOBS, {})
-        for job_id, (route, cron) in pending_crons.items():
-            builder = route.schedule()
-            _ = await builder.cron(cron=cron, job_id=job_id, now=builder.now())
-        return pending_crons
-
 
 class RootRouter(Router):
     def __init__(
