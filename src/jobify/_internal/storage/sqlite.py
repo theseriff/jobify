@@ -5,6 +5,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
+from zoneinfo import ZoneInfo
 
 from typing_extensions import override
 
@@ -66,6 +67,7 @@ class SQLiteStorage(Storage):
         *,
         table_name: str = "jobify_schedules",
         timeout: float = 20.0,
+        tz: ZoneInfo,
     ) -> None:
         validate_table_name(table_name)
         self.database: Path = (
@@ -73,6 +75,7 @@ class SQLiteStorage(Storage):
         )
         self.table_name: str = table_name
         self.timeout: float = timeout
+        self.tz: ZoneInfo = tz
         self.getloop: LoopFactory = asyncio._get_running_loop
         self.threadpool: ThreadPoolExecutor | None = None
         self._conn: sqlite3.Connection | None = None
@@ -135,7 +138,9 @@ class SQLiteStorage(Storage):
                     func_name=row[1],
                     message=row[2],
                     status=JobStatus(row[3]),
-                    next_run_at=datetime.fromisoformat(row[4]),
+                    next_run_at=(
+                        datetime.fromisoformat(row[4]).astimezone(self.tz)
+                    ),
                 )
                 for row in cursor.fetchall()
             ]

@@ -56,8 +56,8 @@ async def test_jobify(  # noqa: PLR0913
         app.include_router(node)
     async with app:
         if method == "at":
-            job_sync = await f1_reg.schedule(num).at(now, now=now)
-            job_async = await f2_reg.schedule(num).at(now, now=now)
+            job_sync = await f1_reg.schedule(num).at(now)
+            job_async = await f2_reg.schedule(num).at(now)
         elif method == "delay":
             job_sync = await f1_reg.schedule(num).delay(0, now=now)
             job_async = await f2_reg.schedule(num).delay(0, now=now)

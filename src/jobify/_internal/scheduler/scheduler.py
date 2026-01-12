@@ -15,6 +15,7 @@ from jobify._internal.context import JobContext
 from jobify._internal.exceptions import DuplicateJobError, JobTimeoutError
 from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.scheduler.job import Job
+from jobify._internal.scheduler.misfire_policy import handle_misfire_policy
 from jobify._internal.storage.abc import ScheduledJob
 from jobify._internal.storage.dummy import DummyStorage
 
@@ -89,12 +90,18 @@ class ScheduleBuilder(Generic[ReturnT]):
     def now(self) -> datetime:
         return datetime.now(tz=self._configs.tz)
 
-    def _calculate_delay_seconds(self, now: datetime, at: datetime) -> float:
-        return at.timestamp() - now.timestamp()
+    def _calculate_delay_seconds(
+        self,
+        real_now: datetime,
+        target_at: datetime,
+    ) -> float:
+        return target_at.timestamp() - real_now.timestamp()
 
-    def _ensure_job_id(self, job_id: str) -> None:
+    def _ensure_job_id(self, job_id: str | None = None) -> str:
+        job_id = job_id or uuid4().hex
         if job_id in self._shared_state.pending_jobs:
             raise DuplicateJobError(job_id)
+        return job_id
 
     def _is_persist(self) -> bool:
         return (
@@ -106,7 +113,6 @@ class ScheduleBuilder(Generic[ReturnT]):
         self,
         trigger: CronArguments | AtArguments,
         job_id: str,
-        job_status: JobStatus,
         next_run_at: datetime,
     ) -> ScheduledJob:
         msg = Message(
@@ -126,7 +132,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             job_id=job_id,
             func_name=self.func_name,
             message=raw_message,
-            status=job_status,
+            status=JobStatus.SCHEDULED,
             next_run_at=next_run_at,
         )
 
@@ -134,13 +140,11 @@ class ScheduleBuilder(Generic[ReturnT]):
         self,
         trigger: CronArguments | AtArguments,
         job_id: str,
-        job_status: JobStatus,
         next_run_at: datetime,
     ) -> None:
         scheduled_job = self._create_scheduled(
             trigger,
             job_id,
-            job_status,
             next_run_at,
         )
         await self._configs.storage.add_schedule(scheduled_job)
@@ -152,8 +156,10 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id: str,
         now: datetime | None = None,
     ) -> Job[ReturnT]:
-        self._ensure_job_id(job_id)
-        now = now or self.now()
+        job_id = self._ensure_job_id(job_id)
+
+        real_now = self.now()
+        now = now or real_now
 
         if isinstance(cron, str):
             cron = Cron(cron)
@@ -163,36 +169,40 @@ class ScheduleBuilder(Generic[ReturnT]):
 
         if self._is_persist():
             trigger = CronArguments(cron=cron, job_id=job_id, now=now)
-            await self._save_scheduled(
-                trigger,
-                job_id=job_id,
-                job_status=JobStatus.SCHEDULED,
-                next_run_at=next_run_at,
-            )
+            await self._save_scheduled(trigger, job_id, next_run_at)
+
         return self._cron(
             cron=cron,
             job_id=job_id,
             now=now,
+            real_now=real_now,
             next_run_at=next_run_at,
             cron_parser=cron_parser,
         )
 
-    def _cron(
+    def _cron(  # noqa: PLR0913
         self,
         *,
         cron: Cron,
         job_id: str,
         now: datetime,
+        real_now: datetime | None = None,
         next_run_at: datetime | None = None,
         cron_parser: CronParser | None = None,
     ) -> Job[ReturnT]:
+        real_now = real_now or self.now()
         cron_parser = cron_parser or self._configs.cron_factory(
-            cron.expression
+            cron.expression,
         )
         next_run_at = next_run_at or cron_parser.next_run(now=now)
-
+        adjusted_run_at = handle_misfire_policy(
+            cron_parser,
+            next_run_at,
+            real_now,
+            cron.misfire_policy,
+        )
         job = Job(
-            exec_at=next_run_at,
+            exec_at=adjusted_run_at,
             job_id=job_id,
             pending_jobs=self._shared_state.pending_jobs,
             cron_expression=cron.expression,
@@ -200,7 +210,10 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         self._shared_state.pending_jobs[job.id] = job
         cron_ctx = CronContext(job=job, cron=cron, cron_parser=cron_parser)
-        delay_seconds = self._calculate_delay_seconds(now=now, at=next_run_at)
+        delay_seconds = self._calculate_delay_seconds(
+            real_now=real_now,
+            target_at=adjusted_run_at,
+        )
         loop = self._configs.getloop()
         when = loop.time() + delay_seconds
         handle = loop.call_at(when, self._pre_exec_cron, cron_ctx)
@@ -214,32 +227,40 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id: str | None = None,
         now: datetime | None = None,
     ) -> Job[ReturnT]:
-        now = now or self.now()
+        job_id = self._ensure_job_id(job_id)
+
+        real_now = self.now()
+        now = now or real_now
         at = now + timedelta(seconds=seconds)
-        return await self.at(at=at, now=now, job_id=job_id)
+
+        if self._is_persist():
+            trigger = AtArguments(at=at, job_id=job_id)
+            await self._save_scheduled(trigger, job_id, at)
+
+        return self._at(at=at, job_id=job_id, real_now=real_now)
 
     async def at(
         self,
         at: datetime,
         *,
         job_id: str | None = None,
-        now: datetime | None = None,
     ) -> Job[ReturnT]:
-        job_id = job_id or uuid4().hex
-        self._ensure_job_id(job_id)
-        now = now or self.now()
+        job_id = self._ensure_job_id(job_id)
 
         if self._is_persist():
-            trigger = AtArguments(at=at, job_id=job_id, now=now)
-            await self._save_scheduled(
-                trigger,
-                job_id=job_id,
-                job_status=JobStatus.SCHEDULED,
-                next_run_at=at,
-            )
-        return self._at(at=at, now=now, job_id=job_id)
+            trigger = AtArguments(at=at, job_id=job_id)
+            await self._save_scheduled(trigger, job_id, at)
 
-    def _at(self, *, at: datetime, now: datetime, job_id: str) -> Job[ReturnT]:
+        return self._at(at=at, job_id=job_id)
+
+    def _at(
+        self,
+        *,
+        at: datetime,
+        job_id: str,
+        real_now: datetime | None = None,
+    ) -> Job[ReturnT]:
+        real_now = real_now or self.now()
         job = Job(
             exec_at=at,
             job_id=job_id,
@@ -248,7 +269,10 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         self._shared_state.pending_jobs[job.id] = job
         loop = self._configs.getloop()
-        delay_seconds = self._calculate_delay_seconds(now=now, at=at)
+        delay_seconds = self._calculate_delay_seconds(
+            real_now=real_now,
+            target_at=at,
+        )
         if delay_seconds <= 0:
             handle = loop.call_soon(self._pre_exec_at, job)
         else:
@@ -291,18 +315,18 @@ class ScheduleBuilder(Generic[ReturnT]):
             and self._configs.app_started
         ):
             if ctx.is_failure_allowed_by_limit():
-                now = self._reschedule_cron(ctx)
+                cur_run_at = job.exec_at
+                next_run_at = self._reschedule_cron(ctx)
                 if self._is_persist():
                     trigger_with_new_now = CronArguments(
                         cron=ctx.cron,
                         job_id=job.id,
-                        now=now,
+                        now=cur_run_at,
                     )
                     await self._save_scheduled(
                         trigger_with_new_now,
                         job.id,
-                        job.status,
-                        job.exec_at,
+                        next_run_at,
                     )
             else:
                 job._status = JobStatus.PERMANENTLY_FAILED
@@ -317,19 +341,21 @@ class ScheduleBuilder(Generic[ReturnT]):
             _ = self._shared_state.pending_jobs.pop(job.id, None)
 
     def _reschedule_cron(self, ctx: CronContext[ReturnT]) -> datetime:
-        now = self.now()
-        next_at = ctx.cron_parser.next_run(now=now)
-        delay_seconds = self._calculate_delay_seconds(now=now, at=next_at)
+        next_run_at = ctx.cron_parser.next_run(now=ctx.job.exec_at)
+        delay_seconds = self._calculate_delay_seconds(
+            real_now=self.now(),
+            target_at=next_run_at,
+        )
         loop = self._configs.getloop()
         when = loop.time() + delay_seconds
         time_handler = loop.call_at(when, self._pre_exec_cron, ctx)
         job = ctx.job
         job.update(
-            exec_at=next_at,
+            exec_at=next_run_at,
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,
         )
-        return now
+        return next_run_at
 
     async def _exec_job(self, job: Job[ReturnT]) -> None:
         job._status = JobStatus.RUNNING
@@ -350,6 +376,3 @@ class ScheduleBuilder(Generic[ReturnT]):
             job.set_exception(exc, status=JobStatus.FAILED)
         else:
             job.set_result(result, status=JobStatus.SUCCESS)
-
-    def _handle_misfire(self, _next_run_at: datetime, _now: datetime) -> None:
-        pass

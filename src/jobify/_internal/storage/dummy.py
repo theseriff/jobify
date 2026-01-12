@@ -15,7 +15,7 @@ class DummyStorage(Storage):
         pass
 
     @override
-    async def get_schedules(self) -> list[ScheduledJob]:
+    async def get_schedules(self) -> Sequence[ScheduledJob]:
         return []
 
     @override

@@ -1,6 +1,6 @@
 import re
 from abc import ABCMeta, abstractmethod
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from typing import NamedTuple, Protocol
 
@@ -34,7 +34,7 @@ class Storage(Protocol, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_schedules(self) -> Iterable[ScheduledJob]:
+    async def get_schedules(self) -> Sequence[ScheduledJob]:
         raise NotImplementedError
 
     @abstractmethod

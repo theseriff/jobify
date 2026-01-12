@@ -14,7 +14,6 @@ class CronArguments(TypedDict):
 class AtArguments(TypedDict):
     at: datetime
     job_id: str
-    now: datetime
 
 
 @dataclass(slots=True, kw_only=True)

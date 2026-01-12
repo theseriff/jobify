@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
-from jobify._internal.common.constants import JobStatus
 from jobify._internal.configuration import (
     Cron,
     JobifyConfiguration,
@@ -88,7 +87,7 @@ class Jobify(RootRouter):
         lifespan: Lifespan[AppT] | None = None,
         serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
-        cron_factory: CronFactory | None = None,
+        cron_factory: CronFactory = create_crontab,
         loop_factory: LoopFactory = asyncio.get_running_loop,
         exception_handlers: MappingExceptionHandlers | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
@@ -96,11 +95,12 @@ class Jobify(RootRouter):
     ) -> None:
         """Initialize a `Jobify` instance."""
         getloop = cache_result(loop_factory)
+        tz = tz or ZoneInfo("UTC")
 
         if storage is False:
             storage = DummyStorage()
         elif storage is None:
-            storage = SQLiteStorage()
+            storage = SQLiteStorage(tz=tz)
 
         if isinstance(storage, SQLiteStorage):
             storage.getloop = getloop
@@ -121,7 +121,7 @@ class Jobify(RootRouter):
             loader = DummyLoader()
 
         self.configs: JobifyConfiguration = JobifyConfiguration(
-            tz=tz or ZoneInfo("UTC"),
+            tz=tz,
             dumper=dumper,
             loader=loader,
             storage=storage,
@@ -131,7 +131,7 @@ class Jobify(RootRouter):
                 _processpool=processpool_executor,
                 threadpool=threadpool_executor,
             ),
-            cron_factory=cron_factory or create_crontab,
+            cron_factory=cron_factory,
         )
         super().__init__(
             lifespan=lifespan,
@@ -210,13 +210,11 @@ class Jobify(RootRouter):
                 continue
 
             if job_id in db_map:
-                next_run_at = db_map[job_id].next_run_at
                 trigger = CronArguments(cron=cron, job_id=job_id, now=now)
                 scheduled = builder._create_scheduled(
                     trigger,
                     job_id,
-                    JobStatus.SCHEDULED,
-                    next_run_at=next_run_at,
+                    next_run_at=db_map[job_id].next_run_at,
                 )
                 scheduled_to_update.append(scheduled)
                 db_map[job_id] = scheduled
@@ -235,11 +233,10 @@ class Jobify(RootRouter):
         scheduled_to_delete: list[str] = []
 
         for sch in db_map.values():
-            route = self.task._routes.get(sch.func_name)
-            if route is None or route.options.get("durable") is False:
+            route = self.task._routes.get(sch.func_name, ...)
+            if route is ... or route.options.get("durable") is False:
                 scheduled_to_delete.append(sch.job_id)
                 continue
-
             try:
                 await self._feed_message(sch)
             except (KeyError, TypeError, ValueError) as exc:
@@ -273,7 +270,6 @@ class Jobify(RootRouter):
         bound = route.func_spec.signature.bind(**msg.arguments)
         builder = route.create_builder(bound)
         if "cron" in msg.trigger:
-            builder._handle_misfire(sch.next_run_at, msg.trigger["now"])
             _ = builder._cron(**msg.trigger)
         else:
             _ = builder._at(**msg.trigger)

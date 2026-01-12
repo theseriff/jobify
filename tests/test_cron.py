@@ -1,11 +1,14 @@
 import asyncio
-from datetime import datetime, timedelta
+import functools
+from datetime import datetime, timedelta, timezone
+from typing import Any
 from unittest import mock
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from jobify import Cron
+from jobify import Cron, GracePolicy, MisfirePolicy
+from jobify._internal.scheduler.misfire_policy import handle_misfire_policy
 from jobify.crontab import create_crontab
 from tests.conftest import create_app
 
@@ -97,3 +100,29 @@ async def test_cron_shutdown_graceful() -> None:
         await task
 
     assert len(app.task._shared_state.pending_jobs) == 0
+
+
+def test_misfire_policy() -> None:
+    real_now = datetime.now(timezone.utc)
+    cron_parser = create_crontab("* * * * *")
+    next_run_at = cron_parser.next_run(now=real_now - timedelta(days=7))
+    handler = functools.partial(
+        handle_misfire_policy,
+        cron_parser,
+        next_run_at,
+        real_now,
+    )
+
+    assert str(GracePolicy(timedelta(days=1)))
+    assert handler(MisfirePolicy.ALL) == next_run_at
+    assert handler(MisfirePolicy.SKIP) == cron_parser.next_run(now=real_now)
+    assert handler(MisfirePolicy.ONCE) == real_now
+    assert handler(MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
+    expected_next_run_at = cron_parser.next_run(
+        now=real_now - timedelta(days=6)
+    )
+    assert (
+        handler(MisfirePolicy.GRACE(timedelta(days=6))) == expected_next_run_at
+    )
+    invalid_enum_type: Any = "InvalidEnumType"
+    assert handler(invalid_enum_type) is None
