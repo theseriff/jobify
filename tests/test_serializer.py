@@ -106,6 +106,7 @@ dataclass_structures = (
         ),
         pytest.param(Decimal("123.456"), id="Decimal"),
         pytest.param(timedelta(days=7), id="timedelta"),
+        pytest.param(ZoneInfo("UTC"), id="zoneinfo"),
         *named_tuple_structures,
         *dataclass_structures,
     ],

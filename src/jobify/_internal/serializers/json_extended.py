@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Any, ClassVar, Protocol, TypeAlias, get_args, get_type_hints
+from zoneinfo import ZoneInfo
 
 from typing_extensions import TypeIs, override
 
@@ -31,6 +32,7 @@ SupportedTypes: TypeAlias = (
     | float
     | bytes
     | Decimal
+    | ZoneInfo
     | datetime
     | timedelta
     | DataclassType
@@ -113,6 +115,8 @@ def json_extended_encoder(o: SupportedTypes) -> JSONCompat:  # noqa: C901, PLR09
         return {"__bytes__": base64.b64encode(o).decode("utf-8")}
     if isinstance(o, timedelta):
         return {"__timedelta__": o.total_seconds()}
+    if isinstance(o, ZoneInfo):
+        return {"__zoneinfo__": o.key}
     return o
 
 
@@ -120,7 +124,7 @@ class JsonDecoderHook:
     def __init__(self, registry: TypeRegistry) -> None:
         self.registry: TypeRegistry = registry
 
-    def __call__(self, dct: dict[str, Any]) -> SupportedTypes:  # noqa: PLR0911
+    def __call__(self, dct: dict[str, Any]) -> SupportedTypes:  # noqa: C901, PLR0911
         if "__dataclass__" in dct:
             data = dct["__dataclass__"]
             fields = data["fields"]
@@ -150,6 +154,8 @@ class JsonDecoderHook:
             return set(dct["__set__"])
         if "__timedelta__" in dct:
             return timedelta(seconds=dct["__timedelta__"])
+        if "__zoneinfo__" in dct:
+            return ZoneInfo(dct["__zoneinfo__"])
         return dct
 
 
