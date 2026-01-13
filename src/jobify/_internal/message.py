@@ -1,17 +1,16 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, NamedTuple
 
 from jobify._internal.configuration import Cron
 
 
-class CronArguments(TypedDict):
+class CronArguments(NamedTuple):
     cron: Cron
     job_id: str
-    now: datetime
 
 
-class AtArguments(TypedDict):
+class AtArguments(NamedTuple):
     at: datetime
     job_id: str
 

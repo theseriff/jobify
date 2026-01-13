@@ -159,42 +159,35 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id = self._ensure_job_id(job_id)
 
         real_now = self.now()
-        now = now or real_now
+        user_now = now or real_now
 
         if isinstance(cron, str):
             cron = Cron(cron)
 
         cron_parser = self._configs.cron_factory(cron.expression)
-        next_run_at = cron_parser.next_run(now=now)
+        next_run_at = cron_parser.next_run(now=user_now)
 
         if self._is_persist():
-            trigger = CronArguments(cron=cron, job_id=job_id, now=now)
+            trigger = CronArguments(cron=cron, job_id=job_id)
             await self._save_scheduled(trigger, job_id, next_run_at)
 
         return self._cron(
             cron=cron,
             job_id=job_id,
-            now=now,
             real_now=real_now,
             next_run_at=next_run_at,
             cron_parser=cron_parser,
         )
 
-    def _cron(  # noqa: PLR0913
+    def _cron(
         self,
         *,
         cron: Cron,
         job_id: str,
-        now: datetime,
-        real_now: datetime | None = None,
-        next_run_at: datetime | None = None,
-        cron_parser: CronParser | None = None,
+        next_run_at: datetime,
+        real_now: datetime,
+        cron_parser: CronParser,
     ) -> Job[ReturnT]:
-        real_now = real_now or self.now()
-        cron_parser = cron_parser or self._configs.cron_factory(
-            cron.expression,
-        )
-        next_run_at = next_run_at or cron_parser.next_run(now=now)
         adjusted_run_at = handle_misfire_policy(
             cron_parser,
             next_run_at,
@@ -315,13 +308,11 @@ class ScheduleBuilder(Generic[ReturnT]):
             and self._configs.app_started
         ):
             if ctx.is_failure_allowed_by_limit():
-                cur_run_at = job.exec_at
                 next_run_at = self._reschedule_cron(ctx)
                 if self._is_persist():
                     trigger_with_new_now = CronArguments(
                         cron=ctx.cron,
                         job_id=job.id,
-                        now=cur_run_at,
                     )
                     await self._save_scheduled(
                         trigger_with_new_now,

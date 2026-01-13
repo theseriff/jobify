@@ -1,6 +1,7 @@
-# Jobify
+<div align="center">
 
-<b>Robust task manager. Documentation: https://theseriff.github.io/jobify/</b>
+<h1>Jobify<br>Robust task scheduler.</h1>
+</div>
 
 ---
 
@@ -16,6 +17,8 @@
 </div>
 
 ---
+
+**Documentation:** https://theseriff.github.io/jobify/
 
 **Jobify** is a robust solution that was built from the ground up to handle asynchronous tasks. It offers a clean and modern API that is inspired by leading frameworks.
 

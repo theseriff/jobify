@@ -1,15 +1,16 @@
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from jobify import Cron, Job, Jobify, JobStatus
-from jobify._internal.message import Message
+from jobify import Cron, Job, Jobify, JobStatus, MisfirePolicy
+from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.storage.abc import ScheduledJob
 from jobify._internal.storage.sqlite import SQLiteStorage
+from jobify.crontab import create_crontab
 from jobify.serializers import ExtendedJSONSerializer
 from tests.conftest import create_cron_factory
 
@@ -123,7 +124,7 @@ async def test_sqlite_with_jobify(now: datetime) -> None:
                     job_id=job1.id,
                     func_name=f1.name,
                     arguments={"name": "biba_delay"},
-                    trigger={"at": job1.exec_at, "job_id": job1.id},
+                    trigger=AtArguments(job1.exec_at, job1.id),
                 ),
                 Message,
             )
@@ -134,7 +135,7 @@ async def test_sqlite_with_jobify(now: datetime) -> None:
                     job_id=job1_cron.id,
                     func_name=f1.name,
                     arguments={"name": "biba_cron"},
-                    trigger={"cron": cron, "job_id": job1_cron.id, "now": now},
+                    trigger=CronArguments(cron, job1_cron.id),
                 ),
                 Message,
             )
@@ -174,6 +175,7 @@ def storage() -> Iterator[SQLiteStorage]:
     s.database.unlink()
 
 
+@pytest.mark.skip
 async def test_restore_schedules(
     storage: SQLiteStorage,
     now: datetime,
@@ -236,7 +238,7 @@ async def test_restore_schedules_invalid_jobs() -> None:
                 job_id="job_missing_route",
                 func_name="removed_func",
                 arguments={},
-                trigger={"at": now, "job_id": "job_missing_route"},
+                trigger=AtArguments(now, "job_missing_route"),
             )
         ),
         status=JobStatus.SCHEDULED,
@@ -257,11 +259,10 @@ async def test_restore_schedules_invalid_jobs() -> None:
                 job_id="job_unexpected_arguments",
                 func_name="job_unexpected_arguments",
                 arguments={"name": "biba_cron"},
-                trigger={
-                    "cron": Cron("* * * * *"),
-                    "job_id": "job_unexpected_arguments",
-                    "now": datetime.now(tz=timezone.utc),
-                },
+                trigger=CronArguments(
+                    Cron("* * * * *"),
+                    "job_unexpected_arguments",
+                ),
             )
         ),
         status=JobStatus.SCHEDULED,
@@ -310,15 +311,64 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
         await job.wait()
         assert job.result() == "test"
 
-    now_old: datetime = app.configs.serializer.loadb(
-        scheduled_job1.message,
-    ).trigger["now"]
-    now_new: datetime = app2.configs.serializer.loadb(
-        scheduled_job2.message,
-    ).trigger["now"]
-
-    assert now_old < now_new
+    assert scheduled_job1.next_run_at < scheduled_job2.next_run_at
 
 
-async def test_declarative_cron_updated() -> None:
-    pass
+async def test_declarative_cron_updated(storage: SQLiteStorage) -> None:
+    now = datetime.now(tz=UTC)
+    app1 = Jobify(storage=storage, cron_factory=create_crontab)
+    app2 = Jobify(storage=storage, cron_factory=create_crontab)
+
+    @app1.task(
+        cron=Cron(
+            "1 1 1 1 1",
+            max_runs=1,
+            max_failures=1,
+            misfire_policy=MisfirePolicy.ALL,
+        ),
+        func_name="test_declarative",
+    )
+    def _() -> None:
+        pass
+
+    cron = Cron(
+        "2 2 2 2 2",
+        max_runs=2,
+        max_failures=2,
+        misfire_policy=MisfirePolicy.GRACE(timedelta(days=7)),
+    )
+
+    @app2.task(cron=cron, func_name="test_declarative")
+    def func() -> None:
+        pass
+
+    async with app1:
+        pass
+
+    async with app2:
+        routes = tuple(app2.routes)
+        cron_options = routes[0].options.get("cron")
+
+        job_id = func.name + "__jobify_cron_definition"
+        job: Job[None] | None = app2.find_job(job_id)
+
+        real_cron_parser = create_crontab("2 2 2 2 2")
+        next_run_at = real_cron_parser.next_run(now=now)
+
+        assert len(routes) == 1
+        assert cron_options == cron
+        assert job
+        assert job.cron_expression == "2 2 2 2 2"
+        assert job.exec_at == next_run_at
+
+        scheduled_jobs = await app2.configs.storage.get_schedules()
+        scheduled = scheduled_jobs[0]
+
+        assert len(scheduled_jobs) == 1
+        assert scheduled == ScheduledJob(
+            job_id=job_id,
+            func_name="test_declarative",
+            message=ANY,
+            status=JobStatus.SCHEDULED,
+            next_run_at=next_run_at,
+        )

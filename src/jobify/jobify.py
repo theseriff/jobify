@@ -15,7 +15,7 @@ from jobify._internal.configuration import (
     JobifyConfiguration,
     WorkerPools,
 )
-from jobify._internal.message import CronArguments, Message
+from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.router.root import (
     PENDING_CRON_JOBS,
     PendingCronJobs,
@@ -109,7 +109,14 @@ class Jobify(RootRouter):
         if serializer is None:
             serializer = (
                 ExtendedJSONSerializer(
-                    (Message, Cron, MisfirePolicy, GracePolicy)
+                    (
+                        Message,
+                        Cron,
+                        CronArguments,
+                        AtArguments,
+                        MisfirePolicy,
+                        GracePolicy,
+                    )
                 )
                 if dumper is None and loader is None
                 else JSONSerializer()
@@ -203,24 +210,28 @@ class Jobify(RootRouter):
 
         for job_id, (route, cron) in pending_crons.items():
             builder = route.schedule()
-            now = builder.now()
+            real_now = builder.now()
+            cron_parser = self.configs.cron_factory(cron.expression)
+            next_run_at = cron_parser.next_run(now=real_now)
 
             if not builder._is_persist():
-                _ = builder._cron(cron=cron, job_id=job_id, now=now)
-                continue
-
-            if job_id in db_map:
-                trigger = CronArguments(cron=cron, job_id=job_id, now=now)
-                scheduled = builder._create_scheduled(
-                    trigger,
-                    job_id,
-                    next_run_at=db_map[job_id].next_run_at,
+                _ = builder._cron(
+                    cron=cron,
+                    job_id=job_id,
+                    next_run_at=next_run_at,
+                    real_now=real_now,
+                    cron_parser=cron_parser,
                 )
-                scheduled_to_update.append(scheduled)
-                db_map[job_id] = scheduled
                 continue
 
-            _ = await builder.cron(cron=cron, job_id=job_id, now=now)
+            new_trigger = CronArguments(cron, job_id)
+            scheduled = builder._create_scheduled(
+                trigger=new_trigger,
+                job_id=job_id,
+                next_run_at=next_run_at,
+            )
+            scheduled_to_update.append(scheduled)
+            db_map[job_id] = scheduled
 
         await self.configs.storage.add_schedule(*scheduled_to_update)
 
@@ -238,7 +249,7 @@ class Jobify(RootRouter):
                 scheduled_to_delete.append(sch.job_id)
                 continue
             try:
-                await self._feed_message(sch)
+                self._feed_message(sch)
             except (KeyError, TypeError, ValueError) as exc:
                 # KeyError: The function has been removed from the router
                 #   (the code has changed).
@@ -255,10 +266,11 @@ class Jobify(RootRouter):
             except Exception:  # pragma: no cover
                 msg = f"Unexpected error restoring job {sch.job_id}"
                 logger.exception(msg)
+                scheduled_to_delete.append(sch.job_id)
 
         await self.configs.storage.delete_schedule_many(scheduled_to_delete)
 
-    async def _feed_message(self, sch: ScheduledJob) -> None:
+    def _feed_message(self, sch: ScheduledJob) -> None:
         de_message = self.configs.serializer.loadb(sch.message)
         msg = self.configs.loader.load(de_message, Message)
         route = self.task._routes[msg.func_name]
@@ -269,10 +281,19 @@ class Jobify(RootRouter):
             )
         bound = route.func_spec.signature.bind(**msg.arguments)
         builder = route.create_builder(bound)
-        if "cron" in msg.trigger:
-            _ = builder._cron(**msg.trigger)
-        else:
-            _ = builder._at(**msg.trigger)
+        real_now = builder.now()
+        match msg.trigger:
+            case CronArguments(cron, job_id):
+                cron_parser = self.configs.cron_factory(cron.expression)
+                _ = builder._cron(
+                    cron=cron,
+                    job_id=job_id,
+                    next_run_at=sch.next_run_at,
+                    real_now=real_now,
+                    cron_parser=cron_parser,
+                )
+            case AtArguments(at, job_id):
+                _ = builder._at(at=at, job_id=job_id, real_now=real_now)
 
     async def startup(self) -> None:
         """Initialize the Jobify application.
