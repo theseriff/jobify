@@ -1,6 +1,7 @@
 <div align="center">
 
 <h1>Jobify<br>Robust task scheduler.</h1>
+
 </div>
 
 ---
@@ -14,6 +15,7 @@
 [![CodeQL](https://github.com/theseriff/jobify/actions/workflows/pr_codeql.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_codeql.yml)
 [![Dependency Review](https://github.com/theseriff/jobify/actions/workflows/pr_dependency_review.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_dependency_review.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 </div>
 
 ---
@@ -35,6 +37,7 @@
 ## Quick Start
 
 Install Jobify from PyPI:
+
 ```bash
 pip install jobify
 ```

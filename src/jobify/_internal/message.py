@@ -8,6 +8,7 @@ from jobify._internal.configuration import Cron
 class CronArguments(NamedTuple):
     cron: Cron
     job_id: str
+    offset: datetime
 
 
 class AtArguments(NamedTuple):

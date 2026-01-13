@@ -31,10 +31,8 @@ if TYPE_CHECKING:
     from jobify._internal.shared_state import SharedState
 
 
-logger = logging.getLogger("jobify.scheduler")
-
-
 ReturnT = TypeVar("ReturnT")
+logger = logging.getLogger("jobify.scheduler")
 
 
 @dataclass(slots=True, kw_only=True)
@@ -168,7 +166,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         next_run_at = cron_parser.next_run(now=user_now)
 
         if self._is_persist():
-            trigger = CronArguments(cron=cron, job_id=job_id)
+            trigger = CronArguments(cron=cron, job_id=job_id, offset=user_now)
             await self._save_scheduled(trigger, job_id, next_run_at)
 
         return self._cron(
@@ -308,17 +306,19 @@ class ScheduleBuilder(Generic[ReturnT]):
             and self._configs.app_started
         ):
             if ctx.is_failure_allowed_by_limit():
-                next_run_at = self._reschedule_cron(ctx)
+                next_run_at = ctx.cron_parser.next_run(now=ctx.job.exec_at)
                 if self._is_persist():
                     trigger_with_new_now = CronArguments(
                         cron=ctx.cron,
                         job_id=job.id,
+                        offset=job.exec_at,
                     )
                     await self._save_scheduled(
                         trigger_with_new_now,
                         job.id,
                         next_run_at,
                     )
+                self._reschedule_cron(ctx, next_run_at)
             else:
                 job._status = JobStatus.PERMANENTLY_FAILED
                 logger.warning(
@@ -331,8 +331,11 @@ class ScheduleBuilder(Generic[ReturnT]):
         else:
             _ = self._shared_state.pending_jobs.pop(job.id, None)
 
-    def _reschedule_cron(self, ctx: CronContext[ReturnT]) -> datetime:
-        next_run_at = ctx.cron_parser.next_run(now=ctx.job.exec_at)
+    def _reschedule_cron(
+        self,
+        ctx: CronContext[ReturnT],
+        next_run_at: datetime,
+    ) -> None:
         delay_seconds = self._calculate_delay_seconds(
             real_now=self.now(),
             target_at=next_run_at,
@@ -346,7 +349,6 @@ class ScheduleBuilder(Generic[ReturnT]):
             time_handler=time_handler,
             job_status=JobStatus.SCHEDULED,
         )
-        return next_run_at
 
     async def _exec_job(self, job: Job[ReturnT]) -> None:
         job._status = JobStatus.RUNNING

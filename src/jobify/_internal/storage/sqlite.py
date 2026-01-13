@@ -67,7 +67,6 @@ class SQLiteStorage(Storage):
         *,
         table_name: str = "jobify_schedules",
         timeout: float = 20.0,
-        tz: ZoneInfo,
     ) -> None:
         validate_table_name(table_name)
         self.database: Path = (
@@ -75,7 +74,7 @@ class SQLiteStorage(Storage):
         )
         self.table_name: str = table_name
         self.timeout: float = timeout
-        self.tz: ZoneInfo = tz
+        self.tz: ZoneInfo = ZoneInfo("UTC")
         self.getloop: LoopFactory = asyncio._get_running_loop
         self.threadpool: ThreadPoolExecutor | None = None
         self._conn: sqlite3.Connection | None = None

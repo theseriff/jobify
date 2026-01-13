@@ -100,24 +100,24 @@ class Jobify(RootRouter):
         if storage is False:
             storage = DummyStorage()
         elif storage is None:
-            storage = SQLiteStorage(tz=tz)
+            storage = SQLiteStorage()
 
         if isinstance(storage, SQLiteStorage):
             storage.getloop = getloop
             storage.threadpool = threadpool_executor
+            storage.tz = tz
 
         if serializer is None:
+            system_types = (
+                Message,
+                Cron,
+                CronArguments,
+                AtArguments,
+                MisfirePolicy,
+                GracePolicy,
+            )
             serializer = (
-                ExtendedJSONSerializer(
-                    (
-                        Message,
-                        Cron,
-                        CronArguments,
-                        AtArguments,
-                        MisfirePolicy,
-                        GracePolicy,
-                    )
-                )
+                ExtendedJSONSerializer(system_types)
                 if dumper is None and loader is None
                 else JSONSerializer()
             )
@@ -224,7 +224,16 @@ class Jobify(RootRouter):
                 )
                 continue
 
-            new_trigger = CronArguments(cron, job_id)
+            if exists_scheduled := db_map.get(job_id):
+                deserializer = self.configs.serializer.loadb
+                loader = self.configs.loader.load
+                msg = loader(deserializer(exists_scheduled.message), Message)
+                if isinstance(msg.trigger, AtArguments):  # pragma: no cover
+                    err = "Expected CronArguments trigger"
+                    raise TypeError(err)
+                next_run_at = cron_parser.next_run(now=msg.trigger.offset)
+
+            new_trigger = CronArguments(cron, job_id, real_now)
             scheduled = builder._create_scheduled(
                 trigger=new_trigger,
                 job_id=job_id,
@@ -241,8 +250,8 @@ class Jobify(RootRouter):
             for sch in await self.configs.storage.get_schedules()
         }
         await self._start_pending_crons(db_map)
-        scheduled_to_delete: list[str] = []
 
+        scheduled_to_delete: list[str] = []
         for sch in db_map.values():
             route = self.task._routes.get(sch.func_name, ...)
             if route is ... or route.options.get("durable") is False:
@@ -257,7 +266,8 @@ class Jobify(RootRouter):
                 #   function signature.
                 # ValueError: Serializer error.
                 msg = (
-                    f"Cannot restore job {sch.job_id} ({sch.func_name}). "
+                    f"Cannot restore <job_id {sch.job_id!r}>"
+                    f"<func_name {sch.func_name!r}>.\n"
                     f"Exception Type: {type(exc)}. "
                     f"Reason: {exc}. Removing from storage."
                 )
@@ -271,17 +281,19 @@ class Jobify(RootRouter):
         await self.configs.storage.delete_schedule_many(scheduled_to_delete)
 
     def _feed_message(self, sch: ScheduledJob) -> None:
-        de_message = self.configs.serializer.loadb(sch.message)
-        msg = self.configs.loader.load(de_message, Message)
+        deserializer = self.configs.serializer.loadb
+        loader = self.configs.loader.load
+
+        msg = loader(deserializer(sch.message), Message)
         route = self.task._routes[msg.func_name]
-        for name, arg in msg.arguments.items():
-            msg.arguments[name] = self.configs.loader.load(
-                arg,
-                route.func_spec.params_type[name],
-            )
+        for name, raw_arg in msg.arguments.items():
+            param_type = route.func_spec.params_type[name]
+            msg.arguments[name] = loader(raw_arg, param_type)
+
         bound = route.func_spec.signature.bind(**msg.arguments)
         builder = route.create_builder(bound)
         real_now = builder.now()
+
         match msg.trigger:
             case CronArguments(cron, job_id):
                 cron_parser = self.configs.cron_factory(cron.expression)
