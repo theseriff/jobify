@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v0.2.0 (2026-01-13)
+
+### Bug Fixes
+
+- Add offset to CronArguments for proper schedule restoration
+  ([`e223416`](https://github.com/theseriff/jobify/commit/e223416fdba22ffccf6ca6f9b8486276eb4f4e9a))
+
+### Documentation
+
+- Add misfire policy documentation and improve cron configuration
+  ([`2f582a8`](https://github.com/theseriff/jobify/commit/2f582a8c34dc7887f55081929508f9a0dbae137a))
+
+- Update feature comparison table and dynamic scheduling examples
+  ([`2f582a8`](https://github.com/theseriff/jobify/commit/2f582a8c34dc7887f55081929508f9a0dbae137a))
+
+### Features
+
+- Add misfire policy support and improve serializers
+  ([`7d93696`](https://github.com/theseriff/jobify/commit/7d936969e5af0af77c681cf041eed50c0042ab16))
+
+- Add ZoneInfo serialization support to JSON extended encoder/decoder
+  ([`3e97f81`](https://github.com/theseriff/jobify/commit/3e97f8100cc0e040bebf2a5484c8542e3564903d))
+
+- Simplify API, add misfire policy, and improve storage
+  ([`7a02a74`](https://github.com/theseriff/jobify/commit/7a02a7406096a2e57e57d940e4cef0232ab236cc))
+
+- **scheduler**: Implement code-first reconciliation and misfire foundation
+  ([`9867327`](https://github.com/theseriff/jobify/commit/98673270570818738f062522bf05377c22775d3a))
+
+
 ## v0.1.2 (2026-01-07)
 
 ### Bug Fixes
