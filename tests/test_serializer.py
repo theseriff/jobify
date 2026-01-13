@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Generic, NamedTuple, TypeVar
+from typing import Generic, NamedTuple, TypeVar
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -46,13 +46,7 @@ class ComplexDC:
     point: PointDC
 
 
-type_registry: dict[str, Any] = {
-    "SimpleData": SimpleData,
-    "NestedData": NestedData,
-    "PointDC": PointDC,
-    "ComplexDC": ComplexDC,
-    "EnumTest": EnumTest,
-}
+TYPE_REGISTRY = (SimpleData, NestedData, PointDC, ComplexDC, EnumTest)
 
 
 named_tuple_structures = (
@@ -88,7 +82,7 @@ dataclass_structures = (
     "serializer",
     [
         pytest.param(UnsafePickleSerializer(), id="pickle"),
-        pytest.param(ExtendedJSONSerializer(type_registry), id="ext_json"),
+        pytest.param(ExtendedJSONSerializer(TYPE_REGISTRY), id="ext_json"),
     ],
 )
 @pytest.mark.parametrize(
@@ -111,6 +105,8 @@ dataclass_structures = (
             id="Datetime",
         ),
         pytest.param(Decimal("123.456"), id="Decimal"),
+        pytest.param(timedelta(days=7), id="timedelta"),
+        pytest.param(ZoneInfo("UTC"), id="zoneinfo"),
         *named_tuple_structures,
         *dataclass_structures,
     ],

@@ -27,6 +27,7 @@ Below is a comparison of features to help you decide if Jobify fits your needs.
 | **Middleware Support**         |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
 | **Job Cancellation**           |          ✅          |        ❌         |        ✅        |        ✅         |
 | **Cron Scheduling**            |          ✅          |        ✅         |        ✅        |        ✅         |
+| **Misfire Policy**             |          ✅          |        ❌         |        ✅        |        ❌         |
 | **Run Modes (Thread/Process)** |          ✅          |        ✅         |        ✅        |        ✅         |
 | **Rich Typing Support**        |          ✅          |        ✅         |        ❌        |        ❌         |
 | **Zero-config Persistence**    | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |

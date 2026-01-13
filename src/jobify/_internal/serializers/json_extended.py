@@ -3,11 +3,12 @@ from __future__ import annotations
 import base64
 import dataclasses
 import json
-from collections.abc import Callable, Iterable
-from datetime import datetime
+from collections.abc import Callable, Iterable, Sequence
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Any, ClassVar, Protocol, TypeAlias, get_args, get_type_hints
+from zoneinfo import ZoneInfo
 
 from typing_extensions import TypeIs, override
 
@@ -31,7 +32,9 @@ SupportedTypes: TypeAlias = (
     | float
     | bytes
     | Decimal
+    | ZoneInfo
     | datetime
+    | timedelta
     | DataclassType
     | NamedTupleType
     | set["SupportedTypes"]
@@ -110,6 +113,10 @@ def json_extended_encoder(o: SupportedTypes) -> JSONCompat:  # noqa: C901, PLR09
         return {k: json_extended_encoder(v) for k, v in o.items()}
     if isinstance(o, bytes):
         return {"__bytes__": base64.b64encode(o).decode("utf-8")}
+    if isinstance(o, timedelta):
+        return {"__timedelta__": o.total_seconds()}
+    if isinstance(o, ZoneInfo):
+        return {"__zoneinfo__": o.key}
     return o
 
 
@@ -117,7 +124,7 @@ class JsonDecoderHook:
     def __init__(self, registry: TypeRegistry) -> None:
         self.registry: TypeRegistry = registry
 
-    def __call__(self, dct: dict[str, Any]) -> SupportedTypes:  # noqa: PLR0911
+    def __call__(self, dct: dict[str, Any]) -> SupportedTypes:  # noqa: C901, PLR0911
         if "__dataclass__" in dct:
             data = dct["__dataclass__"]
             fields = data["fields"]
@@ -145,12 +152,19 @@ class JsonDecoderHook:
             return tuple(dct["__tuple__"])
         if "__set__" in dct:
             return set(dct["__set__"])
+        if "__timedelta__" in dct:
+            return timedelta(seconds=dct["__timedelta__"])
+        if "__zoneinfo__" in dct:
+            return ZoneInfo(dct["__zoneinfo__"])
         return dct
 
 
 class ExtendedJSONSerializer(Serializer):
-    def __init__(self, registry: TypeRegistry | None = None) -> None:
-        self.registry: TypeRegistry = registry or {}
+    def __init__(
+        self,
+        registry: Sequence[Callable[..., SupportedTypes]] = (),
+    ) -> None:
+        self.registry: TypeRegistry = {t.__name__: t for t in registry}
         self.decoder_hook: JsonDecoderHook = JsonDecoderHook(self.registry)
 
     @override
@@ -160,10 +174,8 @@ class ExtendedJSONSerializer(Serializer):
 
     @override
     def loadb(self, data: bytes) -> SupportedTypes:
-        decoded: SupportedTypes = json.loads(
-            data,
-            object_hook=self.decoder_hook,
-        )
+        hook = self.decoder_hook
+        decoded: SupportedTypes = json.loads(data, object_hook=hook)
         return decoded
 
     def registry_types(self, types: Iterable[Any]) -> None:
@@ -175,7 +187,7 @@ class ExtendedJSONSerializer(Serializer):
             if args := get_args(tp):
                 self.registry_types(args)
                 continue
-            if tp.__name__ in self.decoder_hook.registry:
+            if tp.__name__ in self.registry:
                 continue
 
             self.registry[tp.__name__] = tp

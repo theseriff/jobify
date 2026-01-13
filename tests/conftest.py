@@ -10,7 +10,7 @@ from jobify import Jobify
 from jobify._internal.cron_parser import CronFactory, CronParser
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def now() -> datetime:
     return datetime.now(tz=ZoneInfo("UTC"))
 
