@@ -224,14 +224,21 @@ class Jobify(RootRouter):
                 )
                 continue
 
-            if exists_scheduled := db_map.get(job_id):
-                deserializer = self.configs.serializer.loadb
-                loader = self.configs.loader.load
-                msg = loader(deserializer(exists_scheduled.message), Message)
-                if isinstance(msg.trigger, AtArguments):  # pragma: no cover
-                    err = "Expected CronArguments trigger"
-                    raise TypeError(err)
-                next_run_at = cron_parser.next_run(now=msg.trigger.offset)
+            if scheduled := db_map.get(job_id):
+                try:
+                    deserializer = self.configs.serializer.loadb
+                    loader = self.configs.loader.load
+                    msg = loader(deserializer(scheduled.message), Message)
+                    if isinstance(msg.trigger, CronArguments):
+                        next_run_at = cron_parser.next_run(
+                            now=msg.trigger.offset,
+                        )
+                except (ValueError, TypeError) as exc:
+                    warn = (
+                        "Failed to parse existing scheduled cron job. "
+                        f"Exception: {exc}"
+                    )
+                    logger.warning(warn)
 
             new_trigger = CronArguments(cron, job_id, real_now)
             scheduled = builder._create_scheduled(

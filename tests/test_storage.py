@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
 from unittest.mock import AsyncMock
@@ -217,7 +217,7 @@ async def test_restore_schedules(
 
 
 async def test_restore_schedules_invalid_jobs(storage: SQLiteStorage) -> None:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     serializer = ExtendedJSONSerializer()
 
     missing_route_job = ScheduledJob(
@@ -389,3 +389,72 @@ async def test_declarative_cron_updated(storage: SQLiteStorage) -> None:
             status=JobStatus.SCHEDULED,
             next_run_at=next_run_at,
         )
+
+
+async def test_start_pending_crons_parse_error(storage: SQLiteStorage) -> None:
+    func_name = "test_parse_error"
+    job_id = f"{func_name}__jobify_cron_definition"
+    app = Jobify(storage=storage)
+
+    await storage.startup()
+    await storage.add_schedule(
+        ScheduledJob(
+            job_id=job_id,
+            func_name=func_name,
+            message=b"invalid-json",
+            status=JobStatus.SCHEDULED,
+            next_run_at=datetime.now(tz=UTC),
+        )
+    )
+    await storage.shutdown()
+
+    @app.task(cron="* * * * *", func_name=func_name)
+    def _() -> None:
+        pass
+
+    async with app:
+        job: Job[None] | None = app.find_job(job_id)
+        assert job is not None
+
+
+async def test_start_pending_crons_non_cron_trigger(
+    storage: SQLiteStorage,
+) -> None:
+    now = datetime.now(tz=UTC)
+    func_name = "test_non_cron"
+    job_id = f"{func_name}__jobify_cron_definition"
+    app = Jobify(storage=storage)
+
+    raw_msg = app.configs.serializer.dumpb(
+        app.configs.dumper.dump(
+            Message(
+                job_id=job_id,
+                func_name=func_name,
+                arguments={},
+                trigger=AtArguments(at=now, job_id=job_id),
+            ),
+            Message,
+        )
+    )
+    await storage.startup()
+    await storage.add_schedule(
+        ScheduledJob(
+            job_id=job_id,
+            func_name=func_name,
+            message=raw_msg,
+            status=JobStatus.SCHEDULED,
+            next_run_at=now,
+        )
+    )
+    await storage.shutdown()
+
+    @app.task(cron="* * * * *", func_name=func_name)
+    def _() -> None:
+        pass
+
+    async with app:
+        job: Job[None] | None = app.find_job(job_id)
+
+        assert job is not None
+        assert len(app.task._shared_state.pending_jobs) == 1
+        assert len(await app.configs.storage.get_schedules()) == 1

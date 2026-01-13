@@ -72,7 +72,7 @@ For more detailed information, please refer to the official [crontab library doc
 
 ## Dynamic Scheduling
 
-In addition to cron jobs, you can also schedule tasks to run at a specific time or after a delay. This can be useful for one-time tasks or tasks that are triggered by application logic.
+In addition to cron jobs that are defined at the application level, users can also schedule tasks to run at a specific time or after a delay. They can even dynamically create new cron schedules. This is useful for one-time tasks or tasks that are triggered by the application's logic.
 
 To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can do this by calling the `.schedule()` method on the task function. The arguments that you pass to `.schedule()` will be used when the task runs.
 
@@ -80,7 +80,10 @@ To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can 
 
 To run a task after a specified delay, use the `delay()` method of the builder.
 
-- **`delay(seconds: float)`**: Schedules the task to run after a specified number of seconds.
+- **`delay(seconds: float, *, job_id: str | None = None, now: datetime | None = None)`**: Schedules the task to run after a specified number of seconds.
+    - `seconds`: The delay in seconds.
+    - `job_id`: Optional unique identifier for the job.
+    - `now`: Optional reference datetime.
 
 ```python
 import asyncio
@@ -108,7 +111,9 @@ asyncio.run(main())
 
 To run a task at a specific `datetime`, use the `.at()` method.
 
-- **`at(at: datetime)`**: Schedules the task to run at the specified `datetime`.
+- **`at(at: datetime, *, job_id: str | None = None)`**: Schedules the task to run at the specified `datetime`.
+    - `at`: The execution time.
+    - `job_id`: Optional unique identifier for the job.
 
 ```python
 import asyncio
@@ -128,6 +133,38 @@ async def main() -> None:
         job = await generate_report.schedule(report_id=123).at(at=run_time)
         # Keep the app running to allow the job to execute
         await job.wait()
+
+asyncio.run(main())
+```
+
+### `cron`
+
+To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
+
+- **`cron(cron: str | Cron, *, job_id: str, now: datetime | None = None)`**: Schedules a recurring task.
+    - `cron`: The cron expression or `Cron` object.
+    - `job_id`: **Required** unique identifier for the job.
+    - `now`: Optional reference datetime.
+
+```python
+import asyncio
+from jobify import Jobify
+
+app = Jobify()
+
+@app.task
+def cleanup_logs() -> None:
+    print("Cleaning up logs...")
+
+async def main() -> None:
+    async with app:
+        # Schedule cleanup every 5 minutes
+        job = await cleanup_logs.schedule().cron(
+            cron="*/5 * * * *",
+            job_id="cleanup_task_dynamic",
+        )
+        # Keep the app running...
+        await app.wait_all()
 
 asyncio.run(main())
 ```
