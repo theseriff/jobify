@@ -17,11 +17,11 @@ from typing_extensions import override
 
 from jobify._internal.common.constants import PATCH_SUFFIX
 from jobify._internal.configuration import Cron
+from jobify._internal.context import inject_context
 from jobify._internal.exceptions import (
     raise_app_already_started_error,
     raise_app_not_started_error,
 )
-from jobify._internal.injection import inject_context
 from jobify._internal.inspection import FuncSpec, make_func_spec
 from jobify._internal.middleware.base import build_middleware
 from jobify._internal.middleware.exceptions import ExceptionMiddleware

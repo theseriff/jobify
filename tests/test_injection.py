@@ -8,7 +8,7 @@ from typing_extensions import override
 from jobify import INJECT, Job, JobContext, Jobify, State
 from jobify._internal.common.constants import EMPTY
 from jobify._internal.common.datastructures import RequestState
-from jobify._internal.injection import inject_context
+from jobify._internal.context import inject_context
 from jobify._internal.runners import Runnable, create_run_strategy
 from jobify.exceptions import JobFailedError
 from jobify.middleware import BaseMiddleware, CallNext
