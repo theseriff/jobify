@@ -124,8 +124,9 @@ class SQLiteStorage(Storage):
     @override
     async def shutdown(self) -> None:
         if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+            with self._lock:
+                self._conn.close()
+                self._conn = None
 
     @override
     async def get_schedules(self) -> list[ScheduledJob]:
