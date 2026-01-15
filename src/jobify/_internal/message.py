@@ -5,7 +5,8 @@ from typing import Any, NamedTuple
 from jobify._internal.configuration import Cron
 
 
-class CronArguments(NamedTuple):
+@dataclass(slots=True)
+class CronArguments:
     cron: Cron
     job_id: str
     offset: datetime

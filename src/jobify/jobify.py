@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from typing import TYPE_CHECKING, Literal, ParamSpec, TypeVar
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
 from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
@@ -17,13 +18,14 @@ from jobify._internal.configuration import (
 )
 from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.router.root import (
-    PENDING_CRON_JOBS,
-    PendingCronJobs,
+    CRONS_DECLARATIVE,
+    CronsDeclarative,
     RootRouter,
 )
 from jobify._internal.scheduler.misfire_policy import (
     GracePolicy,
     MisfirePolicy,
+    handle_misfire_policy,
 )
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
@@ -36,13 +38,15 @@ from jobify.crontab import create_crontab
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+    from datetime import datetime
     from types import TracebackType
 
     from jobify._internal.common.types import Lifespan, LoopFactory
-    from jobify._internal.cron_parser import CronFactory
+    from jobify._internal.cron_parser import CronFactory, CronParser
     from jobify._internal.middleware.base import BaseMiddleware
     from jobify._internal.middleware.exceptions import MappingExceptionHandlers
     from jobify._internal.scheduler.job import Job
+    from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
     from jobify._internal.storage.abc import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
@@ -53,6 +57,14 @@ ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 
 logger = logging.getLogger("Jobify")
+
+
+@dataclass(slots=True)
+class _CronSchedule:
+    arg: CronArguments
+    builder: ScheduleBuilder[Any]
+    next_run_at: datetime
+    cron_parser: CronParser
 
 
 def cache_result(f: Callable[ParamsT, ReturnT]) -> Callable[ParamsT, ReturnT]:
@@ -201,118 +213,145 @@ class Jobify(RootRouter):
 
         await asyncio.wait_for(target(), timeout=timeout)
 
-    async def _start_pending_crons(
-        self,
-        db_map: dict[str, ScheduledJob],
-    ) -> None:
-        pending_crons: PendingCronJobs = self.state.pop(PENDING_CRON_JOBS, {})
-        scheduled_to_update: list[ScheduledJob] = []
-
-        for job_id, (route, cron) in pending_crons.items():
-            builder = route.schedule()
-            real_now = builder.now()
-            cron_parser = self.configs.cron_factory(cron.expression)
-            next_run_at = cron_parser.next_run(now=real_now)
-
-            if not builder._is_persist():
-                _ = builder._cron(
-                    cron=cron,
-                    job_id=job_id,
-                    next_run_at=next_run_at,
-                    real_now=real_now,
-                    cron_parser=cron_parser,
-                )
-                continue
-
-            if scheduled := db_map.get(job_id):
-                try:
-                    deserializer = self.configs.serializer.loadb
-                    loader = self.configs.loader.load
-                    msg = loader(deserializer(scheduled.message), Message)
-                    if isinstance(msg.trigger, CronArguments):
-                        next_run_at = cron_parser.next_run(
-                            now=msg.trigger.offset,
-                        )
-                except (ValueError, TypeError) as exc:
-                    warn = (
-                        "Failed to parse existing scheduled cron job. "
-                        f"Exception: {exc}"
-                    )
-                    logger.warning(warn)
-
-            new_trigger = CronArguments(cron, job_id, real_now)
-            scheduled = builder._create_scheduled(
-                trigger=new_trigger,
-                job_id=job_id,
-                next_run_at=next_run_at,
-            )
-            scheduled_to_update.append(scheduled)
-            db_map[job_id] = scheduled
-
-        await self.configs.storage.add_schedule(*scheduled_to_update)
-
     async def _restore_schedules(self) -> None:
-        db_map = {
-            sch.job_id: sch
-            for sch in await self.configs.storage.get_schedules()
-        }
-        await self._start_pending_crons(db_map)
+        crons_declare: CronsDeclarative = self.state.pop(CRONS_DECLARATIVE, {})
+        schedules = await self.configs.storage.get_schedules()
+        db_map = {sch.job_id: sch for sch in schedules}
 
+        at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]] = {}
+        crons_args: dict[str, _CronSchedule] = {}
+        crons_declare_persist: set[str] = set()
+        scheduled_to_update: list[ScheduledJob] = []
         scheduled_to_delete: list[str] = []
-        for sch in db_map.values():
+
+        for job_id, (rout, cron) in crons_declare.items():
+            builder = rout.schedule()
+            offset = builder.now()
+
+            cron_parser = self.configs.cron_factory(cron.expression)
+            next_run_at = cron_parser.next_run(now=offset)
+            trigger = CronArguments(cron, job_id, offset)
+            crons_args[job_id] = _CronSchedule(
+                trigger,
+                builder,
+                next_run_at,
+                cron_parser,
+            )
+            if builder._is_persist():
+                if job_id in db_map:
+                    crons_declare_persist.add(job_id)
+                else:
+                    scheduled_to_update.append(
+                        builder._create_scheduled(trigger, job_id, next_run_at)
+                    )
+
+        loadb = self.configs.serializer.loadb
+        type_adaptive = self.configs.loader.load
+
+        for job_id, sch in db_map.items():
             route = self.task._routes.get(sch.func_name, ...)
             if route is ... or route.options.get("durable") is False:
-                scheduled_to_delete.append(sch.job_id)
+                scheduled_to_delete.append(job_id)
                 continue
             try:
-                self._feed_message(sch)
+                msg = type_adaptive(loadb(sch.message), Message)
+                for name, raw_arg in msg.arguments.items():
+                    param_type = route.func_spec.params_type[name]
+                    msg.arguments[name] = type_adaptive(raw_arg, param_type)
+                bound = route.func_spec.signature.bind(**msg.arguments)
             except (KeyError, TypeError, ValueError) as exc:
                 # KeyError: The function has been removed from the router
                 #   (the code has changed).
                 # TypeError: The arguments in the database do not match the new
                 #   function signature.
                 # ValueError: Serializer error.
-                msg = (
-                    f"Cannot restore <job_id {sch.job_id!r}>"
+                warn = (
+                    f"Cannot restore <job_id {job_id!r}>"
                     f"<func_name {sch.func_name!r}>.\n"
                     f"Exception Type: {type(exc)}. "
                     f"Reason: {exc}. Removing from storage."
                 )
-                logger.warning(msg)
-                scheduled_to_delete.append(sch.job_id)
+                logger.warning(warn)
+                scheduled_to_delete.append(job_id)
             except Exception:  # pragma: no cover
-                msg = f"Unexpected error restoring job {sch.job_id}"
-                logger.exception(msg)
-                scheduled_to_delete.append(sch.job_id)
-
-        await self.configs.storage.delete_schedule_many(scheduled_to_delete)
-
-    def _feed_message(self, sch: ScheduledJob) -> None:
-        deserializer = self.configs.serializer.loadb
-        loader = self.configs.loader.load
-
-        msg = loader(deserializer(sch.message), Message)
-        route = self.task._routes[msg.func_name]
-        for name, raw_arg in msg.arguments.items():
-            param_type = route.func_spec.params_type[name]
-            msg.arguments[name] = loader(raw_arg, param_type)
-
-        bound = route.func_spec.signature.bind(**msg.arguments)
-        builder = route.create_builder(bound)
-        real_now = builder.now()
-
-        match msg.trigger:
-            case CronArguments(cron, job_id):
-                cron_parser = self.configs.cron_factory(cron.expression)
-                _ = builder._cron(
-                    cron=cron,
-                    job_id=job_id,
-                    next_run_at=sch.next_run_at,
-                    real_now=real_now,
-                    cron_parser=cron_parser,
+                err = f"Unexpected error restoring job {job_id}"
+                logger.exception(err)
+                scheduled_to_delete.append(job_id)
+            else:
+                self._handle_message(
+                    msg,
+                    sch.next_run_at,
+                    route.create_builder(bound),
+                    scheduled_to_update,
+                    crons_declare_persist,
+                    crons_args,
+                    at_args,
                 )
-            case AtArguments(at, job_id):
-                _ = builder._at(at=at, job_id=job_id, real_now=real_now)
+        await self.configs.storage.add_schedule(*scheduled_to_update)
+        await self.configs.storage.delete_schedule_many(scheduled_to_delete)
+        self._start_pending_schedules(crons_args, at_args)
+
+    def _handle_message(  # noqa: PLR0913
+        self,
+        message: Message,
+        next_run_at: datetime,
+        builder: ScheduleBuilder[Any],
+        scheduled_to_update: list[ScheduledJob],
+        crons_declare_persist: set[str],
+        crons_args: dict[str, _CronSchedule],
+        at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
+    ) -> None:
+        match message.trigger:
+            case CronArguments(_, job_id, db_offset) as trigger:
+                if job_id in crons_declare_persist:
+                    origin = crons_args[job_id]
+
+                    trigger.cron = origin.arg.cron
+                    next_run_at = handle_misfire_policy(
+                        origin.cron_parser,
+                        origin.cron_parser.next_run(now=db_offset),
+                        builder.now(),
+                        trigger.cron.misfire_policy,
+                    )
+                    origin.arg.offset = db_offset
+                    origin.next_run_at = next_run_at
+
+                    scheduled = builder._create_scheduled(
+                        trigger,
+                        job_id,
+                        next_run_at,
+                    )
+                    scheduled_to_update.append(scheduled)
+                else:
+                    parser = self.configs.cron_factory(trigger.cron.expression)
+                    crons_args[job_id] = _CronSchedule(
+                        trigger,
+                        builder,
+                        next_run_at,
+                        parser,
+                    )
+            case AtArguments(_, job_id) as trigger:
+                at_args[job_id] = (builder, trigger)
+
+    def _start_pending_schedules(
+        self,
+        crons_args: dict[str, _CronSchedule],
+        at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
+    ) -> None:
+        for cron in crons_args.values():
+            _ = cron.builder._cron(
+                cron=cron.arg.cron,
+                job_id=cron.arg.job_id,
+                next_run_at=cron.next_run_at,
+                real_now=cron.builder.now(),
+                cron_parser=cron.cron_parser,
+            )
+        for builder, arg in at_args.values():
+            _ = builder._at(
+                at=arg.at,
+                job_id=arg.job_id,
+                real_now=builder.now(),
+            )
 
     async def startup(self) -> None:
         """Initialize the Jobify application.

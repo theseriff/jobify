@@ -4,7 +4,6 @@ import os
 import sys
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import (
     TYPE_CHECKING,

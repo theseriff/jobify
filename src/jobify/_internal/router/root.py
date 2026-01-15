@@ -17,11 +17,11 @@ from typing_extensions import override
 
 from jobify._internal.common.constants import PATCH_SUFFIX
 from jobify._internal.configuration import Cron
+from jobify._internal.context import inject_context
 from jobify._internal.exceptions import (
     raise_app_already_started_error,
     raise_app_not_started_error,
 )
-from jobify._internal.injection import inject_context
 from jobify._internal.inspection import FuncSpec, make_func_spec
 from jobify._internal.middleware.base import build_middleware
 from jobify._internal.middleware.exceptions import ExceptionMiddleware
@@ -60,8 +60,8 @@ ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 RootRouter_co = TypeVar("RootRouter_co", bound="RootRouter", covariant=True)
 
-PENDING_CRON_JOBS = "__pending_cron_jobs__"
-PendingCronJobs: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
+CRONS_DECLARATIVE = "__crons_declarative__"
+CronsDeclarative: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
 
 
 class RootRoute(Route[ParamsT, ReturnT]):
@@ -210,7 +210,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
                 cron = Cron(cron)
             job_id = f"{route.name}__jobify_cron_definition"
             p = {job_id: (route, cron)}
-            self.state.setdefault(PENDING_CRON_JOBS, {}).update(p)
+            self.state.setdefault(CRONS_DECLARATIVE, {}).update(p)
 
         return route
 

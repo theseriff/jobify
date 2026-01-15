@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 from jobify import Jobify
 from jobify._internal.typeadapter.dummy import DummyDumper, DummyLoader
@@ -18,11 +18,5 @@ async def test_app_setup() -> None:
     assert isinstance(app.configs.dumper, Mock)
     assert isinstance(app.configs.loader, Mock)
 
-    fname = "test_route"
-    mock = MagicMock()
-    mock.func_name = fname
-    mock.load.return_value = mock
-
-    app = Jobify(serializer=mock, dumper=mock, loader=mock)
-    app.task._routes[fname] = mock
-    app._feed_message(mock)
+    mock = Mock()
+    app._handle_message(mock, mock, mock, mock, mock, mock, mock)
