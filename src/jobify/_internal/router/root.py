@@ -60,8 +60,8 @@ ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 RootRouter_co = TypeVar("RootRouter_co", bound="RootRouter", covariant=True)
 
-PENDING_CRON_JOBS = "__pending_cron_jobs__"
-PendingCronJobs: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
+CRONS_DECLARATIVE = "__crons_declarative__"
+CronsDeclarative: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
 
 
 class RootRoute(Route[ParamsT, ReturnT]):
@@ -210,7 +210,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
                 cron = Cron(cron)
             job_id = f"{route.name}__jobify_cron_definition"
             p = {job_id: (route, cron)}
-            self.state.setdefault(PENDING_CRON_JOBS, {}).update(p)
+            self.state.setdefault(CRONS_DECLARATIVE, {}).update(p)
 
         return route
 
