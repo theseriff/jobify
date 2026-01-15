@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.2.1 (2026-01-15)
+
+### Bug Fixes
+
+- Correct cron restoration and misfire handling on startup
+  ([`39a262e`](https://github.com/theseriff/jobify/commit/39a262edf857082b545abf5e0f43e016837119e6))
+
+- **storage/sqlite**: Prevent segmentation fault on shutdown
+  ([`657f465`](https://github.com/theseriff/jobify/commit/657f46563091146cb0a0622101ed22a05d8de586))
+
+
 ## v0.2.0 (2026-01-13)
 
 ### Bug Fixes
