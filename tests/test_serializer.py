@@ -175,22 +175,22 @@ def test_registry_types_coverage() -> None:
     serializer = ExtendedJSONSerializer()
 
     # Test JobContext skip
-    serializer.registry_types([JobContext])
+    serializer.register_hints([JobContext])
     assert "JobContext" not in serializer.registry
 
     # Test generic structured type handling
-    serializer.registry_types([GenericComplexDC[SimpleType]])
+    serializer.register_hints([GenericComplexDC[SimpleType]])
     assert "GenericComplexDC" not in serializer.registry
     assert "SimpleType" in serializer.registry
     assert serializer.registry["SimpleType"] is SimpleType
 
     # Test a non-structured type, should be skipped
-    serializer.registry_types([int])
+    serializer.register_hints([int])
     assert "int" not in serializer.registry
 
     # Test an already registered type
     initial_len = len(serializer.registry)
-    serializer.registry_types([SimpleType])
+    serializer.register_hints([SimpleType])
     assert (
         len(serializer.registry) == initial_len
     )  # Should not re-register, length unchanged

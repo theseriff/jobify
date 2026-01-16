@@ -21,6 +21,7 @@ class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_event",
         "_handle",
+        "_offset",
         "_pending_jobs",
         "_result",
         "_status",
@@ -40,10 +41,12 @@ class Job(Generic[ReturnT]):
         job_status: JobStatus = JobStatus.SCHEDULED,
         storage: Storage,
         cron_expression: str | None = None,
+        offset: datetime | None = None,
     ) -> None:
         self._event = asyncio.Event()
         self._pending_jobs = pending_jobs
         self._result: ReturnT = EMPTY
+        self._offset = offset
         self._status = job_status
         self._storage = storage
         self._handle: asyncio.Handle | None = None

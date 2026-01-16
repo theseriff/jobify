@@ -9,7 +9,7 @@ app = Jobify()
 
 
 @app.task(
-    func_name="my_daily_report",
+    name="my_daily_report",
     # When the app restarts, the max_runs is set to 0 and the app again runs 30 times.
     cron=Cron(
         "* * * * *",
@@ -27,7 +27,7 @@ def my_daily_report() -> None:
     pass
 ```
 
-## `cron`
+## cron
 
 - **Type**: `str | Cron`
 - **Default**: `None`
@@ -62,21 +62,21 @@ The `Cron` class has the following properties:
     - `MisfirePolicy.GRACE(timedelta)`: If the missed schedule is within the specified grace period, please start it immediately.
 
 
-## `retry`
+## retry
 
 - **Type**: `int`
 - **Default**: `None` (no retries)
 
 The number of times the task should be automatically retried if it fails.
 
-## `timeout`
+## timeout
 
 - **Type**: `float`
 - **Default**: `None` (no timeout)
 
 The maximum time allowed for the task to complete before it is stopped and considered a timeout, is in seconds.
 
-## `durable`
+## durable
 
 - **Type**: `bool`
 - **Default**: `True`
@@ -84,11 +84,11 @@ The maximum time allowed for the task to complete before it is stopped and consi
 If `True`, the job will be stored in a persistent location and will survive a restart of the application. `Durable` jobs are restored when the Jobify app starts up.
 
 !!! note
-If you use a high-frequency cron job (for example, every second `* * * * * * *`), it is recommended to set "durable=False".
-This will help to prevent excessive load on the database when updating the task's status and improve overall performance.
-For such frequent tasks, it is usually not necessary to save the state between restarts.
+    If you use a high-frequency cron job (for example, every second `* * * * * * *`), it is recommended to set "durable=False".
+    This will help to prevent excessive load on the database when updating the task's status and improve overall performance.
+    For such frequent tasks, it is usually not necessary to save the state between restarts.
 
-## `run_mode`
+## run_mode
 
 - **Type**: `'RunMode.MAIN' | 'RunMode.THREAD' | 'RunMode.PROCESS'`
 - **Default**: `'RunMode.MAIN'` for `async` functions, `'RunMode.THREAD'` for `sync` functions.
@@ -99,7 +99,7 @@ Specifies the mode of execution for the task.
 - `'RunMode.THREAD'`: For `#!python def` functions. This runs in the `ThreadPoolExecutor`, which is the default for synchronous functions.
 - `'RunMode.PROCESS'`: This mode is used for `#!python def` definitions. It runs in the `ProcessPoolExecutor`.
 
-## `metadata`
+## metadata
 
 - **Type**: `Mapping[str, Any] | None`
 - **Default**: `None`

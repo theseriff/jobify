@@ -9,7 +9,7 @@ from jobify._internal.common.constants import JobStatus
 
 class ScheduledJob(NamedTuple):
     job_id: str
-    func_name: str
+    name: str
     message: bytes
     status: JobStatus
     next_run_at: datetime

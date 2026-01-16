@@ -76,14 +76,65 @@ In addition to cron jobs that are defined at the application level, users can al
 
 To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can do this by calling the `.schedule()` method on the task function. The arguments that you pass to `.schedule()` will be used when the task runs.
 
-### `delay`
+### cron
+
+To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
+
+```python
+# Schedules a recurring task.
+schedule(*args, **kwargs).cron(
+    cron: str | Cron, # The cron expression or `Cron` object.
+    *,
+    job_id: str, # Required unique identifier for the job.
+    now: datetime | None, # Optional reference datetime.
+    replace: bool = False, # If True and a job with the same job ID already exists it will be replaced.
+)
+```
+
+example:
+
+```python
+import asyncio
+from jobify import Jobify
+
+app = Jobify()
+
+@app.task
+def cleanup_logs() -> None:
+    print("Cleaning up logs...")
+
+@app.task(cron="@daily")
+def daily_report() -> None:
+    print("Generating daily report...")
+
+async def main() -> None:
+    async with app:
+        # Schedule cleanup every 5 minutes
+        job = await cleanup_logs.schedule().cron(
+            cron="*/5 * * * *",
+            job_id="cleanup_task_dynamic",
+        )
+        # Keep the app running...
+        await app.wait_all()
+
+asyncio.run(main())
+```
+
+### delay
 
 To run a task after a specified delay, use the `delay()` method of the builder.
 
-- **`delay(seconds: float, *, job_id: str | None = None, now: datetime | None = None)`**: Schedules the task to run after a specified number of seconds.
-    - `seconds`: The delay in seconds.
-    - `job_id`: Optional unique identifier for the job.
-    - `now`: Optional reference datetime.
+```python
+# Schedules the task to run after a specified number of seconds.
+schedule(*args, **kwargs).delay(
+    seconds: float, # The delay in seconds.
+    *,
+    job_id: str | None = None, # Optional unique identifier for the job.
+    now: datetime | None = None, # Optional reference datetime.
+    replace: bool = False, # If True, replaces an existing job with the same job_id.
+)
+```
+example:
 
 ```python
 import asyncio
@@ -107,13 +158,21 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-### `at`
+### at
 
 To run a task at a specific `datetime`, use the `.at()` method.
 
-- **`at(at: datetime, *, job_id: str | None = None)`**: Schedules the task to run at the specified `datetime`.
-    - `at`: The execution time.
-    - `job_id`: Optional unique identifier for the job.
+```python
+# Schedules the task to run at the specified `datetime`.
+schedule(*args, **kwargs).at(
+    at: datetime, # The execution time.
+    *,
+    job_id: str | None = None, # Optional unique identifier for the job.
+    replace: bool = False, # If True, replaces an existing job with the same job_id.
+)
+```
+
+example:
 
 ```python
 import asyncio
@@ -137,34 +196,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-### `cron`
-
-To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
-
-- **`cron(cron: str | Cron, *, job_id: str, now: datetime | None = None)`**: Schedules a recurring task.
-    - `cron`: The cron expression or `Cron` object.
-    - `job_id`: **Required** unique identifier for the job.
-    - `now`: Optional reference datetime.
-
-```python
-import asyncio
-from jobify import Jobify
-
-app = Jobify()
-
-@app.task
-def cleanup_logs() -> None:
-    print("Cleaning up logs...")
-
-async def main() -> None:
-    async with app:
-        # Schedule cleanup every 5 minutes
-        job = await cleanup_logs.schedule().cron(
-            cron="*/5 * * * *",
-            job_id="cleanup_task_dynamic",
-        )
-        # Keep the app running...
-        await app.wait_all()
-
-asyncio.run(main())
-```
+!!! info "Replacing existing jobs"
+    By default, if you try to schedule a job with a job ID that is already in use, a `DuplicateJobError` will be raised.
+    To avoid this, you can set `replace=True` when scheduling a job using any of the following methods: `cron`, `at`, or `delay`. This will automatically cancel the existing job and schedule a new one in its place.
+    For `cron` jobs, setting `replace=True` will also preserve the scheduling offset, ensuring consistency in execution.

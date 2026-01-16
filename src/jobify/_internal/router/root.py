@@ -144,7 +144,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
-            func_name=self.name,
+            name=self.name,
             func_spec=self.func_spec,
             shared_state=self._shared_state,
             jobify_config=self.jobify_config,
@@ -185,7 +185,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
 
         if isinstance(self._jobify_config.serializer, ExtendedJSONSerializer):
             hints = get_type_hints(func)
-            self._jobify_config.serializer.registry_types(hints.values())
+            self._jobify_config.serializer.register_hints(hints.values())
 
         strategy = create_run_strategy(
             func,

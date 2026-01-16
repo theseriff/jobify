@@ -178,18 +178,18 @@ class ExtendedJSONSerializer(Serializer):
         decoded: SupportedTypes = json.loads(data, object_hook=hook)
         return decoded
 
-    def registry_types(self, types: Iterable[Any]) -> None:
+    def register_hints(self, types: Iterable[Any]) -> None:
         for tp in types:
             if not is_structured_type(tp):
                 continue
             if getattr(tp, "__name__", None) == "JobContext":
                 continue
             if args := get_args(tp):
-                self.registry_types(args)
+                self.register_hints(args)
                 continue
             if tp.__name__ in self.registry:
                 continue
 
             self.registry[tp.__name__] = tp
             field_hints = get_type_hints(tp)
-            self.registry_types(field_hints.values())
+            self.register_hints(field_hints.values())

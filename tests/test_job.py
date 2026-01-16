@@ -12,7 +12,7 @@ from tests.conftest import create_app
 async def test_job() -> None:
     app = create_app()
 
-    @app.task(func_name="t")
+    @app.task(name="t")
     def t(num: int) -> int:
         return num + 1
 

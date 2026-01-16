@@ -28,7 +28,7 @@ async def test_app_runtime_error() -> None:
         )
 
         with pytest.raises(ApplicationStateError, match=reason):
-            _ = app.task(f, func_name="test1")
+            _ = app.task(f, name="test1")
 
         with pytest.raises(ApplicationStateError, match=reason):
             app.add_middleware(Mock())
@@ -40,7 +40,7 @@ async def test_app_runtime_error() -> None:
 async def test_job_not_completed() -> None:
     app = create_app()
 
-    @app.task(func_name="f1")
+    @app.task(name="f1")
     def f1(num: int) -> int:
         return num + 1
 
