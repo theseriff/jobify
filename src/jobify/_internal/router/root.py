@@ -185,7 +185,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
 
         if isinstance(self._jobify_config.serializer, ExtendedJSONSerializer):
             hints = get_type_hints(func)
-            self._jobify_config.serializer.registry_types(hints.values())
+            self._jobify_config.serializer.register_hints(hints.values())
 
         strategy = create_run_strategy(
             func,

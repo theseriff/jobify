@@ -2,13 +2,7 @@
 
 <h1>Jobify<br>Robust task scheduler.</h1>
 
-</div>
-
----
-
-<div align="center">
-
-[![Test Passing](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml)
+[![Tests](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml)
 [![Coverage](https://coverage-badge.samuelcolvin.workers.dev/theseriff/jobify.svg)](https://coverage-badge.samuelcolvin.workers.dev/redirect/theseriff/jobify)
 [![Package version](https://img.shields.io/pypi/v/jobify?label=PyPI)](https://pypi.org/project/jobify)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/jobify.svg)](https://pypi.org/project/jobify)\

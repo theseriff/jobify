@@ -303,7 +303,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
         return "test"
 
     async with app:
-        scheduled_job1 = list(await app.configs.storage.get_schedules()).pop()
+        scheduled_job1 = (await app.configs.storage.get_schedules())[0]
         job = app.task._shared_state.pending_jobs.popitem()[1]
         await job.wait()
         assert job.result() == "test"
@@ -312,7 +312,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
     _ = app2.task(_f)
 
     async with app2:
-        scheduled_job2 = list(await app2.configs.storage.get_schedules()).pop()
+        scheduled_job2 = (await app2.configs.storage.get_schedules())[0]
         job = app2.task._shared_state.pending_jobs.popitem()[1]
         await job.wait()
         assert job.result() == "test"
