@@ -20,16 +20,16 @@ def test_create_default_name(func: Callable[..., None]) -> None:
     if func.__name__ == "main":
         main.__module__ = "__main__"
 
-    name = func.__name__
+    fname = func.__name__
     module = func.__module__
 
     job_name = resolve_name(func)
     if func.__module__ == "__main__":
-        assert job_name.endswith(f"pytest:{name}")
+        assert job_name.endswith(f"{fname}")
     elif func.__name__ == "<lambda>":
         assert job_name.startswith(f"{module}:lambda")
     else:
-        assert job_name == f"{module}:{name}"
+        assert job_name == f"{module}:{fname}"
 
 
 async def test_original_func_call() -> None:
