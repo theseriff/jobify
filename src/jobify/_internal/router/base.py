@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import os
+import inspect
 import sys
 import uuid
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -91,12 +92,15 @@ async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
 
 
 def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
-    name = func.__name__.removesuffix(PATCH_SUFFIX)
+    name = func.__name__
+    name = getattr(func, "__qualname__", name).removesuffix(PATCH_SUFFIX)
     fmodule = func.__module__
     if name == "<lambda>":
         name = f"lambda_{uuid.uuid4().hex}"
     if fmodule == "__main__":
-        fmodule = sys.argv[0].removesuffix(".py").replace(os.path.sep, ".")
+        mod = inspect.getmodule(func)
+        fallback = sys.argv[0] if sys.argv else "."
+        fmodule = Path(getattr(mod, "__file__", fallback)).stem
     return f"{fmodule}:{name}"
 
 
