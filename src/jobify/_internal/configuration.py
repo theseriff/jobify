@@ -80,7 +80,7 @@ class Cron:
 
 
 class RouteOptions(TypedDict):
-    func_name: NotRequired[str]
+    name: NotRequired[str]
     cron: NotRequired[Cron | str]
     retry: NotRequired[int]
     timeout: NotRequired[float]

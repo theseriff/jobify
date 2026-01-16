@@ -20,6 +20,6 @@ class AtArguments(NamedTuple):
 @dataclass(slots=True, kw_only=True)
 class Message:
     job_id: str
-    func_name: str
+    name: str
     arguments: dict[str, Any]
     trigger: CronArguments | AtArguments

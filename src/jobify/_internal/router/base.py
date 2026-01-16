@@ -176,7 +176,7 @@ class Registrator(ABC, Generic[Route_co]):
             if isinstance(func, Route):
                 func = cast("Callable[ParamsT, Return_co]", func.func)
 
-            name = options.get("func_name") or resolve_name(func)
+            name = options.get("name") or resolve_name(func)
             if name in self._routes:
                 raise RouteAlreadyRegisteredError(name)
 

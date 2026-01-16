@@ -59,8 +59,8 @@ class ScheduleBuilder(Generic[ReturnT]):
         "_runnable",
         "_shared_state",
         "_state",
-        "func_name",
         "func_spec",
+        "name",
         "route_options",
     )
 
@@ -72,7 +72,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         jobify_config: JobifyConfiguration,
         runnable: Runnable[ReturnT],
         chain_middleware: CallNext,
-        func_name: str,
+        name: str,
         func_spec: FuncSpec[ReturnT],
         options: RouteOptions,
     ) -> None:
@@ -81,7 +81,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self._configs: JobifyConfiguration = jobify_config
         self._runnable: Runnable[ReturnT] = runnable
         self._chain_middleware: CallNext = chain_middleware
-        self.func_name: str = func_name
+        self.name: str = name
         self.func_spec: FuncSpec[ReturnT] = func_spec
         self.route_options: RouteOptions = options
 
@@ -115,7 +115,7 @@ class ScheduleBuilder(Generic[ReturnT]):
     ) -> ScheduledJob:
         msg = Message(
             job_id=job_id,
-            func_name=self.func_name,
+            name=self.name,
             arguments=self._runnable.bound.arguments,
             trigger=trigger,
         )
@@ -128,7 +128,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         raw_message = self._configs.serializer.dumpb(formatted)
         return ScheduledJob(
             job_id=job_id,
-            func_name=self.func_name,
+            name=self.name,
             message=raw_message,
             status=JobStatus.SCHEDULED,
             next_run_at=next_run_at,

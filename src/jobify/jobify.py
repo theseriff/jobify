@@ -249,7 +249,7 @@ class Jobify(RootRouter):
         type_adaptive = self.configs.loader.load
 
         for job_id, sch in db_map.items():
-            route = self.task._routes.get(sch.func_name, ...)
+            route = self.task._routes.get(sch.name, ...)
             if route is ... or route.options.get("durable") is False:
                 scheduled_to_delete.append(job_id)
                 continue
@@ -267,7 +267,7 @@ class Jobify(RootRouter):
                 # ValueError: Serializer error.
                 warn = (
                     f"Cannot restore <job_id {job_id!r}>"
-                    f"<func_name {sch.func_name!r}>.\n"
+                    f"<name {sch.name!r}>.\n"
                     f"Exception Type: {type(exc)}. "
                     f"Reason: {exc}. Removing from storage."
                 )

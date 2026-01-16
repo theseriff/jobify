@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 CREATE_SCHEDULED_TABLE_QUERY = """
 CREATE TABLE IF NOT EXISTS {} (
     job_id TEXT PRIMARY KEY,
-    func_name TEXT,
+    name TEXT,
     message BLOB,
     status TEXT,
     next_run_at TEXT,
@@ -34,15 +34,15 @@ CREATE TABLE IF NOT EXISTS {} (
 """
 
 SELECT_SCHEDULES_QUERY = """
-SELECT job_id, func_name, message, status, next_run_at
+SELECT job_id, name, message, status, next_run_at
 FROM {};
 """
 
 INSERT_SCHEDULE_QUERY = """
-INSERT INTO {} (job_id, func_name, message, status, next_run_at)
+INSERT INTO {} (job_id, name, message, status, next_run_at)
 VALUES (?, ?, ?, ?, ?)
 ON CONFLICT (job_id) DO UPDATE SET
-    func_name = EXCLUDED.func_name,
+    name = EXCLUDED.name,
     message = EXCLUDED.message,
     status = EXCLUDED.status,
     next_run_at = EXCLUDED.next_run_at,
@@ -135,7 +135,7 @@ class SQLiteStorage(Storage):
             return [
                 ScheduledJob(
                     job_id=row[0],
-                    func_name=row[1],
+                    name=row[1],
                     message=row[2],
                     status=JobStatus(row[3]),
                     next_run_at=(
@@ -156,7 +156,7 @@ class SQLiteStorage(Storage):
                     [
                         (
                             sch.job_id,
-                            sch.func_name,
+                            sch.name,
                             sch.message,
                             sch.status,
                             sch.next_run_at.isoformat(),

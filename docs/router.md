@@ -67,7 +67,7 @@ router = JobRouter(prefix="reports")
 def generate_daily_report() -> None: ...
 
 
-@router.task(func_name="weekly")  # You can also specify a custom name
+@router.task(name="weekly")  # You can also specify a custom name
 def generate_weekly_report() -> None: ...
 ```
 

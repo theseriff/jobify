@@ -38,10 +38,10 @@ def test_nested_name() -> None:
     async def t() -> None:
         pass
 
-    f = router1.task(t, func_name="test1")
-    f2 = router2.task(t, func_name="test2")
+    f = router1.task(t, name="test1")
+    f2 = router2.task(t, name="test2")
     f3 = router2.task(t)
-    f4 = router3.task(t, func_name="test4")
+    f4 = router3.task(t, name="test4")
 
     router1.include_router(router2)
 
@@ -58,7 +58,7 @@ def test_nested_name() -> None:
 async def test_router_include() -> None:
     router1 = JobRouter(prefix="level1")
 
-    @router1.task(func_name="test1")
+    @router1.task(name="test1")
     async def f() -> str:
         return "test"
 

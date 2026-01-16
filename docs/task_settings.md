@@ -9,7 +9,7 @@ app = Jobify()
 
 
 @app.task(
-    func_name="my_daily_report",
+    name="my_daily_report",
     # When the app restarts, the max_runs is set to 0 and the app again runs 30 times.
     cron=Cron(
         "* * * * *",

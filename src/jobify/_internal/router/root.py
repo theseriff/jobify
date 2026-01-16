@@ -144,7 +144,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         return ScheduleBuilder(
             state=self.state,
             options=self.options,
-            func_name=self.name,
+            name=self.name,
             func_spec=self.func_spec,
             shared_state=self._shared_state,
             jobify_config=self.jobify_config,

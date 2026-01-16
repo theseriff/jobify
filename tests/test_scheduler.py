@@ -47,8 +47,8 @@ async def test_jobify(  # noqa: PLR0913
     expected: int,
     run_mode: RunMode,
 ) -> None:
-    f1_reg = node.task(f1, func_name="f1_reg", run_mode=run_mode)
-    f2_reg = node.task(f2, func_name="f2_reg", run_mode=run_mode)
+    f1_reg = node.task(f1, name="f1_reg", run_mode=run_mode)
+    f2_reg = node.task(f2, name="f2_reg", run_mode=run_mode)
     if type(node) is Jobify:
         app = node
     else:
