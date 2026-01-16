@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-01-16)
+
+### Bug Fixes
+
+- **resolve_name**: Robust task ID generation via inspect and pathlib
+  ([`1e6683d`](https://github.com/theseriff/jobify/commit/1e6683d64efe64c06b2304e3f5af1fb2fc61c56d))
+
+### Documentation
+
+- Clean up formatting and improve cross-referencing
+  ([`965511b`](https://github.com/theseriff/jobify/commit/965511b16a514cf5fa544d84dd85ef89c5f6089f))
+
+- Update dynamic scheduling docs with replace parameter
+  ([`bc320c8`](https://github.com/theseriff/jobify/commit/bc320c8e2d39c02995359703a99dc7d611bee690))
+
+### Features
+
+- Allow replacing existing jobs by ID
+  ([`64191b7`](https://github.com/theseriff/jobify/commit/64191b70790c2a59819649ec360f018b674b9bb1))
+
+
 ## v0.2.1 (2026-01-15)
 
 ### Bug Fixes
