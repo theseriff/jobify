@@ -76,6 +76,38 @@ In addition to cron jobs that are defined at the application level, users can al
 
 To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can do this by calling the `.schedule()` method on the task function. The arguments that you pass to `.schedule()` will be used when the task runs.
 
+### `cron`
+
+To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
+
+- **`cron(cron: str | Cron, *, job_id: str, now: datetime | None = None)`**: Schedules a recurring task.
+  - `cron`: The cron expression or `Cron` object.
+  - `job_id`: **Required** unique identifier for the job.
+  - `now`: Optional reference datetime.
+
+```python
+import asyncio
+from jobify import Jobify
+
+app = Jobify()
+
+@app.task
+def cleanup_logs() -> None:
+    print("Cleaning up logs...")
+
+async def main() -> None:
+    async with app:
+        # Schedule cleanup every 5 minutes
+        job = await cleanup_logs.schedule().cron(
+            cron="*/5 * * * *",
+            job_id="cleanup_task_dynamic",
+        )
+        # Keep the app running...
+        await app.wait_all()
+
+asyncio.run(main())
+```
+
 ### `delay`
 
 To run a task after a specified delay, use the `delay()` method of the builder.
@@ -133,38 +165,6 @@ async def main() -> None:
         job = await generate_report.schedule(report_id=123).at(at=run_time)
         # Keep the app running to allow the job to execute
         await job.wait()
-
-asyncio.run(main())
-```
-
-### `cron`
-
-To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
-
-- **`cron(cron: str | Cron, *, job_id: str, now: datetime | None = None)`**: Schedules a recurring task.
-    - `cron`: The cron expression or `Cron` object.
-    - `job_id`: **Required** unique identifier for the job.
-    - `now`: Optional reference datetime.
-
-```python
-import asyncio
-from jobify import Jobify
-
-app = Jobify()
-
-@app.task
-def cleanup_logs() -> None:
-    print("Cleaning up logs...")
-
-async def main() -> None:
-    async with app:
-        # Schedule cleanup every 5 minutes
-        job = await cleanup_logs.schedule().cron(
-            cron="*/5 * * * *",
-            job_id="cleanup_task_dynamic",
-        )
-        # Keep the app running...
-        await app.wait_all()
 
 asyncio.run(main())
 ```

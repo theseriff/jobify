@@ -38,7 +38,7 @@ app = Jobify(
 )
 ```
 
-## `tz`
+## tz
 
 - **Type**: `zoneinfo.ZoneInfo | None`
 - **Default**: `zoneinfo.ZoneInfo("UTC")`
@@ -46,7 +46,7 @@ app = Jobify(
 Sets the default time zone for the application.
 Any time-related calculations (such as for cron jobs) will use this time zone unless a different time zone is specified for a specific job.
 
-## `dumper` and `loader`
+## dumper `and` loader
 
 - **Type**: `Dumper | None`, `Loader | None`
 - **Default**: `DummyDumper`, `DummyLoader`
@@ -58,7 +58,7 @@ These are hooks for integrating with external type systems or advanced serializa
 
 By default, they do nothing.
 
-## `storage`
+## storage
 
 - **Type**: `Storage | Literal[False] | None`
 - **Default**: `None`
@@ -69,7 +69,7 @@ Configures the persistence layer for jobs.
 - **`False`**: Uses `DummyStorage`, which is an in-memory storage. Jobs are not saved and will be lost if the application is restarted.
 - **Custom Storage**: You can provide an instance of a class that implements the `jobify._internal.storage.abc.Storage` abstract base class to customize the persistence logic (for example, using a different database).
 
-## `lifespan`
+## lifespan
 
 - **Type**: `Lifespan[Jobify] | None`
 - **Default**: `None`
@@ -121,18 +121,18 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## `serializer`
+## serializer
 
 - **Type**: `Serializer | None`
 - **Default**: `ExtendedJSONSerializer` or `JSONSerializer`
 
 The primary serializer for converting job data, such as function arguments, into a storable format.
 
-- If `dumper` and `loader` are not specified, the default value is `ExtendedJSONSerializer`, which supports common types such as `datetime`.
+- If `dumper` and `loader` are not specified, the default value is `ExtendedJSONSerializer`, which supports common types such as `dataclass`.
 - Otherwise, it will fall back to the simpler `JSONSerializer`.
 - You can provide your own custom serializer instance that implements the `jobify.serializers.Serializer` interface.
 
-## `middleware`
+## middleware
 
 - **Type**: `Sequence[BaseMiddleware] | None`
 - **Default**: `None`
@@ -207,28 +207,28 @@ class SkipMiddleware(BaseMiddleware):
         return await call_next(context)
 ```
 
-## `cron_factory`
+## cron_factory
 
 - **Type**: `CronFactory | None`
 - **Default**: `jobify.crontab.create_crontab`
 
 A factory function for parsing cron expression strings, which supports the standard cron syntax by default, with an optional field for seconds.
 
-## `loop_factory`
+## loop_factory
 
 - **Type**: `LoopFactory`
 - **Default**: `asyncio.get_running_loop`
 
 A callable that returns an `asyncio` event loop for the application to use.
 
-## `exception_handlers`
+## exception_handlers
 
 - **Type**: `MappingExceptionHandlers | None`
 - **Default**: `None`
 
 A dictionary that maps exception types to custom error handling functions, allowing for more fine-grained and customized error handling when jobs fail.
 
-## `threadpool_executor` and `processpool_executor`
+## threadpool_executor `and` processpool_executor
 
 - **Type**: `ThreadPoolExecutor | None`, `ProcessPoolExecutor | None`
 - **Default**: `None`

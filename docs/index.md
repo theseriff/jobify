@@ -7,31 +7,31 @@ similar to modern web frameworks like FastAPI.
 ## Key Features
 
 - **Async First**: Built on top of `asyncio`.
-- **Flexible Scheduling**: Run jobs immediately, after a delay, at a specific time, or via Cron expressions.
+- [**Flexible Scheduling**](schedule.md#dynamic-scheduling){ data-preview }: Run jobs immediately, after a delay, at a specific time, or via Cron expressions.
 - **Persistence**: Built-in SQLite storage ensures scheduled jobs survive application restarts.
-- **Modular**: Organize tasks using `JobRouter`s (similar to FastAPI routers).
+- [**Modular**](router.md){ data-preview }: Organize tasks using `JobRouter`s (similar to FastAPI routers).
 - **Resilient**: Middleware support for automatic retries, timeouts, and error handling.
-- **Concurrency**: Support for `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor`.
+- [**Concurrency**](task_settings/#run_mode){ data-preview }: Support for `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor`.
 
 ## Comparison
 
 You might have seen other libraries like `APScheduler`, `Celery`, or `Taskiq`.
 Below is a comparison of features to help you decide if Jobify fits your needs.
 
-| Feature name                   |        Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
-| :----------------------------- | :------------------: | :---------------: | :--------------: | :---------------: |
-| **Event-driven Scheduling**    | ✅ (Low-level timer) | ❌ (Polling/Loop) |  ❌ (Interval)   | ❌ (Polling/Loop) |
-| **Async Native (asyncio)**     |          ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
-| **Context Injection**          |          ✅          |        ✅         |        ❌        |        ❌         |
-| **FastAPI-style Routing**      |          ✅          |        ❌         |        ❌        |        ❌         |
-| **Middleware Support**         |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
-| **Job Cancellation**           |          ✅          |        ❌         |        ✅        |        ✅         |
-| **Cron Scheduling**            |          ✅          |        ✅         |        ✅        |        ✅         |
-| **Misfire Policy**             |          ✅          |        ❌         |        ✅        |        ❌         |
-| **Run Modes (Thread/Process)** |          ✅          |        ✅         |        ✅        |        ✅         |
-| **Rich Typing Support**        |          ✅          |        ✅         |        ❌        |        ❌         |
-| **Zero-config Persistence**    | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
-| **Broker-backend execution**   |      ❌ (soon)       |        ✅         |        ❌        |        ✅         |
+| Feature name                                                              |        Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
+| :------------------------------------------------------------------------ | :------------------: | :---------------: | :--------------: | :---------------: |
+| **Event-driven Scheduling**                                               | ✅ (Low-level timer) | ❌ (Polling/Loop) |  ❌ (Interval)   | ❌ (Polling/Loop) |
+| **Async Native (asyncio)**                                                |          ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
+| [**Context Injection**](context.md){ data-preview }                       |          ✅          |        ✅         |        ❌        |        ❌         |
+| [**FastAPI-style Routing**](router.md){ data-preview }                    |          ✅          |        ❌         |        ❌        |        ❌         |
+| [**Middleware Support**](app_settings/#middleware){ data-preview }        |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
+| [**Job Cancellation**](job/#await-jobcancel){ data-preview }              |          ✅          |        ❌         |        ✅        |        ✅         |
+| [**Cron Scheduling**](schedule/#cron-expressions){ data-preview }         |          ✅          |        ✅         |        ✅        |        ✅         |
+| [**Misfire Policy**](task_settings/#cron){ data-preview }                 |          ✅          |        ❌         |        ✅        |        ❌         |
+| [**Run Modes (Thread/Process)**](task_settings/#run_mode){ data-preview } |          ✅          |        ✅         |        ✅        |        ✅         |
+| **Rich Typing Support**                                                   |          ✅          |        ✅         |        ❌        |        ❌         |
+| **Zero-config Persistence**                                               | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
+| **Broker-backend execution**                                              |      ❌ (soon)       |        ✅         |        ❌        |        ✅         |
 
 ### Why Jobify?
 
