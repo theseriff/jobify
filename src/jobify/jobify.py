@@ -302,7 +302,7 @@ class Jobify(RootRouter):
         at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
     ) -> None:
         match message.trigger:
-            case CronArguments(_, job_id, db_offset) as trigger:
+            case CronArguments(db_cron, job_id, db_offset) as trigger:
                 if job_id in crons_declare_persist:
                     origin = crons_args[job_id]
 
@@ -323,7 +323,7 @@ class Jobify(RootRouter):
                     )
                     scheduled_to_update.append(scheduled)
                 else:
-                    parser = self.configs.cron_factory(trigger.cron.expression)
+                    parser = self.configs.cron_factory(db_cron.expression)
                     crons_args[job_id] = _CronSchedule(
                         trigger,
                         builder,
@@ -343,8 +343,8 @@ class Jobify(RootRouter):
                 cron=cron.arg.cron,
                 job_id=cron.arg.job_id,
                 next_run_at=cron.next_run_at,
-                real_now=cron.builder.now(),
                 cron_parser=cron.cron_parser,
+                offset=cron.arg.offset,
             )
         for builder, arg in at_args.values():
             _ = builder._at(

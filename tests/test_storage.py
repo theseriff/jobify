@@ -448,7 +448,7 @@ async def test_start_pending_crons_non_cron_trigger(
     )
     await storage.shutdown()
 
-    @app.task(cron="* * * * *", name=name)
+    @app.task(cron="1 1 1 1 1", name=name)
     def _() -> None:
         pass
 
