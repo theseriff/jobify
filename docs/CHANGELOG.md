@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.1 (2026-01-17)
+
+### Bug Fixes
+
+- Resolve cron lifecycle, context injection, and misfire policy issues
+  ([`23e8b4f`](https://github.com/theseriff/jobify/commit/23e8b4fcd21199697a5543b2c2a7aceffc60c083))
+
+
 ## v0.3.0 (2026-01-16)
 
 ### Bug Fixes
