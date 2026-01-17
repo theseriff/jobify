@@ -15,7 +15,10 @@ from typing import (
 
 from typing_extensions import override
 
-from jobify._internal.common.constants import PATCH_SUFFIX
+from jobify._internal.common.constants import (
+    PATCH_CRON_DEF_ID,
+    PATCH_FUNC_NAME,
+)
 from jobify._internal.configuration import Cron
 from jobify._internal.context import inject_context
 from jobify._internal.exceptions import (
@@ -60,7 +63,7 @@ ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 RootRouter_co = TypeVar("RootRouter_co", bound="RootRouter", covariant=True)
 
-CRONS_DECLARATIVE = "__crons_declarative__"
+CRONS_DEF_KEY = "__crons_definition__"
 CronsDeclarative: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
 
 
@@ -105,7 +108,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         # --------------------------------------------------------------------
 
         # Guard 1: Protect against double-renaming
-        if func.__name__.endswith(PATCH_SUFFIX):
+        if func.__name__.endswith(PATCH_FUNC_NAME):
             return
 
         # Guard 2: Check if `register` is used as a decorator (@)
@@ -116,7 +119,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
             return
 
         # Apply the hack: rename and inject back into the module
-        new_name = f"{func.__name__}{PATCH_SUFFIX}"
+        new_name = f"{func.__name__}{PATCH_FUNC_NAME}"
         func.__name__ = new_name
         if hasattr(func, "__qualname__"):  # pragma: no cover
             original_qualname = func.__qualname__.rsplit(".", 1)
@@ -208,9 +211,9 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
         if cron := options.get("cron"):
             if isinstance(cron, str):
                 cron = Cron(cron)
-            job_id = f"{route.name}__jobify_cron_definition"
+            job_id = f"{route.name}{PATCH_CRON_DEF_ID}"
             p = {job_id: (route, cron)}
-            self.state.setdefault(CRONS_DECLARATIVE, {}).update(p)
+            self.state.setdefault(CRONS_DEF_KEY, {}).update(p)
 
         return route
 
@@ -303,5 +306,8 @@ class RootRouter(Router):
             await router.task.emit_shutdown()
 
     async def _entry(self, context: JobContext) -> Any:  # noqa: ANN401
-        inject_context(context)
-        return await context.runnable()
+        (keys_injected, arguments) = inject_context(context)
+        result = await context.runnable()
+        for key in keys_injected:
+            del arguments[key]
+        return result

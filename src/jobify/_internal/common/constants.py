@@ -5,7 +5,8 @@ from jobify._internal.common.datastructures import EmptyPlaceholder
 
 EMPTY: Any = EmptyPlaceholder()
 INFINITY = -1
-PATCH_SUFFIX = "__jobify_original"
+PATCH_FUNC_NAME = "__jobify_original"
+PATCH_CRON_DEF_ID = "__jobify_cron_definition"
 
 
 @unique

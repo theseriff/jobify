@@ -19,7 +19,7 @@ from typing import (
 
 from typing_extensions import Unpack, override
 
-from jobify._internal.common.constants import PATCH_SUFFIX
+from jobify._internal.common.constants import PATCH_FUNC_NAME
 from jobify._internal.common.datastructures import State
 from jobify._internal.exceptions import RouteAlreadyRegisteredError
 
@@ -93,7 +93,7 @@ async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
 
 def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
     name = func.__name__
-    name = getattr(func, "__qualname__", name).removesuffix(PATCH_SUFFIX)
+    name = getattr(func, "__qualname__", name).removesuffix(PATCH_FUNC_NAME)
     fmodule = func.__module__
     if name == "<lambda>":
         name = f"lambda_{uuid.uuid4().hex}"
