@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.2 (2026-01-17)
+
+### Performance Improvements
+
+- **wait_all**: Implement idle state tracking using asyncio.Event
+  ([`6d8b3d0`](https://github.com/theseriff/jobify/commit/6d8b3d09fcfa56d166d24f4c44f86e105a1bf7a9))
+
+
 ## v0.3.1 (2026-01-17)
 
 ### Bug Fixes
