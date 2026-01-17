@@ -20,7 +20,7 @@ from jobify._internal.configuration import (
 from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.router.root import (
     CRONS_DEF_KEY,
-    CronsDeclarative,
+    CronsDefinition,
     RootRouter,
 )
 from jobify._internal.scheduler.misfire_policy import (
@@ -206,16 +206,11 @@ class Jobify(RootRouter):
             ```
 
         """
-
-        async def target() -> None:
-            while jobs := self.task._shared_state.pending_jobs.values():
-                coros = (job.wait() for job in jobs)
-                _ = await asyncio.gather(*coros, return_exceptions=True)
-
-        await asyncio.wait_for(target(), timeout=timeout)
+        idle_event = self.task._shared_state.idle_event
+        _ = await asyncio.wait_for(idle_event.wait(), timeout=timeout)
 
     async def _restore_schedules(self) -> None:
-        crons_def: CronsDeclarative = self.state.pop(CRONS_DEF_KEY, {})
+        crons_def: CronsDefinition = self.state.pop(CRONS_DEF_KEY, {})
         schedules = await self.configs.storage.get_schedules()
         db_map = {sch.job_id: sch for sch in schedules}
 

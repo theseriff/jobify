@@ -9,6 +9,7 @@ from jobify._internal.common.constants import EMPTY, JobStatus
 from jobify._internal.exceptions import JobFailedError, JobNotCompletedError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from datetime import datetime
 
     from jobify._internal.storage.abc import Storage
@@ -22,10 +23,10 @@ class Job(Generic[ReturnT]):
         "_event",
         "_handle",
         "_offset",
-        "_pending_jobs",
         "_result",
         "_status",
         "_storage",
+        "_unregister_job",
         "cron_expression",
         "exception",
         "exec_at",
@@ -37,14 +38,14 @@ class Job(Generic[ReturnT]):
         *,
         job_id: str,
         exec_at: datetime,
-        pending_jobs: dict[str, Job[ReturnT]],
+        unregister_job: Callable[[str], None],
         job_status: JobStatus = JobStatus.SCHEDULED,
         storage: Storage,
         cron_expression: str | None = None,
         offset: datetime | None = None,
     ) -> None:
+        self._unregister_job = unregister_job
         self._event = asyncio.Event()
-        self._pending_jobs = pending_jobs
         self._result: ReturnT = EMPTY
         self._offset = offset
         self._status = job_status
@@ -124,6 +125,6 @@ class Job(Generic[ReturnT]):
 
     def _cancel(self) -> None:
         self._event.set()
-        _ = self._pending_jobs.pop(self.id, None)
+        self._unregister_job(self.id)
         if self._handle is not None:
             self._handle.cancel()

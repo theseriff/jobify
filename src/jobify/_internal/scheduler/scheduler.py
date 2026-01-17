@@ -119,7 +119,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         msg = Message(
             job_id=job_id,
             name=self.name,
-            arguments=self._runnable.bound.arguments,
+            arguments=self._runnable.origin_arguments,
             trigger=trigger,
         )
         for name, arg in msg.arguments.items():
@@ -194,15 +194,15 @@ class ScheduleBuilder(Generic[ReturnT]):
         next_run_at: datetime,
         cron_parser: CronParser,
     ) -> Job[ReturnT]:
-        job = Job(
+        job = Job[ReturnT](
             exec_at=next_run_at,
             job_id=job_id,
-            pending_jobs=self._shared_state.pending_jobs,
+            unregister_job=self._shared_state.unregister_job,
             storage=self._configs.storage,
             cron_expression=cron.expression,
             offset=offset,
         )
-        self._shared_state.pending_jobs[job.id] = job
+        self._shared_state.register_job(job)
         cron_ctx = CronContext(job=job, cron=cron, cron_parser=cron_parser)
         delay_seconds = self._calculate_delay_seconds(target_at=next_run_at)
         loop = self._configs.getloop()
@@ -258,13 +258,13 @@ class ScheduleBuilder(Generic[ReturnT]):
         real_now: datetime | None = None,
     ) -> Job[ReturnT]:
         real_now = real_now or self.now()
-        job = Job(
+        job = Job[ReturnT](
             exec_at=at,
             job_id=job_id,
-            pending_jobs=self._shared_state.pending_jobs,
+            unregister_job=self._shared_state.unregister_job,
             storage=self._configs.storage,
         )
-        self._shared_state.pending_jobs[job.id] = job
+        self._shared_state.register_job(job)
         loop = self._configs.getloop()
         delay_seconds = self._calculate_delay_seconds(target_at=at)
         if delay_seconds <= 0:
@@ -277,23 +277,17 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)
-        self._shared_state.pending_tasks.add(task)
-        event = job._event
-        task.add_done_callback(self._shared_state.pending_tasks.discard)
-        task.add_done_callback(lambda _: event.set())
+        self._shared_state.track_task(task, job._event)
 
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
-        _ = self._shared_state.pending_jobs.pop(job.id, None)
+        self._shared_state.unregister_job(job.id)
         if self._is_persist():
             await self._configs.storage.delete_schedule(job.id)
 
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
-        self._shared_state.pending_tasks.add(task)
-        event = ctx.job._event
-        task.add_done_callback(self._shared_state.pending_tasks.discard)
-        task.add_done_callback(lambda _: event.set())
+        self._shared_state.track_task(task, ctx.job._event)
 
     async def _exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         job = ctx.job
@@ -327,9 +321,9 @@ class ScheduleBuilder(Generic[ReturnT]):
                     ctx.failure_count,
                     ctx.cron.max_failures,
                 )
-                _ = self._shared_state.pending_jobs.pop(job.id, None)
+                self._shared_state.unregister_job(job.id)
         else:
-            _ = self._shared_state.pending_jobs.pop(job.id, None)
+            self._shared_state.unregister_job(job.id)
 
     def _reschedule_cron(
         self,

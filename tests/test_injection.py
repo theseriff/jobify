@@ -92,7 +92,7 @@ async def test_inject_context_skips_non_inject_parameters(
     mock_context = Mock(spec=JobContext)
     mock_context.runnable = runnable
 
-    _ = inject_context(mock_context)
+    inject_context(mock_context)
     result = await runnable()
 
     amock.assert_awaited_once_with(normal_param="test")

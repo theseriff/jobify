@@ -5,7 +5,7 @@ import inspect
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Generic, ParamSpec, TypeVar
 
 from typing_extensions import override
 
@@ -81,7 +81,7 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
 
 
 class Runnable(Generic[ReturnT]):
-    __slots__: tuple[str, ...] = ("bound", "strategy")
+    __slots__: tuple[str, ...] = ("bound", "origin_arguments", "strategy")
 
     def __init__(
         self,
@@ -90,6 +90,7 @@ class Runnable(Generic[ReturnT]):
     ) -> None:
         self.strategy: Final = strategy
         self.bound: inspect.BoundArguments = bound
+        self.origin_arguments: dict[str, Any] = bound.arguments.copy()
 
     def __call__(self) -> Awaitable[ReturnT]:
         return self.strategy(*self.bound.args, **self.bound.kwargs)
