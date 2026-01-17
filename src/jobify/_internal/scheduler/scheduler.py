@@ -312,16 +312,12 @@ class ScheduleBuilder(Generic[ReturnT]):
                 offset = job._offset = job.exec_at
                 next_run_at = ctx.cron_parser.next_run(now=offset)
                 if self._is_persist():
-                    trigger_with_new_now = CronArguments(
+                    trigger = CronArguments(
                         cron=ctx.cron,
                         job_id=job.id,
                         offset=offset,
                     )
-                    await self._save_scheduled(
-                        trigger_with_new_now,
-                        job.id,
-                        next_run_at,
-                    )
+                    await self._save_scheduled(trigger, job.id, next_run_at)
                 self._reschedule_cron(ctx, next_run_at)
             else:
                 job._status = JobStatus.PERMANENTLY_FAILED

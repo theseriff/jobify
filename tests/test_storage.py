@@ -309,7 +309,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
         assert job.result() == "test"
 
     app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
-    _ = app2.task(_f)
+    _ = app2.task(_f, cron=Cron("* * * * * * *", max_runs=2))
 
     async with app2:
         scheduled_job2 = (await app2.configs.storage.get_schedules())[0]

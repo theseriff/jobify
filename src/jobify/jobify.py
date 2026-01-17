@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
+from jobify._internal.common.constants import PATCH_CRON_DEF_ID
 from jobify._internal.configuration import (
     Cron,
     JobifyConfiguration,
@@ -18,7 +19,7 @@ from jobify._internal.configuration import (
 )
 from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.router.root import (
-    CRONS_DECLARATIVE,
+    CRONS_DEF_KEY,
     CronsDeclarative,
     RootRouter,
 )
@@ -214,17 +215,17 @@ class Jobify(RootRouter):
         await asyncio.wait_for(target(), timeout=timeout)
 
     async def _restore_schedules(self) -> None:
-        crons_declare: CronsDeclarative = self.state.pop(CRONS_DECLARATIVE, {})
+        crons_def: CronsDeclarative = self.state.pop(CRONS_DEF_KEY, {})
         schedules = await self.configs.storage.get_schedules()
         db_map = {sch.job_id: sch for sch in schedules}
 
         at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]] = {}
         crons_args: dict[str, _CronSchedule] = {}
-        crons_declare_persist: set[str] = set()
+        crons_def_persist: set[str] = set()
         scheduled_to_update: list[ScheduledJob] = []
         scheduled_to_delete: list[str] = []
 
-        for job_id, (rout, cron) in crons_declare.items():
+        for job_id, (rout, cron) in crons_def.items():
             builder = rout.schedule()
             offset = builder.now()
 
@@ -239,7 +240,7 @@ class Jobify(RootRouter):
             )
             if builder._is_persist():
                 if job_id in db_map:
-                    crons_declare_persist.add(job_id)
+                    crons_def_persist.add(job_id)
                 else:
                     scheduled_to_update.append(
                         builder._create_scheduled(trigger, job_id, next_run_at)
@@ -250,7 +251,14 @@ class Jobify(RootRouter):
 
         for job_id, sch in db_map.items():
             route = self.task._routes.get(sch.name, ...)
-            if route is ... or route.options.get("durable") is False:
+            if (
+                route is ...
+                or route.options.get("durable") is False
+                or (
+                    job_id.endswith(PATCH_CRON_DEF_ID)
+                    and job_id not in crons_def
+                )
+            ):
                 scheduled_to_delete.append(job_id)
                 continue
             try:
@@ -280,10 +288,9 @@ class Jobify(RootRouter):
             else:
                 self._handle_message(
                     msg,
-                    sch.next_run_at,
                     route.create_builder(bound),
                     scheduled_to_update,
-                    crons_declare_persist,
+                    crons_def_persist,
                     crons_args,
                     at_args,
                 )
@@ -294,7 +301,6 @@ class Jobify(RootRouter):
     def _handle_message(  # noqa: PLR0913
         self,
         message: Message,
-        next_run_at: datetime,
         builder: ScheduleBuilder[Any],
         scheduled_to_update: list[ScheduledJob],
         crons_declare_persist: set[str],
@@ -324,6 +330,12 @@ class Jobify(RootRouter):
                     scheduled_to_update.append(scheduled)
                 else:
                     parser = self.configs.cron_factory(db_cron.expression)
+                    next_run_at = handle_misfire_policy(
+                        parser,
+                        parser.next_run(now=db_offset),
+                        builder.now(),
+                        db_cron.misfire_policy,
+                    )
                     crons_args[job_id] = _CronSchedule(
                         trigger,
                         builder,
