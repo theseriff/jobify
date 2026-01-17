@@ -25,10 +25,9 @@ CONTEXT_TYPE_MAP = {
 }
 
 
-def inject_context(context: JobContext) -> tuple[set[str], dict[str, Any]]:
+def inject_context(context: JobContext) -> None:
     bound = context.runnable.bound
     arguments = bound.arguments
-    keys_injected: set[str] = set()
 
     for name, param in bound.signature.parameters.items():
         if param.default is not INJECT:
@@ -50,7 +49,4 @@ def inject_context(context: JobContext) -> tuple[set[str], dict[str, Any]]:
                 f"Available types: {list(CONTEXT_TYPE_MAP.keys())}"
             )
             raise ValueError(msg)
-        keys_injected.add(name)
         arguments[name] = val
-
-    return (keys_injected, arguments)

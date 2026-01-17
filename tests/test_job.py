@@ -28,7 +28,7 @@ async def test_job() -> None:
     assert str(job2).startswith(f"Job(instance_id={id(job2)}")
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELLED
-    assert job2.id not in job2._pending_jobs
+    assert job2.id not in app.task._shared_state.pending_jobs
     assert job2._handle
     assert job2._handle.cancelled()
 
@@ -74,7 +74,7 @@ async def test_job_handle_not_set() -> None:
     job = Job[None](
         job_id=ANY,
         exec_at=ANY,
-        pending_jobs={},
+        unregister_job=lambda _: None,
         job_status=JobStatus.SCHEDULED,
         storage=ANY,
     )

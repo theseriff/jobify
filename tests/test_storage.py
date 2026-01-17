@@ -187,7 +187,7 @@ async def test_restore_schedules(
             job_id="test_cron",
             now=now,
         )
-        exec_at = now + timedelta(seconds=0.03)
+        exec_at = now + timedelta(seconds=0.05)
         job_at = await f.schedule("biba_at_restore").at(exec_at)
 
     await storage.startup()

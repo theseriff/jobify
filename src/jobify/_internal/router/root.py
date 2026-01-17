@@ -64,7 +64,7 @@ ParamsT = ParamSpec("ParamsT")
 RootRouter_co = TypeVar("RootRouter_co", bound="RootRouter", covariant=True)
 
 CRONS_DEF_KEY = "__crons_definition__"
-CronsDeclarative: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
+CronsDefinition: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
 
 
 class RootRoute(Route[ParamsT, ReturnT]):
@@ -306,8 +306,5 @@ class RootRouter(Router):
             await router.task.emit_shutdown()
 
     async def _entry(self, context: JobContext) -> Any:  # noqa: ANN401
-        (keys_injected, arguments) = inject_context(context)
-        result = await context.runnable()
-        for key in keys_injected:
-            del arguments[key]
-        return result
+        inject_context(context)
+        return await context.runnable()
