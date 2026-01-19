@@ -180,6 +180,8 @@ class SQLiteStorage(Storage):
         if not job_ids:
             return None
 
+        job_ids = sorted(job_ids)
+
         def delete_many() -> None:
             batch_size = 500
             with self.conn as conn:
