@@ -5,6 +5,10 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import signal
+import sys
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
 from zoneinfo import ZoneInfo
@@ -37,10 +41,10 @@ from jobify._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobify.crontab import create_crontab
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from datetime import datetime
-    from types import TracebackType
+    from types import FrameType, TracebackType
 
     from jobify._internal.common.types import Lifespan, LoopFactory
     from jobify._internal.cron_parser import CronFactory, CronParser
@@ -52,12 +56,19 @@ if TYPE_CHECKING:
     from jobify._internal.storage.abc import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
+HANDLED_SIGNALS = (
+    signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
+    signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
+)
+if sys.platform == "win32":  # pragma: no cover
+    # Windows signal 21. Sent by Ctrl+Break.
+    HANDLED_SIGNALS += (signal.SIGBREAK,)  # pyright: ignore[reportConstantRedefinition]
+
+logger = logging.getLogger("Jobify")
 
 AppT = TypeVar("AppT", bound="Jobify")
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
-
-logger = logging.getLogger("Jobify")
 
 
 @dataclass(slots=True)
@@ -160,6 +171,7 @@ class Jobify(RootRouter):
             jobify_config=self.configs,
             exception_handlers=exception_handlers,
         )
+        self._captured_signals: list[int] = []
 
     def find_job(self, id_: str, /) -> Job[ReturnT] | None:
         """Find an active job by its ID.
@@ -174,40 +186,36 @@ class Jobify(RootRouter):
         """
         return self.task._shared_state.pending_jobs.get(id_)
 
-    async def wait_all(self, timeout: float | None = None) -> None:
-        """Wait for all currently scheduled jobs to complete.
+    async def __aenter__(self) -> Self:
+        """Enter the Jobify context manager.
 
-        This method waits until all jobs currently registered have finished
-        executing (with statuses of SUCCESS, FAILED, or TIMEOUT). This is
-        useful in situations where it's important to ensure that background
-        tasks have completed before moving on.
+        Returns:
+            The initialized Jobify instance ready for use.
 
-        The method sets an internal event when both conditions are met:
-        1. No jobs remain in the jobs registry (`_jobs_registry`)
-
-        Args:
-            timeout (optional): The maximum time in seconds to wait for the
-                jobs to complete. If not specified, the default value of `None`
-                will be used, which means the job will wait indefinitely. If a
-                timeout is specified and it is reached, the method will raise
-                an `asyncio.TimeoutError`.
-
-        Example:
-            ```python
-            # Wait for all scheduled jobs to complete
-            await jobify.wait_all()
-            print("All jobs completed!")
-
-            # Or with a timeout (raises asyncio.TimeoutError on timeout)
-            try:
-                await jobify.wait_all(timeout=30.0)
-            except asyncio.TimeoutError:
-                print("Timeout reached while waiting for jobs")
-            ```
+        Raises:
+            Any exception raised by `startup()` method.
 
         """
-        idle_event = self.task._shared_state.idle_event
-        _ = await asyncio.wait_for(idle_event.wait(), timeout=timeout)
+        await self.startup()
+        return self
+
+    async def startup(self) -> None:
+        """Initialize the Jobify application.
+
+        This method:
+        1. Marks the application as started
+        2. Propagates startup events to all routers and their registrators
+        3. Schedules any pending cron jobs
+
+        Raises:
+            RuntimeError: If application startup fails due to configuration
+            issues or router initialization errors.
+
+        """
+        self.configs.app_started = True
+        await self.configs.storage.startup()
+        await self._propagate_startup(self)
+        await self._restore_schedules()
 
     async def _restore_schedules(self) -> None:
         crons_def: CronsDefinition = self.state.pop(CRONS_DEF_KEY, {})
@@ -356,23 +364,21 @@ class Jobify(RootRouter):
         for builder, arg in at_args.values():
             _ = builder._at(at=arg.at, job_id=arg.job_id)
 
-    async def startup(self) -> None:
-        """Initialize the Jobify application.
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_val: BaseException | None = None,
+        exc_tb: TracebackType | None = None,
+    ) -> None:
+        """Exit the Jobify context manager.
 
-        This method:
-        1. Marks the application as started
-        2. Propagates startup events to all routers and their registrators
-        3. Schedules any pending cron jobs
-
-        Raises:
-            RuntimeError: If application startup fails due to configuration
-            issues or router initialization errors.
+        Note:
+            This method ensures proper shutdown regardless of whether an
+            exception occurred in the managed context. The exception parameters
+            are ignored as shutdown should proceed even if the context failed.
 
         """
-        self.configs.app_started = True
-        await self.configs.storage.startup()
-        await self._propagate_startup(self)
-        await self._restore_schedules()
+        await self.shutdown()
 
     async def shutdown(self) -> None:
         """Gracefully shut down the Jobify application.
@@ -408,31 +414,55 @@ class Jobify(RootRouter):
         await self._propagate_shutdown()
         await self.configs.storage.shutdown()
 
-    async def __aenter__(self) -> Self:
-        """Enter the Jobify context manager.
+        # If we did gracefully shut down due to a signal, try to
+        # trigger the expected behaviour now; multiple signals would be
+        # done LIFO, see https://stackoverflow.com/questions/48434964
+        for captured_signal in reversed(self._captured_signals):
+            signal.raise_signal(captured_signal)
 
-        Returns:
-            The initialized Jobify instance ready for use.
+    async def wait_all(self, timeout: float | None = None) -> None:
+        """Wait for all currently scheduled jobs to complete.
 
-        Raises:
-            Any exception raised by `startup()` method.
+        This method waits until all jobs currently registered have finished
+        executing (with statuses of SUCCESS, FAILED, or TIMEOUT). This is
+        useful in situations where it's important to ensure that background
+        tasks have completed before moving on.
 
-        """
-        await self.startup()
-        return self
+        The method sets an internal event when both conditions are met:
+        1. No jobs remain in the jobs registry (`_jobs_registry`)
 
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None = None,
-        exc_val: BaseException | None = None,
-        exc_tb: TracebackType | None = None,
-    ) -> None:
-        """Exit the Jobify context manager.
-
-        Note:
-            This method ensures proper shutdown regardless of whether an
-            exception occurred in the managed context. The exception parameters
-            are ignored as shutdown should proceed even if the context failed.
+        Args:
+            timeout (optional): The maximum time in seconds to wait for the
+                jobs to complete. If not specified, the default value of `None`
+                will be used, which means the job will wait indefinitely. If a
+                timeout is specified and it is reached, the method will raise
+                an `asyncio.TimeoutError`.
 
         """
-        await self.shutdown()
+        idle_event = self.task._shared_state.idle_event
+        with self._capture_signals():
+            _ = await asyncio.wait_for(idle_event.wait(), timeout=timeout)
+
+    @contextmanager
+    def _capture_signals(self) -> Iterator[None]:
+        # Signals can only be listened to from the main thread.
+        if threading.current_thread() is not threading.main_thread():
+            yield
+            return
+        # always use signal.signal, even if loop.add_signal_handler is
+        # available this allows to restore previous signal handlers later on
+        original_handlers = {
+            sig: signal.signal(sig, self._handle_exit)
+            for sig in HANDLED_SIGNALS
+        }
+        try:
+            yield
+        finally:
+            for sig, handler in original_handlers.items():
+                _ = signal.signal(sig, handler)
+
+    def _handle_exit(self, sig: int, _: FrameType | None) -> None:
+        self._captured_signals.append(sig)
+        loop = self.configs.getloop()
+        idle_event = self.task._shared_state.idle_event
+        _handle = loop.call_soon_threadsafe(idle_event.set)
