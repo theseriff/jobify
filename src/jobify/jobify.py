@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
-from jobify._internal.common.constants import PATCH_CRON_DEF_ID
+from jobify._internal.common.constants import EMPTY, PATCH_CRON_DEF_ID
 from jobify._internal.configuration import (
     Cron,
     JobifyConfiguration,
@@ -96,7 +96,7 @@ class Jobify(RootRouter):
         tz: ZoneInfo | None = None,
         dumper: Dumper | None = None,
         loader: Loader | None = None,
-        storage: Storage | Literal[False] | None = None,
+        storage: Storage | Literal[False] = EMPTY,
         lifespan: Lifespan[AppT] | None = None,
         serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
@@ -112,7 +112,7 @@ class Jobify(RootRouter):
 
         if storage is False:
             storage = DummyStorage()
-        elif storage is None:
+        elif storage is EMPTY:
             storage = SQLiteStorage()
 
         if isinstance(storage, SQLiteStorage):
@@ -354,11 +354,7 @@ class Jobify(RootRouter):
                 offset=cron.arg.offset,
             )
         for builder, arg in at_args.values():
-            _ = builder._at(
-                at=arg.at,
-                job_id=arg.job_id,
-                real_now=builder.now(),
-            )
+            _ = builder._at(at=arg.at, job_id=arg.job_id)
 
     async def startup(self) -> None:
         """Initialize the Jobify application.

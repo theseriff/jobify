@@ -223,15 +223,14 @@ class ScheduleBuilder(Generic[ReturnT]):
         if exists_job is not None:
             exists_job._cancel()
 
-        real_now = self.now()
-        now = now or real_now
+        now = now or self.now()
         at = now + timedelta(seconds=seconds)
 
         if self._is_persist():
             trigger = AtArguments(at=at, job_id=job_id)
             await self._save_scheduled(trigger, job_id, at)
 
-        return self._at(at=at, job_id=job_id, real_now=real_now)
+        return self._at(at=at, job_id=job_id)
 
     async def at(
         self,
@@ -255,9 +254,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         *,
         at: datetime,
         job_id: str,
-        real_now: datetime | None = None,
     ) -> Job[ReturnT]:
-        real_now = real_now or self.now()
         job = Job[ReturnT](
             exec_at=at,
             job_id=job_id,
