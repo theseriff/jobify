@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.3 (2026-01-19)
+
+### Bug Fixes
+
+- Ensure signals are captured and restored during wait_all
+  ([`0db3164`](https://github.com/theseriff/jobify/commit/0db31647183818db07302a1340951b96d87c2ea7))
+
+
 ## v0.3.2 (2026-01-17)
 
 ### Performance Improvements
