@@ -26,7 +26,7 @@ class Job(Generic[ReturnT]):
         "_result",
         "_status",
         "_storage",
-        "_unregister_job",
+        "_unregister_hook",
         "cron_expression",
         "exception",
         "exec_at",
@@ -38,13 +38,13 @@ class Job(Generic[ReturnT]):
         *,
         job_id: str,
         exec_at: datetime,
-        unregister_job: Callable[[str], None],
+        unregister_hook: Callable[[str], None],
         job_status: JobStatus = JobStatus.SCHEDULED,
         storage: Storage,
         cron_expression: str | None = None,
         offset: datetime | None = None,
     ) -> None:
-        self._unregister_job = unregister_job
+        self._unregister_hook = unregister_hook
         self._event = asyncio.Event()
         self._result: ReturnT = EMPTY
         self._offset = offset
@@ -125,6 +125,6 @@ class Job(Generic[ReturnT]):
 
     def _cancel(self) -> None:
         self._event.set()
-        self._unregister_job(self.id)
+        self._unregister_hook(self.id)
         if self._handle is not None:
             self._handle.cancel()

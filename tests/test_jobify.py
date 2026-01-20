@@ -24,7 +24,7 @@ async def test_app_setup() -> None:
     assert isinstance(app.configs.loader, Mock)
 
     mock = Mock()
-    app._handle_message(mock, mock, mock, mock, mock, mock)
+    app._handle_trigger(mock, mock, mock, mock, mock, mock)
 
 
 def test_shared_state() -> None:

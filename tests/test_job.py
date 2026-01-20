@@ -74,7 +74,7 @@ async def test_job_handle_not_set() -> None:
     job = Job[None](
         job_id=ANY,
         exec_at=ANY,
-        unregister_job=lambda _: None,
+        unregister_hook=lambda _: None,
         job_status=JobStatus.SCHEDULED,
         storage=ANY,
     )

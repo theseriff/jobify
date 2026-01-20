@@ -63,7 +63,7 @@ class JobifyConfiguration:
     app_started: bool = False
 
 
-@dataclass(slots=True, kw_only=True, frozen=True)
+@dataclass(slots=True, kw_only=True)
 class Cron:
     expression: str = field(kw_only=False)
     max_runs: int = INFINITY

@@ -35,6 +35,7 @@ from jobify._internal.scheduler.misfire_policy import (
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
 from jobify._internal.shared_state import SharedState
+from jobify._internal.storage.abc import ScheduledJob
 from jobify._internal.storage.dummy import DummyStorage
 from jobify._internal.storage.sqlite import SQLiteStorage
 from jobify._internal.typeadapter.dummy import DummyDumper, DummyLoader
@@ -53,7 +54,7 @@ if TYPE_CHECKING:
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import ScheduledJob, Storage
+    from jobify._internal.storage.abc import Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 HANDLED_SIGNALS = (
@@ -246,7 +247,12 @@ class Jobify(RootRouter):
                     crons_def_persist.add(job_id)
                 else:
                     scheduled_to_update.append(
-                        builder._create_scheduled(trigger, job_id, next_run_at)
+                        ScheduledJob.create(
+                            job_id,
+                            builder.name,
+                            builder._serialize_job_message(trigger),
+                            next_run_at,
+                        )
                     )
 
         loadb = self.configs.serializer.loadb
@@ -289,9 +295,10 @@ class Jobify(RootRouter):
                 logger.exception(err)
                 scheduled_to_delete.append(job_id)
             else:
-                self._handle_message(
-                    msg,
-                    route.create_builder(bound),
+                builder = route.create_builder(bound)
+                self._handle_trigger(
+                    msg.trigger,
+                    builder,
                     scheduled_to_update,
                     crons_def_persist,
                     crons_args,
@@ -301,16 +308,16 @@ class Jobify(RootRouter):
         await self.configs.storage.delete_schedule_many(scheduled_to_delete)
         self._start_pending_schedules(crons_args, at_args)
 
-    def _handle_message(  # noqa: PLR0913
+    def _handle_trigger(  # noqa: PLR0913
         self,
-        message: Message,
+        trigger: CronArguments | AtArguments,
         builder: ScheduleBuilder[Any],
         scheduled_to_update: list[ScheduledJob],
         crons_declare_persist: set[str],
         crons_args: dict[str, _CronSchedule],
         at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
     ) -> None:
-        match message.trigger:
+        match trigger:
             case CronArguments(db_cron, job_id, db_offset) as trigger:
                 if job_id in crons_declare_persist:
                     origin = crons_args[job_id]
@@ -324,13 +331,14 @@ class Jobify(RootRouter):
                     )
                     origin.arg.offset = db_offset
                     origin.next_run_at = next_run_at
-
-                    scheduled = builder._create_scheduled(
-                        trigger,
-                        job_id,
-                        next_run_at,
+                    scheduled_to_update.append(
+                        ScheduledJob.create(
+                            job_id,
+                            builder.name,
+                            builder._serialize_job_message(trigger),
+                            next_run_at,
+                        )
                     )
-                    scheduled_to_update.append(scheduled)
                 else:
                     parser = self.configs.cron_factory(db_cron.expression)
                     next_run_at = handle_misfire_policy(
@@ -400,15 +408,15 @@ class Jobify(RootRouter):
         """
         self.configs.app_started = False
 
+        if jobs := tuple(self.task._shared_state.pending_jobs.values()):
+            for job in jobs:
+                job._cancel()
+
         if tasks := self.task._shared_state.pending_tasks:  # pragma: no cover
             for task in tuple(tasks):
                 _ = task.cancel()
             _ = await asyncio.gather(*tasks, return_exceptions=True)
             tasks.clear()
-
-        if jobs := tuple(self.task._shared_state.pending_jobs.values()):
-            for job in jobs:
-                job._cancel()
 
         self.configs.worker_pools.close()
         await self._propagate_shutdown()

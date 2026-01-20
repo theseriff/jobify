@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from jobify._internal.inspection import FuncSpec
     from jobify._internal.middleware.base import CallNext
     from jobify._internal.runners import Runnable
+    from jobify._internal.serializers.base import JSONCompat
     from jobify._internal.shared_state import SharedState
 
 
@@ -105,46 +106,44 @@ class ScheduleBuilder(Generic[ReturnT]):
         return (job_id, None)
 
     def _is_persist(self) -> bool:
-        return (
-            type(self._configs.storage) is not DummyStorage
-            and self.route_options.get("durable", True) is True
-        )
+        is_dummy = isinstance(self._configs.storage, DummyStorage)
+        is_durable = self.route_options.get("durable", True)
+        return not is_dummy and is_durable
 
-    def _create_scheduled(
+    async def _persist_job(
         self,
-        trigger: CronArguments | AtArguments,
         job_id: str,
         next_run_at: datetime,
-    ) -> ScheduledJob:
+        trigger: CronArguments | AtArguments,
+    ) -> None:
+        await self._configs.storage.add_schedule(
+            ScheduledJob.create(
+                job_id,
+                self.name,
+                self._serialize_job_message(trigger),
+                next_run_at,
+            )
+        )
+
+    def _serialize_job_message(
+        self,
+        trigger: CronArguments | AtArguments,
+    ) -> bytes:
+        raw_args = self._runnable.origin_arguments
+        params_type = self.func_spec.params_type
+        dumper_hook = self._configs.dumper.dump
+        dumped_args: dict[str, JSONCompat] = {
+            name: dumper_hook(arg_val, params_type[name])
+            for name, arg_val in raw_args.items()
+        }
         msg = Message(
-            job_id=job_id,
+            job_id=trigger.job_id,
             name=self.name,
-            arguments=self._runnable.origin_arguments,
+            arguments=dumped_args,
             trigger=trigger,
         )
-        for name, arg in msg.arguments.items():
-            msg.arguments[name] = self._configs.dumper.dump(
-                arg,
-                self.func_spec.params_type[name],
-            )
-        formatted = self._configs.dumper.dump(msg, Message)
-        raw_message = self._configs.serializer.dumpb(formatted)
-        return ScheduledJob(
-            job_id=job_id,
-            name=self.name,
-            message=raw_message,
-            status=JobStatus.SCHEDULED,
-            next_run_at=next_run_at,
-        )
-
-    async def _save_scheduled(
-        self,
-        trigger: CronArguments | AtArguments,
-        job_id: str,
-        next_run_at: datetime,
-    ) -> None:
-        scheduled_job = self._create_scheduled(trigger, job_id, next_run_at)
-        await self._configs.storage.add_schedule(scheduled_job)
+        formatted_msg = self._configs.dumper.dump(msg, Message)
+        return self._configs.serializer.dumpb(formatted_msg)
 
     async def cron(
         self,
@@ -175,7 +174,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         if self._is_persist():
             trigger = CronArguments(cron=cron, job_id=job_id, offset=offset)
-            await self._save_scheduled(trigger, job_id, next_run_at)
+            await self._persist_job(job_id, next_run_at, trigger)
 
         return self._cron(
             cron=cron,
@@ -197,7 +196,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         job = Job[ReturnT](
             exec_at=next_run_at,
             job_id=job_id,
-            unregister_job=self._shared_state.unregister_job,
+            unregister_hook=self._shared_state.unregister_job,
             storage=self._configs.storage,
             cron_expression=cron.expression,
             offset=offset,
@@ -219,18 +218,9 @@ class ScheduleBuilder(Generic[ReturnT]):
         now: datetime | None = None,
         replace: bool = False,
     ) -> Job[ReturnT]:
-        job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
-        if exists_job is not None:
-            exists_job._cancel()
-
         now = now or self.now()
         at = now + timedelta(seconds=seconds)
-
-        if self._is_persist():
-            trigger = AtArguments(at=at, job_id=job_id)
-            await self._save_scheduled(trigger, job_id, at)
-
-        return self._at(at=at, job_id=job_id)
+        return await self.at(at=at, job_id=job_id, replace=replace)
 
     async def at(
         self,
@@ -245,7 +235,7 @@ class ScheduleBuilder(Generic[ReturnT]):
 
         if self._is_persist():
             trigger = AtArguments(at=at, job_id=job_id)
-            await self._save_scheduled(trigger, job_id, at)
+            await self._persist_job(job_id, at, trigger)
 
         return self._at(at=at, job_id=job_id)
 
@@ -258,7 +248,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         job = Job[ReturnT](
             exec_at=at,
             job_id=job_id,
-            unregister_job=self._shared_state.unregister_job,
+            unregister_hook=self._shared_state.unregister_job,
             storage=self._configs.storage,
         )
         self._shared_state.register_job(job)
@@ -304,7 +294,7 @@ class ScheduleBuilder(Generic[ReturnT]):
                 next_run_at = ctx.cron_parser.next_run(now=offset)
                 if self._is_persist():
                     trigger = CronArguments(ctx.cron, job.id, offset)
-                    await self._save_scheduled(trigger, job.id, next_run_at)
+                    await self._persist_job(job.id, next_run_at, trigger)
                 self._reschedule_cron(ctx, next_run_at)
             else:
                 job._status = JobStatus.PERMANENTLY_FAILED
