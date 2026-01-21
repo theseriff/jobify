@@ -187,6 +187,10 @@ class Jobify(RootRouter):
         """
         return self.task._shared_state.pending_jobs.get(id_)
 
+    def get_active_jobs(self) -> list[Job[Any]]:
+        """Return a list of all currently active jobs."""
+        return list(self.task._shared_state.pending_jobs.values())
+
     async def __aenter__(self) -> Self:
         """Enter the Jobify context manager.
 
@@ -370,7 +374,7 @@ class Jobify(RootRouter):
                 offset=cron.arg.offset,
             )
         for builder, arg in at_args.values():
-            _ = builder._at(at=arg.at, job_id=arg.job_id)
+            _ = builder._at(arg.at, arg.job_id)
 
     async def __aexit__(
         self,

@@ -132,7 +132,7 @@ async def test_schedule_replace(
 
             assert len(schedules) == 1
             assert scheduled_job.next_run_at == job.exec_at
-            if job.cron_expression:
+            if job._cron_context:
                 trigger = cast(
                     "CronArguments",
                     app.configs.loader.load(
@@ -140,4 +140,4 @@ async def test_schedule_replace(
                         Message,
                     ).trigger,
                 )
-                assert trigger.offset == job._offset
+                assert trigger.offset == job._cron_context.offset

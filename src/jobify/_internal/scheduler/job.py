@@ -1,60 +1,84 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
+from itertools import count
 from typing import TYPE_CHECKING, Generic, TypeVar, final
 
 from typing_extensions import override
 
-from jobify._internal.common.constants import EMPTY, JobStatus
+from jobify._internal.common.constants import EMPTY, INFINITY, JobStatus
 from jobify._internal.exceptions import JobFailedError, JobNotCompletedError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from datetime import datetime
 
+    from jobify._internal.configuration import Cron
+    from jobify._internal.cron_parser import CronParser
     from jobify._internal.storage.abc import Storage
 
 ReturnT = TypeVar("ReturnT")
 
 
+@dataclass(slots=True, kw_only=True)
+class CronContext(Generic[ReturnT]):
+    job: Job[ReturnT]
+    cron: Cron
+    offset: datetime
+    cron_parser: CronParser
+    failure_count: int = 0
+    exec_count: count[int] = field(default_factory=lambda: count(start=1))
+
+    def is_run_allowed_by_limit(self) -> bool:
+        if self.cron.max_runs == INFINITY:
+            return True
+        return next(self.exec_count) < self.cron.max_runs
+
+    def is_failure_allowed_by_limit(self) -> bool:
+        return self.failure_count < self.cron.max_failures
+
+
 @final
 class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
+        "_cron_context",
         "_event",
         "_handle",
-        "_offset",
         "_result",
         "_status",
         "_storage",
         "_unregister_hook",
-        "cron_expression",
         "exception",
         "exec_at",
         "id",
     )
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         job_id: str,
+        storage: Storage,
         exec_at: datetime,
         unregister_hook: Callable[[str], None],
         job_status: JobStatus = JobStatus.SCHEDULED,
-        storage: Storage,
-        cron_expression: str | None = None,
-        offset: datetime | None = None,
     ) -> None:
         self._unregister_hook = unregister_hook
         self._event = asyncio.Event()
         self._result: ReturnT = EMPTY
-        self._offset = offset
         self._status = job_status
         self._storage = storage
         self._handle: asyncio.Handle | None = None
+        self._cron_context: CronContext[ReturnT] | None = None
         self.id = job_id
         self.exception: Exception | None = None
-        self.cron_expression = cron_expression
         self.exec_at = exec_at
+
+    @property
+    def cron_expression(self) -> str | None:
+        if self._cron_context is not None:
+            return self._cron_context.cron.expression
+        return None
 
     @property
     def status(self) -> JobStatus:
@@ -70,6 +94,9 @@ class Job(Generic[ReturnT]):
 
     def bind_handle(self, handle: asyncio.Handle) -> None:
         self._handle = handle
+
+    def bind_cron_context(self, ctx: CronContext[ReturnT]) -> None:
+        self._cron_context = ctx
 
     def result(self) -> ReturnT:
         if self.status is JobStatus.SUCCESS or self._result is not EMPTY:
