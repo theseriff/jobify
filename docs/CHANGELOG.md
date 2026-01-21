@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-01-21)
+
+### Bug Fixes
+
+- **jobify.shutdown**: Order cancel jobs changes
+  ([`f18a3cd`](https://github.com/theseriff/jobify/commit/f18a3cd9d03d6801f0a86ad847fda967f774c66f))
+
+### Documentation
+
+- Update cron documentation and add integrations page
+  ([`9192feb`](https://github.com/theseriff/jobify/commit/9192febc00f923d71c959fde0d9caf21a9a4f1f8))
+
+### Features
+
+- **scheduler**: Implement idempotent start_date for cron jobs
+  ([`2af4b89`](https://github.com/theseriff/jobify/commit/2af4b898ab9f78020eeb7a64cde85e16b4dfaf5f))
+
+
 ## v0.3.3 (2026-01-19)
 
 ### Bug Fixes
