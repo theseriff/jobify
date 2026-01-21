@@ -134,7 +134,7 @@ async def test_schedule_replace(
         assert job is second_job
         assert job.exec_at == second_job.exec_at
 
-        if storage is not False:
+        if storage is not False:  # pragma: no cover
             schedules = await storage.get_schedules()
             scheduled_job = schedules[0]
 
