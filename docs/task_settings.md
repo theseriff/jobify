@@ -44,23 +44,24 @@ from jobify import Cron, MisfirePolicy
         max_runs=100,
         max_failures=5,
         misfire_policy=MisfirePolicy.ALL,
+        start_date=datetime(2027, 1, 1), # The task will start on January 1, 2027.
     )
 )
 def my_daily_report() -> None:
     ...
 ```
 
-The `Cron` class has the following properties:
+The **Cron** class has the following properties:
 
-- **`expression`** (`str`): The cron expression as a string.
-- **`max_runs`** (`int`, default: `INFINITY (-1)`): The maximum number of times a job can run. After a job has run this many times, it will no longer be scheduled for execution.
-- **`max_failures`** (`int`, default: `10`): The maximum number of consecutive failed attempts allowed before a job is permanently stopped and no longer scheduled. This value must be greater than or equal to 1.
-- **`misfire_policy`** (`MisfirePolicy | GracePolicy`, default: `MisfirePolicy.ONCE`): Determines how to deal with missed schedules (for example, if the application is unavailable).
+- **expression** (`str`): The cron expression as a string.
+- **max_runs** (`int`, default: `INFINITY (-1)`): The maximum number of times a job can run. After a job has run this many times, it will no longer be scheduled for execution.
+- **max_failures** (`int`, default: `10`): The maximum number of consecutive failed attempts allowed before a job is permanently stopped and no longer scheduled. This value must be greater than or equal to 1.
+- **misfire_policy** (`MisfirePolicy | GracePolicy`, default: `MisfirePolicy.ONCE`): Determines how to deal with missed schedules (for example, if the application is unavailable).
     - `MisfirePolicy.ALL`: Run all missed executions immediately.
     - `MisfirePolicy.SKIP`: If there were missed executions, then skip them.
     - `MisfirePolicy.ONCE`: If there were missed executions, run only once.
     - `MisfirePolicy.GRACE(timedelta)`: If the missed schedule is within the specified grace period, please start it immediately.
-
+- **start_date** (`datetime | None`, default: `None`): The scheduled start time is used to anchor the first execution of the job to a specific timestamp.
 
 ## retry
 

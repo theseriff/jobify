@@ -4,6 +4,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import NamedTuple, Protocol
 
+from typing_extensions import Self
+
 from jobify._internal.common.constants import JobStatus
 
 
@@ -13,6 +15,22 @@ class ScheduledJob(NamedTuple):
     message: bytes
     status: JobStatus
     next_run_at: datetime
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        name: str,
+        message: bytes,
+        next_run_at: datetime,
+    ) -> Self:
+        return cls(
+            job_id=job_id,
+            name=name,
+            message=message,
+            status=JobStatus.SCHEDULED,
+            next_run_at=next_run_at,
+        )
 
 
 def validate_table_name(table_name: str) -> None:

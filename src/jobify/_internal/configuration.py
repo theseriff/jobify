@@ -16,6 +16,7 @@ from jobify._internal.scheduler.misfire_policy import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from datetime import datetime
     from zoneinfo import ZoneInfo
 
     from jobify._internal.common.constants import RunMode
@@ -63,12 +64,13 @@ class JobifyConfiguration:
     app_started: bool = False
 
 
-@dataclass(slots=True, kw_only=True, frozen=True)
+@dataclass(slots=True, kw_only=True)
 class Cron:
     expression: str = field(kw_only=False)
     max_runs: int = INFINITY
     max_failures: int = 10
     misfire_policy: MisfirePolicy | GracePolicy = MisfirePolicy.ONCE
+    start_date: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.max_failures < 1:

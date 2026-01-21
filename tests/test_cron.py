@@ -26,7 +26,7 @@ def test_cronparser() -> None:
     assert next_run == expected_run
 
 
-async def test_cron_reschedule(now: datetime) -> None:
+async def test_cron_reschedule() -> None:
     app = create_app()
 
     @app.task
@@ -34,11 +34,7 @@ async def test_cron_reschedule(now: datetime) -> None:
         return f"hello, {name}!"
 
     async with app:
-        job = await t.schedule("Biba").cron(
-            "* * * * *",
-            job_id="test",
-            now=now,
-        )
+        job = await t.schedule("Biba").cron("* * * * *", job_id="test")
 
         cur_exec_at = job.exec_at
         await job.wait()

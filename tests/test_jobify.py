@@ -24,7 +24,7 @@ async def test_app_setup() -> None:
     assert isinstance(app.configs.loader, Mock)
 
     mock = Mock()
-    app._handle_message(mock, mock, mock, mock, mock, mock)
+    app._handle_trigger(mock, mock, mock, mock, mock, mock)
 
 
 def test_shared_state() -> None:
@@ -73,6 +73,7 @@ async def test_capture_signals_restoration_logic() -> None:
 
 async def test_capture_signals_in_subthread() -> None:
     app = create_app()
+    _ = app.get_active_jobs()
 
     initial_handler = signal.getsignal(signal.SIGINT)
 

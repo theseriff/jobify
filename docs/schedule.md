@@ -86,10 +86,15 @@ schedule(*args, **kwargs).cron(
     cron: str | Cron, # The cron expression or `Cron` object.
     *,
     job_id: str, # Required unique identifier for the job.
-    now: datetime | None, # Optional reference datetime.
-    replace: bool = False, # If True and a job with the same job ID already exists it will be replaced.
+    replace: bool = False, # If True, updates the existing job.
 )
 ```
+
+!!! info "Idempotency During Replacement"
+    - When using replace=True for cron jobs, the scheduler will preserve the current execution progress if the start_date has not changed in your code.
+    - This prevents "double-firing" or schedule resets during app redeploys.
+    - If the start_date is modified, however, the schedule will be "hard-reset" to the new date.
+
 
 example:
 
@@ -131,7 +136,7 @@ schedule(*args, **kwargs).delay(
     *,
     job_id: str | None = None, # Optional unique identifier for the job.
     now: datetime | None = None, # Optional reference datetime.
-    replace: bool = False, # If True, replaces an existing job with the same job_id.
+    replace: bool = False, # If True, updates the existing job.
 )
 ```
 example:
@@ -168,7 +173,7 @@ schedule(*args, **kwargs).at(
     at: datetime, # The execution time.
     *,
     job_id: str | None = None, # Optional unique identifier for the job.
-    replace: bool = False, # If True, replaces an existing job with the same job_id.
+    replace: bool = False, # If True, updates the existing job.
 )
 ```
 

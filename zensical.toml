@@ -22,6 +22,7 @@ nav = [
   { "Job" = "job.md" },
   { "Context" = "context.md" },
   { "Router" = "router.md" },
+  { "Integrations" = "integrations.md" },
   { "Changelog" = "CHANGELOG.md" },
 ]
 # ----------------------------------------------------------------------------
