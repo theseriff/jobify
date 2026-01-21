@@ -366,7 +366,7 @@ class Jobify(RootRouter):
         at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
     ) -> None:
         for cron in crons_args.values():
-            _ = cron.builder._cron(
+            _ = cron.builder._create_cron_job(
                 cron=cron.arg.cron,
                 job_id=cron.arg.job_id,
                 next_run_at=cron.next_run_at,

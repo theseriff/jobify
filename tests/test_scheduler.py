@@ -99,34 +99,43 @@ async def test_schedule_replace(
     async with app:
         builder = f.schedule()
         if method == "cron":
-            _ = await builder.cron("5 0 * 8 *", job_id=job_id)
-            j = await builder.cron(
+            first_job = await builder.cron("5 0 * 8 *", job_id=job_id)
+            first_handle = first_job._handle
+            second_job = await builder.cron(
                 Cron("5 0 * 7 *"),
                 job_id="job_test",
                 replace=True,
             )
-            job_cron: Job[None] | None = app.find_job(job_id)
-            assert job_cron is not None
-            assert job_cron.cron_expression == "5 0 * 7 *"
+            cron_job: Job[None] | None = app.find_job(job_id)
+            assert cron_job is not None
+            assert cron_job.cron_expression == "5 0 * 7 *"
         elif method == "delay":
-            _ = await builder.delay(20, job_id=job_id)
-            j = await builder.delay(60, job_id=job_id, replace=True)
+            first_job = await builder.delay(20, job_id=job_id)
+            first_handle = first_job._handle
+            second_job = await builder.delay(60, job_id=job_id, replace=True)
         else:
             now = datetime.now(tz=timezone.utc)
-            _ = await builder.at(now + timedelta(1), job_id=job_id)
-            j = await builder.at(
+            first_job = await builder.at(now + timedelta(1), job_id=job_id)
+            first_handle = first_job._handle
+            second_job = await builder.at(
                 now + timedelta(2),
                 job_id=job_id,
                 replace=True,
             )
 
+        assert first_handle is not None
+        assert first_handle.cancelled()
+        assert first_handle is not second_job._handle
+        assert first_job is second_job
+        assert first_job.exec_at == second_job.exec_at
+
         job: Job[None] | None = app.find_job(job_id)
         assert len(app.task._shared_state.pending_jobs) == 1
         assert job is not None
-        assert job is j
-        assert job.exec_at == j.exec_at
+        assert job is second_job
+        assert job.exec_at == second_job.exec_at
 
-        if storage is not False:  # pragma: no cover
+        if storage is not False:
             schedules = await storage.get_schedules()
             scheduled_job = schedules[0]
 

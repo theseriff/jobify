@@ -73,23 +73,6 @@ class ScheduleBuilder(Generic[ReturnT]):
     def _calculate_delay_seconds(self, target_at: datetime) -> float:
         return target_at.timestamp() - self.now().timestamp()
 
-    def _ensure_job_id(
-        self,
-        job_id: str | None,
-        *,
-        replace: bool,
-    ) -> tuple[str, Job[ReturnT] | None]:
-        job_id = job_id or uuid4().hex
-        if job := self._shared_state.pending_jobs.get(job_id):
-            if replace is True:
-                if job._handle is not None:
-                    job._handle.cancel()
-                return (job_id, job)
-
-            raise DuplicateJobError(job_id)
-
-        return (job_id, None)
-
     def _is_persist(self) -> bool:
         is_dummy = isinstance(self._configs.storage, DummyStorage)
         is_durable = self.route_options.get("durable", True)
@@ -130,6 +113,23 @@ class ScheduleBuilder(Generic[ReturnT]):
         formatted_msg = self._configs.dumper.dump(msg, Message)
         return self._configs.serializer.dumpb(formatted_msg)
 
+    def _ensure_job_id(
+        self,
+        job_id: str | None,
+        *,
+        replace: bool,
+    ) -> tuple[str, Job[ReturnT] | None]:
+        job_id = job_id or uuid4().hex
+        if job := self._shared_state.pending_jobs.get(job_id):
+            if replace is True:
+                if job._handle is not None:
+                    job._handle.cancel()
+                return (job_id, job)
+
+            raise DuplicateJobError(job_id)
+
+        return (job_id, None)
+
     async def cron(
         self,
         cron: str | Cron,
@@ -139,41 +139,68 @@ class ScheduleBuilder(Generic[ReturnT]):
         replace: bool = False,
     ) -> Job[ReturnT]:
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
-
         if isinstance(cron, str):
             cron = Cron(cron)
-
+        parser = self._configs.cron_factory(cron.expression)
         real_now = self.now()
-        offset = now or real_now
 
         if exists_job is not None:
-            cron_context = cast(
-                "CronContext[ReturnT]",
-                exists_job._cron_context,
+            return await self._update_exists_cron_job(
+                exists_job,
+                cron,
+                parser,
+                real_now,
             )
-            exists_job._cancel()
-            offset = now or cron_context.offset or offset
 
-        cron_parser = self._configs.cron_factory(cron.expression)
+        offset = now or real_now
         next_run_at = handle_misfire_policy(
-            cron_parser,
-            cron_parser.next_run(now=offset),
+            parser,
+            parser.next_run(now=offset),
             real_now,
             cron.misfire_policy,
         )
+
         if self._is_persist():
             trigger = CronArguments(cron=cron, job_id=job_id, offset=offset)
             await self._persist_job(job_id, next_run_at, trigger)
 
-        return self._cron(
+        return self._create_cron_job(
             cron=cron,
             job_id=job_id,
             offset=offset,
             next_run_at=next_run_at,
-            cron_parser=cron_parser,
+            cron_parser=parser,
         )
 
-    def _cron(
+    async def _update_exists_cron_job(
+        self,
+        job: Job[ReturnT],
+        new_cron: Cron,
+        parser: CronParser,
+        real_now: datetime,
+    ) -> Job[ReturnT]:
+        ctx = cast("CronContext[ReturnT]", job._cron_context)
+        next_run_at = handle_misfire_policy(
+            parser,
+            parser.next_run(now=ctx.offset),
+            real_now,
+            new_cron.misfire_policy,
+        )
+        if self._is_persist():
+            trigger = CronArguments(
+                cron=new_cron,
+                job_id=job.id,
+                offset=ctx.offset,
+            )
+            await self._persist_job(job.id, next_run_at, trigger)
+
+        job.exec_at = next_run_at
+        ctx.cron = new_cron
+        ctx.cron_parser = parser
+        self._schedule_execution_cron(ctx)
+        return job
+
+    def _create_cron_job(
         self,
         *,
         cron: Cron,
