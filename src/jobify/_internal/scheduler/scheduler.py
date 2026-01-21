@@ -135,7 +135,6 @@ class ScheduleBuilder(Generic[ReturnT]):
         cron: str | Cron,
         *,
         job_id: str,
-        now: datetime | None = None,
         replace: bool = False,
     ) -> Job[ReturnT]:
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
@@ -152,14 +151,19 @@ class ScheduleBuilder(Generic[ReturnT]):
                 real_now,
             )
 
-        offset = now or real_now
+        offset = real_now
+        if cron.start_date is not None:
+            target_time = cron.start_date
+            offset = target_time
+        else:
+            target_time = parser.next_run(now=offset)
+
         next_run_at = handle_misfire_policy(
             parser,
-            parser.next_run(now=offset),
+            target_time,
             real_now,
             cron.misfire_policy,
         )
-
         if self._is_persist():
             trigger = CronArguments(cron=cron, job_id=job_id, offset=offset)
             await self._persist_job(job_id, next_run_at, trigger)
@@ -180,9 +184,18 @@ class ScheduleBuilder(Generic[ReturnT]):
         real_now: datetime,
     ) -> Job[ReturnT]:
         ctx = cast("CronContext[ReturnT]", job._cron_context)
+        old_cron = ctx.cron
+
+        start_date_changed = new_cron.start_date != old_cron.start_date
+        if start_date_changed and new_cron.start_date is not None:
+            target_at = new_cron.start_date
+            ctx.offset = target_at
+        else:
+            target_at = parser.next_run(now=ctx.offset)
+
         next_run_at = handle_misfire_policy(
             parser,
-            parser.next_run(now=ctx.offset),
+            target_at,
             real_now,
             new_cron.misfire_policy,
         )

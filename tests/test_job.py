@@ -23,6 +23,7 @@ async def test_job() -> None:
         await job1.wait()
 
     expected_return = 2
+    assert job1.cron_expression is None
     assert job1.result() == expected_return
     assert str(job1).startswith(f"Job(instance_id={id(job1)}")
     assert str(job2).startswith(f"Job(instance_id={id(job2)}")

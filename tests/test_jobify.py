@@ -73,6 +73,7 @@ async def test_capture_signals_restoration_logic() -> None:
 
 async def test_capture_signals_in_subthread() -> None:
     app = create_app()
+    _ = app.get_active_jobs()
 
     initial_handler = signal.getsignal(signal.SIGINT)
 

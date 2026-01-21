@@ -105,12 +105,8 @@ async def test_sqlite_with_jobify(now: datetime) -> None:
     async with app:
         job1 = await f1.schedule("biba_delay").delay(0.05)
         job2 = await f2.schedule().delay(-1)
-        cron = Cron("* * * * *", max_runs=1)
-        job1_cron = await f1.schedule("biba_cron").cron(
-            cron,
-            now=now,
-            job_id="test",
-        )
+        cron = Cron("* * * * *", max_runs=1, start_date=now)
+        job1_cron = await f1.schedule("biba_cron").cron(cron, job_id="test")
         raw_msg1 = app.configs.serializer.dumpb(
             app.configs.dumper.dump(
                 Message(
@@ -185,7 +181,6 @@ async def test_restore_schedules(
         job_cron = await f.schedule("biba_cron_restore").cron(
             cron,
             job_id="test_cron",
-            now=now,
         )
         exec_at = now + timedelta(seconds=0.05)
         job_at = await f.schedule("biba_at_restore").at(exec_at)
