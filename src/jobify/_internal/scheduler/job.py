@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
-from itertools import count
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, TypeVar, final
 
 from typing_extensions import override
@@ -27,13 +26,13 @@ class CronContext(Generic[ReturnT]):
     cron: Cron
     offset: datetime
     cron_parser: CronParser
+    run_count: int
     failure_count: int = 0
-    exec_count: count[int] = field(default_factory=lambda: count(start=1))
 
-    def is_run_allowed_by_limit(self) -> bool:
+    def is_run_exceeded_by_limit(self) -> bool:
         if self.cron.max_runs == INFINITY:
-            return True
-        return next(self.exec_count) < self.cron.max_runs
+            return False
+        return self.run_count >= self.cron.max_runs
 
     def is_failure_allowed_by_limit(self) -> bool:
         return self.failure_count < self.cron.max_failures

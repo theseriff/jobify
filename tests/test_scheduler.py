@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import AsyncMock
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from jobify._internal.scheduler.job import CronContext
 
 
-@pytest.fixture(params=[create_app, JobRouter])
+@pytest.fixture(params=[partial(create_app, 0.001, 0.03), JobRouter])
 def node(request: pytest.FixtureRequest) -> Router:
     router: Router = request.param()
     return router
@@ -59,7 +60,7 @@ async def test_jobify(  # noqa: PLR0913
     if type(node) is Jobify:
         app = node
     else:
-        app = create_app()
+        app = create_app(0.1, 0.3)
         app.include_router(node)
     async with app:
         if method == "at":
@@ -152,7 +153,7 @@ async def test_schedule_replace(
 
 
 async def test_schedule_with_none_handle(amock: AsyncMock) -> None:
-    app = create_app()
+    app = create_app(0.001)
     f = app.task(amock)
     async with app:
         job = await f.schedule().delay(5, job_id="111")
@@ -161,7 +162,7 @@ async def test_schedule_with_none_handle(amock: AsyncMock) -> None:
 
 
 async def test_update_exists_job(amock: AsyncMock) -> None:
-    app = create_app()
+    app = create_app(0.001)
     f = app.task(amock)
     start_date = datetime.now(timezone.utc) + timedelta(1)
     async with app:

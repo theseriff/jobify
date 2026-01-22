@@ -151,11 +151,11 @@ class ScheduleBuilder(Generic[ReturnT]):
                 real_now,
             )
 
-        offset = real_now
         if cron.start_date is not None:
             target_time = cron.start_date
             offset = target_time
         else:
+            offset = real_now
             target_time = parser.next_run(now=offset)
 
         next_run_at = handle_misfire_policy(
@@ -174,6 +174,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             offset=offset,
             next_run_at=next_run_at,
             cron_parser=parser,
+            run_count=0,
         )
 
     async def _update_exists_cron_job(
@@ -184,14 +185,45 @@ class ScheduleBuilder(Generic[ReturnT]):
         real_now: datetime,
     ) -> Job[ReturnT]:
         ctx = cast("CronContext[ReturnT]", job._cron_context)
-        old_cron = ctx.cron
+        offset, next_run_at = self._calculate_next_run_at(
+            old_cron=ctx.cron,
+            new_cron=new_cron,
+            real_now=real_now,
+            parser=parser,
+            offset=ctx.offset,
+        )
+        job.exec_at = next_run_at
+        ctx.offset = offset
+        ctx.run_count = 0
+        ctx.cron = new_cron
+        ctx.cron_parser = parser
 
+        if self._is_persist():
+            trigger = CronArguments(
+                cron=new_cron,
+                job_id=job.id,
+                offset=ctx.offset,
+                run_count=0,
+            )
+            await self._persist_job(job.id, next_run_at, trigger)
+
+        self._schedule_execution_cron(ctx)
+        return job
+
+    def _calculate_next_run_at(
+        self,
+        old_cron: Cron,
+        new_cron: Cron,
+        real_now: datetime,
+        parser: CronParser,
+        offset: datetime,
+    ) -> tuple[datetime, datetime]:
         start_date_changed = new_cron.start_date != old_cron.start_date
         if start_date_changed and new_cron.start_date is not None:
             target_at = new_cron.start_date
-            ctx.offset = target_at
+            offset = target_at
         else:
-            target_at = parser.next_run(now=ctx.offset)
+            target_at = parser.next_run(now=offset)
 
         next_run_at = handle_misfire_policy(
             parser,
@@ -199,21 +231,9 @@ class ScheduleBuilder(Generic[ReturnT]):
             real_now,
             new_cron.misfire_policy,
         )
-        if self._is_persist():
-            trigger = CronArguments(
-                cron=new_cron,
-                job_id=job.id,
-                offset=ctx.offset,
-            )
-            await self._persist_job(job.id, next_run_at, trigger)
+        return (offset, next_run_at)
 
-        job.exec_at = next_run_at
-        ctx.cron = new_cron
-        ctx.cron_parser = parser
-        self._schedule_execution_cron(ctx)
-        return job
-
-    def _create_cron_job(
+    def _create_cron_job(  # noqa: PLR0913
         self,
         *,
         cron: Cron,
@@ -221,6 +241,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         offset: datetime,
         next_run_at: datetime,
         cron_parser: CronParser,
+        run_count: int,
     ) -> Job[ReturnT]:
         job = Job[ReturnT](
             exec_at=next_run_at,
@@ -233,6 +254,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             cron=cron,
             offset=offset,
             cron_parser=cron_parser,
+            run_count=run_count,
         )
         job.bind_cron_context(cron_ctx)
         self._shared_state.register_job(job)
@@ -324,34 +346,39 @@ class ScheduleBuilder(Generic[ReturnT]):
     async def _exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         job = ctx.job
         await self._exec_job(job)
+
         if job.status is JobStatus.SUCCESS:
             ctx.failure_count = 0
         else:
             ctx.failure_count += 1
+        ctx.run_count += 1
 
-        if (
-            job.is_reschedulable()
-            and ctx.is_run_allowed_by_limit()
-            and self._configs.app_started
-        ):
+        if ctx.is_run_exceeded_by_limit():
+            if self._is_persist():
+                await self._configs.storage.delete_schedule(job.id)
+        elif job.is_reschedulable() and self._configs.app_started:
             if ctx.is_failure_allowed_by_limit():
                 offset = ctx.offset = job.exec_at
                 next_run_at = ctx.cron_parser.next_run(now=offset)
                 if self._is_persist():
-                    trigger = CronArguments(ctx.cron, job.id, offset)
+                    trigger = CronArguments(
+                        ctx.cron,
+                        job.id,
+                        offset,
+                        ctx.run_count,
+                    )
                     await self._persist_job(job.id, next_run_at, trigger)
                 self._reschedule_cron(ctx, next_run_at)
-            else:
-                job._status = JobStatus.PERMANENTLY_FAILED
-                logger.warning(
-                    "Job %s stopped due to max failures policy (%s/%s)",
-                    job.id,
-                    ctx.failure_count,
-                    ctx.cron.max_failures,
-                )
-                self._shared_state.unregister_job(job.id)
-        else:
-            self._shared_state.unregister_job(job.id)
+                return
+
+            job._status = JobStatus.PERMANENTLY_FAILED
+            logger.warning(
+                "Job %s stopped due to max failures policy (%s/%s)",
+                job.id,
+                ctx.failure_count,
+                ctx.cron.max_failures,
+            )
+        self._shared_state.unregister_job(job.id)
 
     def _reschedule_cron(
         self,
