@@ -70,6 +70,35 @@ You can also use one of the following predefined cron expressions:
 
 For more detailed information, please refer to the official [crontab library documentation](https://pypi.org/project/crontab/).
 
+## The Cron Object
+
+You can use the `Cron` class to have more control over the scheduling of the job (e.g., limiting the number of runs or handling misfires).
+
+```python
+from jobify import Cron, MisfirePolicy
+from datetime import datetime
+
+Cron(
+    "0 18 * * 1-5",
+    max_runs=100,
+    max_failures=5,
+    misfire_policy=MisfirePolicy.ALL,
+    start_date=datetime(2027, 1, 1), # The task will start on January 1, 2027.
+)
+```
+
+The **Cron** class has the following properties:
+
+- **expression** (`str`): The cron expression as a string.
+- **max_runs** (`int`, default: `INFINITY (-1)`): The maximum number of times a job can run. The run count is persisted in the database, so it survives application restarts. When the limit is reached, the job is automatically removed from the schedule.
+- **max_failures** (`int`, default: `10`): The maximum number of consecutive failed attempts allowed before a job is permanently stopped and no longer scheduled. This value must be greater than or equal to 1.
+- **misfire_policy** (`MisfirePolicy | GracePolicy`, default: `MisfirePolicy.ONCE`): Determines how to deal with missed schedules (for example, if the application is unavailable).
+    - `MisfirePolicy.ALL`: Run all missed executions immediately.
+    - `MisfirePolicy.SKIP`: If there were missed executions, then skip them.
+    - `MisfirePolicy.ONCE`: If there were missed executions, run only once.
+    - `MisfirePolicy.GRACE(timedelta)`: If the missed schedule is within the specified grace period, please start it immediately.
+- **start_date** (`datetime | None`, default: `None`): The scheduled start time is used to anchor the first execution of the job to a specific datetime.
+
 ## Dynamic Scheduling
 
 In addition to cron jobs that are defined at the application level, users can also schedule tasks to run at a specific time or after a delay. They can even dynamically create new cron schedules. This is useful for one-time tasks or tasks that are triggered by the application's logic.

@@ -30,16 +30,16 @@ def amock() -> AsyncMock:
     return mock
 
 
-def create_cron_factory(init: int = 10, step: int = 300) -> CronFactory:
+def create_cron_factory(init: float = 10, step: float = 300) -> CronFactory:
     cnt = count(init, step=step)
 
     def next_run(now: datetime) -> datetime:
-        return now + timedelta(microseconds=next(cnt))
+        return now + timedelta(milliseconds=next(cnt))
 
     cron = Mock(spec=CronParser)
     cron.next_run.side_effect = next_run
     return Mock(return_value=cron, spec=CronFactory)
 
 
-def create_app() -> Jobify:
-    return Jobify(cron_factory=create_cron_factory(), storage=False)
+def create_app(init: float = 10, step: float = 300) -> Jobify:
+    return Jobify(cron_factory=create_cron_factory(init, step), storage=False)

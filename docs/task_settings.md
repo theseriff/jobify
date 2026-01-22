@@ -10,7 +10,6 @@ app = Jobify()
 
 @app.task(
     name="my_daily_report",
-    # When the app restarts, the max_runs is set to 0 and the app again runs 30 times.
     cron=Cron(
         "* * * * *",
         max_runs=30,
@@ -51,17 +50,7 @@ def my_daily_report() -> None:
     ...
 ```
 
-The **Cron** class has the following properties:
-
-- **expression** (`str`): The cron expression as a string.
-- **max_runs** (`int`, default: `INFINITY (-1)`): The maximum number of times a job can run. After a job has run this many times, it will no longer be scheduled for execution.
-- **max_failures** (`int`, default: `10`): The maximum number of consecutive failed attempts allowed before a job is permanently stopped and no longer scheduled. This value must be greater than or equal to 1.
-- **misfire_policy** (`MisfirePolicy | GracePolicy`, default: `MisfirePolicy.ONCE`): Determines how to deal with missed schedules (for example, if the application is unavailable).
-    - `MisfirePolicy.ALL`: Run all missed executions immediately.
-    - `MisfirePolicy.SKIP`: If there were missed executions, then skip them.
-    - `MisfirePolicy.ONCE`: If there were missed executions, run only once.
-    - `MisfirePolicy.GRACE(timedelta)`: If the missed schedule is within the specified grace period, please start it immediately.
-- **start_date** (`datetime | None`, default: `None`): The scheduled start time is used to anchor the first execution of the job to a specific timestamp.
+For detailed information on the `Cron` object and its properties (such as `max_runs`, `misfire_policy`, etc.), please refer to the [The Cron Object](./schedule.md#the-cron-object){ data-preview } section in the scheduling documentation.
 
 ## retry
 

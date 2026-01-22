@@ -27,7 +27,7 @@ def test_cronparser() -> None:
 
 
 async def test_cron_reschedule() -> None:
-    app = create_app()
+    app = create_app(0.01)
 
     @app.task
     def t(name: str) -> str:
@@ -67,7 +67,7 @@ async def test_max_cron_failures(amock: mock.AsyncMock) -> None:
 
 
 async def test_cron_declarative() -> None:
-    app = create_app()
+    app = create_app(1)
 
     @app.task(cron="* * * * * * *")
     async def _() -> str:
@@ -81,7 +81,7 @@ async def test_cron_declarative() -> None:
 
 
 async def test_cron_shutdown_graceful() -> None:
-    app = create_app()
+    app = create_app(1)
 
     @app.task(cron="* * * * * * *")
     async def _() -> None:
@@ -122,3 +122,18 @@ def test_misfire_policy() -> None:
     )
     invalid_enum_type: Any = "InvalidEnumType"
     assert handler(invalid_enum_type) is None
+
+
+async def test_cron_no_reschedule_if_app_stopped() -> None:
+    app = create_app(0.01)
+    ran_event = asyncio.Event()
+
+    @app.task(cron=Cron("* * * * * * *", max_runs=2))
+    async def _() -> str:
+        app.configs.app_started = False
+        ran_event.set()
+        return "done"
+
+    async with app:
+        _s = await ran_event.wait()
+        assert not app.task._shared_state.pending_jobs

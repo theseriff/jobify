@@ -10,6 +10,7 @@ class CronArguments:
     cron: Cron
     job_id: str
     offset: datetime
+    run_count: int = 0
 
 
 class AtArguments(NamedTuple):

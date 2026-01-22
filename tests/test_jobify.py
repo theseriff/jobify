@@ -60,7 +60,7 @@ async def test_wait_all_receives_signal() -> None:
         await trigger_task
 
 
-async def test_capture_signals_restoration_logic() -> None:
+def test_capture_signals_restoration_logic() -> None:
     app = create_app()
     initial_handler = signal.getsignal(signal.SIGINT)
 
@@ -71,7 +71,7 @@ async def test_capture_signals_restoration_logic() -> None:
     assert signal.getsignal(signal.SIGINT) == initial_handler
 
 
-async def test_capture_signals_in_subthread() -> None:
+def test_capture_signals_in_subthread() -> None:
     app = create_app()
     _ = app.get_active_jobs()
 

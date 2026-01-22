@@ -13,7 +13,7 @@ from jobify._internal.configuration import Cron
 from jobify._internal.context import INJECT, JobContext
 from jobify._internal.router.node import NodeRouter as JobRouter
 from jobify._internal.runners import Runnable
-from jobify._internal.scheduler.job import Job
+from jobify._internal.scheduler.job import CronContext, Job
 from jobify._internal.scheduler.misfire_policy import (
     GracePolicy,
     MisfirePolicy,
@@ -25,6 +25,7 @@ __version__ = get_version("jobify")
 __all__ = (
     "INJECT",
     "Cron",
+    "CronContext",
     "GracePolicy",
     "Job",
     "JobContext",

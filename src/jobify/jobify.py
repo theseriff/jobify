@@ -325,15 +325,20 @@ class Jobify(RootRouter):
             case CronArguments(db_cron, job_id, db_offset) as trigger:
                 if job_id in crons_declare_persist:
                     origin = crons_args[job_id]
+                    new_cron = origin.arg.cron
+                    new_builder = origin.builder
 
-                    trigger.cron = origin.arg.cron
-                    next_run_at = handle_misfire_policy(
-                        origin.cron_parser,
-                        origin.cron_parser.next_run(now=db_offset),
-                        builder.now(),
-                        trigger.cron.misfire_policy,
+                    offset, next_run_at = new_builder._calculate_next_run_at(
+                        old_cron=db_cron,
+                        new_cron=new_cron,
+                        real_now=new_builder.now(),
+                        parser=origin.cron_parser,
+                        offset=db_offset,
                     )
-                    origin.arg.offset = db_offset
+                    trigger.cron = new_cron
+                    trigger.run_count = 0
+                    origin.arg.run_count = 0
+                    origin.arg.offset = offset
                     origin.next_run_at = next_run_at
                     scheduled_to_update.append(
                         ScheduledJob.create(
@@ -372,6 +377,7 @@ class Jobify(RootRouter):
                 next_run_at=cron.next_run_at,
                 cron_parser=cron.cron_parser,
                 offset=cron.arg.offset,
+                run_count=cron.arg.run_count,
             )
         for builder, arg in at_args.values():
             _ = builder._at(arg.at, arg.job_id)
@@ -420,7 +426,6 @@ class Jobify(RootRouter):
             for task in tuple(tasks):
                 _ = task.cancel()
             _ = await asyncio.gather(*tasks, return_exceptions=True)
-            tasks.clear()
 
         self.configs.worker_pools.close()
         await self._propagate_shutdown()

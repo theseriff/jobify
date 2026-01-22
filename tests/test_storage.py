@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -88,10 +89,10 @@ async def test_delete_schedule_many(now: datetime) -> None:
         await storage.shutdown()
 
 
-async def test_sqlite_with_jobify(now: datetime) -> None:
+async def test_sqlite_with_jobify() -> None:
     app = Jobify(
         storage=SQLiteStorage(":memory:"),
-        cron_factory=create_cron_factory(30000),
+        cron_factory=create_cron_factory(),
     )
 
     @app.task
@@ -105,8 +106,14 @@ async def test_sqlite_with_jobify(now: datetime) -> None:
     async with app:
         job1 = await f1.schedule("biba_delay").delay(0.05)
         job2 = await f2.schedule().delay(-1)
-        cron = Cron("* * * * *", max_runs=1, start_date=now)
-        job1_cron = await f1.schedule("biba_cron").cron(cron, job_id="test")
+        start_date = datetime.now(tz=app.configs.tz) + timedelta(
+            milliseconds=50,
+        )
+        cron = Cron("* * * * *", max_runs=1, start_date=start_date)
+        job1_cron = await f1.schedule("biba_cron").cron(
+            cron,
+            job_id="test_cron",
+        )
         raw_msg1 = app.configs.serializer.dumpb(
             app.configs.dumper.dump(
                 Message(
@@ -124,7 +131,7 @@ async def test_sqlite_with_jobify(now: datetime) -> None:
                     job_id=job1_cron.id,
                     name=f1.name,
                     arguments={"name": "biba_cron"},
-                    trigger=CronArguments(cron, job1_cron.id, now),
+                    trigger=CronArguments(cron, job1_cron.id, start_date),
                 ),
                 Message,
             )
@@ -147,14 +154,12 @@ async def test_sqlite_with_jobify(now: datetime) -> None:
             at_scheduled,
             cron_scheduled,
         ]
-        await job1.wait()
-        await job1_cron.wait()
-        await job2.wait()
+        _ = await asyncio.gather(*[job1.wait(), job2.wait(), job1_cron.wait()])
 
         assert job1.result() == "biba_delay"
         assert job1_cron.result() == "biba_cron"
         assert job2.result() == "test"
-        assert await app.configs.storage.get_schedules() == [cron_scheduled]
+        assert await app.configs.storage.get_schedules() == []
 
 
 @pytest.fixture
@@ -171,8 +176,7 @@ async def test_restore_schedules(
     async def _f(name: str) -> str:
         return name
 
-    microseconds = 30000  # 0.03 milliseconds
-    cron_factory_mock = create_cron_factory(init=microseconds)
+    cron_factory_mock = create_cron_factory(init=30, step=0.03)
     app = Jobify(storage=storage, cron_factory=cron_factory_mock)
 
     f = app.task(_f, name="test_name")
@@ -289,11 +293,10 @@ async def test_restore_schedules_invalid_jobs(storage: SQLiteStorage) -> None:
 
 
 async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
-    microseconds = 30000  # 0.03 milliseconds
-    cron_factory_mock = create_cron_factory(init=microseconds)
+    cron_factory_mock = create_cron_factory(init=10, step=10)
     app = Jobify(storage=storage, cron_factory=cron_factory_mock)
 
-    @app.task(cron=Cron("* * * * * * *", max_runs=2))
+    @app.task(cron=Cron("*", max_runs=2))
     async def _f() -> str:
         return "test"
 
@@ -304,7 +307,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
         assert job.result() == "test"
 
     app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
-    _ = app2.task(_f, cron=Cron("* * * * * * *", max_runs=2))
+    _ = app2.task(_f, cron=Cron("* * * * *", max_runs=2))
 
     async with app2:
         scheduled_job2 = (await app2.configs.storage.get_schedules())[0]
