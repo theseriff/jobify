@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.5.0 (2026-01-22)
+
+### Features
+
+- **cron**: Implement stateful run_count and automatic database cleanup
+  ([`35ed100`](https://github.com/theseriff/jobify/commit/35ed10003c86b84c241cf234cd1a568c736bc78d))
+
+
 ## v0.4.0 (2026-01-21)
 
 ### Bug Fixes
