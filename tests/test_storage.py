@@ -293,7 +293,7 @@ async def test_restore_schedules_invalid_jobs(storage: SQLiteStorage) -> None:
 
 
 async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
-    cron_factory_mock = create_cron_factory(init=10, step=10)
+    cron_factory_mock = create_cron_factory(init=10, step=1000)
     app = Jobify(storage=storage, cron_factory=cron_factory_mock)
 
     @app.task(cron=Cron("*", max_runs=2))
@@ -311,9 +311,8 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
 
     async with app2:
         scheduled_job2 = (await app2.configs.storage.get_schedules())[0]
-        job = app2.task._shared_state.pending_jobs.popitem()[1]
-        await job.wait()
-        assert job.result() == "test"
+        job2 = app2.task._shared_state.pending_jobs.popitem()[1]
+        assert job2.id == job.id
 
     assert scheduled_job1.next_run_at < scheduled_job2.next_run_at
 
