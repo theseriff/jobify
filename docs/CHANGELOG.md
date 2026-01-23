@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.5.1 (2026-01-23)
+
+### Bug Fixes
+
+- **core**: Sync trigger offset in storage during schedule restoration
+  ([`2c4fed8`](https://github.com/theseriff/jobify/commit/2c4fed8854da59540791af8baadff2cd809cc816))
+
+
 ## v0.5.0 (2026-01-22)
 
 ### Features
