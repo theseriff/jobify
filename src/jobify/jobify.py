@@ -337,6 +337,7 @@ class Jobify(RootRouter):
                     )
                     trigger.cron = new_cron
                     trigger.run_count = 0
+                    trigger.offset = offset
                     origin.arg.run_count = 0
                     origin.arg.offset = offset
                     origin.next_run_at = next_run_at
