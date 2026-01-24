@@ -27,7 +27,7 @@ Below is a comparison of features to help you decide if Jobify fits your needs.
 | [**Middleware Support**](app_settings/#middleware){ data-preview }        |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
 | [**Job Cancellation**](job/#await-jobcancel){ data-preview }              |          ✅          |        ❌         |        ✅        |        ✅         |
 | [**Cron Scheduling**](schedule/#cron-expressions){ data-preview }         |          ✅          |        ✅         |        ✅        |        ✅         |
-| [**Misfire Policy**](task_settings/#cron){ data-preview }                 |          ✅          |        ❌         |        ✅        |        ❌         |
+| [**Misfire Policy**](schedule/#the-cron-object){ data-preview }           |          ✅          |        ❌         |        ✅        |        ❌         |
 | [**Run Modes (Thread/Process)**](task_settings/#run_mode){ data-preview } |          ✅          |        ✅         |        ✅        |        ✅         |
 | **Rich Typing Support**                                                   |          ✅          |        ✅         |        ❌        |        ❌         |
 | **Zero-config Persistence**                                               | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |

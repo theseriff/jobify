@@ -44,7 +44,11 @@ class DuplicateJobError(RuntimeError):
 
     def __init__(self, job_id: str) -> None:
         self.job_id: str = job_id
-        super().__init__(f"Job with ID {job_id!r} is already scheduled.")
+        msg = (
+            f"Job with ID {job_id!r} is already scheduled. "
+            "Use 'replace=True' if you want to update the existing job."
+        )
+        super().__init__(msg)
 
 
 class RouteAlreadyRegisteredError(BaseJobifyError):
