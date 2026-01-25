@@ -24,10 +24,13 @@ lint = [
     "ruff",
     "codespell",
 ]
+dev = [
+    { include-group = "lint" },
+]
 
 [tool.basedpyright]
 include = ["src"]
-ignore = ["**/__pycache__", "**/alembic"]
+ignore = ["**/__pycache__"]
 pythonVersion = "3.10"
 reportAny = false
 reportExplicitAny = false

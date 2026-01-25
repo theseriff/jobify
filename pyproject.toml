@@ -77,7 +77,7 @@ test = [
     "coverage[toml]==7.12.0",
 ]
 docs = [
-    "zensical==0.0.16",
+    "zensical==0.0.19",
 ]
 dev = [
     { include-group = "lint" },
@@ -88,9 +88,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/theseriff/jobify"
+Homepage = "https://theseriff.github.io/jobify/"
 Repository = "https://github.com/theseriff/jobify"
-Documentation = "https://github.com/theseriff/jobify/README.md"
+Documentation = "https://theseriff.github.io/jobify/"
 Changelog = "https://github.com/theseriff/jobify/blob/main/docs/CHANGELOG.md"
 Issues = "https://github.com/theseriff/jobify/issues"
 
@@ -205,7 +205,6 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "benchmarks/**" = ["D", "S101"]
 "tests/**" = ["S101", "D", "SLF001"]
-"src/jobify/_internal/routing.py" = ["ERA001", "FIX004"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -231,14 +230,12 @@ major_on_zero = false
 allow_zero_version = true
 commit_message = "chore(release): release v{version} [skip ci]"
 
-
 [tool.semantic_release.commit_parser_options]
 major_tags = ["BREAKING CHANGE"]
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf"]
 parse_squash_commits = true
 ignore_merge_commits = true
-
 
 [tool.semantic_release.changelog]
 # Recommended patterns for conventional commits parser that is scope aware

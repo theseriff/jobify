@@ -23,6 +23,7 @@ nav = [
   { "Context" = "context.md" },
   { "Router" = "router.md" },
   { "Integrations" = "integrations.md" },
+  { "Contributing" = "contributing.md" },
   { "Changelog" = "CHANGELOG.md" },
 ]
 # ----------------------------------------------------------------------------
