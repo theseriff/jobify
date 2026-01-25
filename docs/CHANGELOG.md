@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.5.2 (2026-01-25)
+
+### Bug Fixes
+
+- Add name field to Runnable for better debugging
+  ([`8ce04ca`](https://github.com/theseriff/jobify/commit/8ce04ca16c0521b6bfca3eb6fc6b406a384841c4))
+
+### Documentation
+
+- Add comprehensive real-world backup application example
+  ([`f58bf11`](https://github.com/theseriff/jobify/commit/f58bf1117a564835b57f7c6d27d140b2da4834fe))
+
+- Update examples and upgrade build dependencies
+  ([`0d121c2`](https://github.com/theseriff/jobify/commit/0d121c275abaa89f2332dec7d76df0b09adb399b))
+
+- Update link misfire_policy and update ruff configuration
+  ([`b5062e5`](https://github.com/theseriff/jobify/commit/b5062e5a5a072a633f393bc22b8361002c8bd5de))
+
+
 ## v0.5.1 (2026-01-23)
 
 ### Bug Fixes
