@@ -152,7 +152,11 @@ class RootRoute(Route[ParamsT, ReturnT]):
             shared_state=self._shared_state,
             jobify_config=self.jobify_config,
             chain_middleware=self._chain_middleware,
-            runnable=Runnable(self._run_strategy, bound),
+            runnable=Runnable(
+                name=self.name,
+                bound=bound,
+                strategy=self._run_strategy,
+            ),
         )
 
 

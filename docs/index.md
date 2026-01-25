@@ -27,7 +27,7 @@ Below is a comparison of features to help you decide if Jobify fits your needs.
 | [**Middleware Support**](app_settings/#middleware){ data-preview }        |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
 | [**Job Cancellation**](job/#await-jobcancel){ data-preview }              |          ✅          |        ❌         |        ✅        |        ✅         |
 | [**Cron Scheduling**](schedule/#cron-expressions){ data-preview }         |          ✅          |        ✅         |        ✅        |        ✅         |
-| [**Misfire Policy**](task_settings/#cron){ data-preview }                 |          ✅          |        ❌         |        ✅        |        ❌         |
+| [**Misfire Policy**](schedule/#the-cron-object){ data-preview }           |          ✅          |        ❌         |        ✅        |        ❌         |
 | [**Run Modes (Thread/Process)**](task_settings/#run_mode){ data-preview } |          ✅          |        ✅         |        ✅        |        ✅         |
 | **Rich Typing Support**                                                   |          ✅          |        ✅         |        ❌        |        ❌         |
 | **Zero-config Persistence**                                               | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
@@ -54,7 +54,7 @@ pip install jobify
 
 Here is a simple example showing how to define a task and schedule it.
 
-```python linenums="1" hl_lines="27 29 31"
+```python linenums="1" hl_lines="27 29 31-34"
 import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -67,8 +67,8 @@ app = Jobify(tz=UTC)
 
 
 @app.task(cron="* * * * * * *")  # Runs every seconds
-async def my_cron() -> None:
-    print("Hello! cron running every seconds")
+async def my_cron(name: str) -> None:
+    print(f"Hello, {name}! cron running every seconds")
 
 
 @app.task
@@ -85,7 +85,10 @@ async def main() -> None:
 
         job_delay = await my_job.schedule("Sara").delay(20)
 
-        job_cron = await my_cron.schedule("Mike").cron("* * * * *")
+        job_cron = await my_cron.schedule("Mike").cron(
+            "* * * * *",
+            job_id="dynamic_cron_id",
+        )
 
         await job_at.wait()
         await job_delay.wait()
