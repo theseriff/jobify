@@ -81,13 +81,21 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
 
 
 class Runnable(Generic[ReturnT]):
-    __slots__: tuple[str, ...] = ("bound", "origin_arguments", "strategy")
+    __slots__: tuple[str, ...] = (
+        "bound",
+        "name",
+        "origin_arguments",
+        "strategy",
+    )
 
     def __init__(
         self,
-        strategy: RunStrategy[ParamsT, ReturnT],
+        *,
+        name: str,
         bound: inspect.BoundArguments,
+        strategy: RunStrategy[ParamsT, ReturnT],
     ) -> None:
+        self.name: str = name
         self.strategy: Final = strategy
         self.bound: inspect.BoundArguments = bound
         self.origin_arguments: dict[str, Any] = bound.arguments.copy()
