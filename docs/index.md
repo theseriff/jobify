@@ -54,7 +54,7 @@ pip install jobify
 
 Here is a simple example showing how to define a task and schedule it.
 
-```python linenums="1" hl_lines="27 29 31"
+```python linenums="1" hl_lines="27 29 31-34"
 import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -67,8 +67,8 @@ app = Jobify(tz=UTC)
 
 
 @app.task(cron="* * * * * * *")  # Runs every seconds
-async def my_cron() -> None:
-    print("Hello! cron running every seconds")
+async def my_cron(name: str) -> None:
+    print(f"Hello, {name}! cron running every seconds")
 
 
 @app.task
@@ -85,7 +85,10 @@ async def main() -> None:
 
         job_delay = await my_job.schedule("Sara").delay(20)
 
-        job_cron = await my_cron.schedule("Mike").cron("* * * * *")
+        job_cron = await my_cron.schedule("Mike").cron(
+            "* * * * *",
+            job_id="dynamic_cron_id",
+        )
 
         await job_at.wait()
         await job_delay.wait()

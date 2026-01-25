@@ -40,11 +40,10 @@ Here is a simple example of how to schedule and run a job:
 
 ```python
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from jobify import Jobify
-
 
 UTC = ZoneInfo("UTC")
 # 1. Initialize Jobify

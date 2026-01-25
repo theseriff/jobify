@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.8.14,<0.9.0"]
+requires = ["uv_build>=0.9.26,<0.10.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -149,7 +149,7 @@ omit = [
 # Static Analysis
 [tool.basedpyright]
 include = ["src", "tests"]
-ignore = ["**/__pycache__", "**/alembic"]
+ignore = ["**/__pycache__"]
 pythonVersion = "3.10"
 reportAny = false
 reportExplicitAny = false
