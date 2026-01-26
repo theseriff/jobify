@@ -222,7 +222,7 @@ class Jobify(RootRouter):
         await self._propagate_startup(self)
         await self._restore_schedules()
 
-    async def _restore_schedules(self) -> None:
+    async def _restore_schedules(self) -> None:  # noqa: C901
         crons_def: CronsDefinition = self.state.pop(CRONS_DEF_KEY, {})
         schedules = await self.configs.storage.get_schedules()
         db_map = {sch.job_id: sch for sch in schedules}
@@ -308,6 +308,19 @@ class Jobify(RootRouter):
                     crons_args,
                     at_args,
                 )
+        if scheduled_to_update:
+            update_ids = [job.job_id for job in scheduled_to_update]
+            logger.info(
+                "Updating/Restoring %d schedules in storage: %s",
+                len(update_ids),
+                update_ids,
+            )
+        if scheduled_to_delete:
+            logger.info(
+                "Deleting %d obsolete schedules from storage: %s",
+                len(scheduled_to_delete),
+                scheduled_to_delete,
+            )
         await self.configs.storage.add_schedule(*scheduled_to_update)
         await self.configs.storage.delete_schedule_many(scheduled_to_delete)
         self._start_pending_schedules(crons_args, at_args)
