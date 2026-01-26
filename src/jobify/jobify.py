@@ -25,6 +25,7 @@ from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.router.root import (
     CRONS_DEF_KEY,
     CronsDefinition,
+    RootRoute,
     RootRouter,
 )
 from jobify._internal.scheduler.misfire_policy import (
@@ -117,6 +118,7 @@ class Jobify(RootRouter):
         exception_handlers: MappingExceptionHandlers | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
+        route_class: type[RootRoute[..., Any]] = RootRoute,
     ) -> None:
         """Initialize a `Jobify` instance."""
         getloop = cache_result(loop_factory)
@@ -171,6 +173,7 @@ class Jobify(RootRouter):
             shared_state=SharedState(),
             jobify_config=self.configs,
             exception_handlers=exception_handlers,
+            route_class=route_class,
         )
         self._captured_signals: list[int] = []
 

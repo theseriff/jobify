@@ -86,11 +86,6 @@ class Route(ABC, Generic[ParamsT, Return_co]):
         raise NotImplementedError
 
 
-@asynccontextmanager
-async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
-    yield None
-
-
 def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
     name = func.__name__
     name = getattr(func, "__qualname__", name).removesuffix(PATCH_FUNC_NAME)
@@ -108,29 +103,13 @@ class Registrator(ABC, Generic[Route_co]):
     def __init__(
         self,
         state: State,
-        lifespan: Lifespan[Router_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
+        route_class: type[Route_co],
     ) -> None:
         self._routes: dict[str, Route_co] = {}
-        self._lifespan: Final = lifespan or dummy_lifespan
-        self._state_lifespan: Final = self._iter_lifespan(self._lifespan)
         self._middleware: list[BaseMiddleware] = list(middleware or [])
         self.state: State = state
-
-    async def _iter_lifespan(
-        self,
-        user_lifespan: Lifespan[Any],
-    ) -> AsyncIterator[None]:
-        async with user_lifespan(self) as maybe_state:
-            if maybe_state is not None:
-                self.state.update(maybe_state)
-            yield None
-
-    async def emit_startup(self) -> None:
-        await anext(self._state_lifespan)
-
-    async def emit_shutdown(self) -> None:
-        await anext(self._state_lifespan, None)
+        self.route_class: type[Route_co] = route_class
 
     @overload
     def __call__(
@@ -194,16 +173,40 @@ class Registrator(ABC, Generic[Route_co]):
         raise NotImplementedError
 
 
+@asynccontextmanager
+async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
+    yield None
+
+
 class Router(ABC):
     def __init__(
         self,
         *,
         prefix: str | None,
+        lifespan: Lifespan[Router_co] | None,
     ) -> None:
         self.state: State = State()
         self.prefix: str = prefix if prefix else ""
         self._parent: Router | None = None
         self._sub_routers: list[Router] = []
+        self._state_lifespan: Final = self._iter_lifespan(
+            lifespan or dummy_lifespan
+        )
+
+    async def _iter_lifespan(
+        self,
+        user_lifespan: Lifespan[Any],
+    ) -> AsyncIterator[None]:
+        async with user_lifespan(self) as maybe_state:
+            if maybe_state is not None:
+                self.state.update(maybe_state)
+            yield None
+
+    async def emit_startup(self) -> None:
+        await anext(self._state_lifespan)
+
+    async def emit_shutdown(self) -> None:
+        await anext(self._state_lifespan, None)
 
     @property
     @abstractmethod

@@ -164,3 +164,15 @@ app.include_router(reports_router)
 ```
 
 When the application starts, you will see a `starting up` message. All tasks within `reports_router` will have access to `router.state`.
+
+### Custom Route Class
+
+The `route_class` parameter in `JobRouter` allows you to specify a custom class for handling tasks within that router.
+This is similar to the `route_class` parameter used in the `Jobify` application, but it only applies to the routes defined in the `JobRouter`.
+
+- **Type**: `type[NodeRoute] | None`
+- **Default**: `jobify.router.NodeRoute`
+
+By using a custom `route_class`, you can customize how tasks are handled within the router.
+For example, you can integrate with dependency injection frameworks or add custom logic to the task execution process.
+The `route_class` should be a subclass of the `jobify.router.NodeRoute` class.

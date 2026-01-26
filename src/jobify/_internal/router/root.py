@@ -164,13 +164,13 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
     def __init__(  # noqa: PLR0913
         self,
         state: State,
-        lifespan: Lifespan[RootRouter_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
         shared_state: SharedState,
         jobify_config: JobifyConfiguration,
         exception_handlers: MappingExceptionHandlers | None,
+        route_class: type[RootRoute[..., Any]],
     ) -> None:
-        super().__init__(state, lifespan, middleware)
+        super().__init__(state, middleware, route_class)
         self._shared_state: SharedState = shared_state
         self._exc_handlers: ExceptionHandlers = dict(exception_handlers or {})
         self._jobify_config: JobifyConfiguration = jobify_config
@@ -199,7 +199,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             self._jobify_config,
             mode=options.get("run_mode"),
         )
-        route = RootRoute(
+        route = self.route_class(
             name=name,
             func=func,
             func_spec=make_func_spec(func),
@@ -219,11 +219,11 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             p = {job_id: (route, cron)}
             self.state.setdefault(CRONS_DEF_KEY, {}).update(p)
 
-        return route
+        return cast("RootRoute[ParamsT, ReturnT]", route)
 
 
 class RootRouter(Router):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         lifespan: Lifespan[RootRouter_co] | None,
@@ -231,15 +231,16 @@ class RootRouter(Router):
         shared_state: SharedState,
         jobify_config: JobifyConfiguration,
         exception_handlers: MappingExceptionHandlers | None,
+        route_class: type[RootRoute[..., Any]],
     ) -> None:
-        super().__init__(prefix=None)
+        super().__init__(prefix=None, lifespan=lifespan)
         self._registrator: RootRegistrator = RootRegistrator(
             self.state,
-            lifespan,
             middleware,
             shared_state,
             jobify_config,
             exception_handlers,
+            route_class,
         )
 
     @property
@@ -286,7 +287,7 @@ class RootRouter(Router):
             self._propagate_real_routes(sub_router)
 
     async def _propagate_startup(self, router: Router) -> None:
-        await router.task.emit_startup()
+        await router.emit_startup()
 
         final_middleware = [
             *router.task._middleware,
@@ -307,7 +308,7 @@ class RootRouter(Router):
 
     async def _propagate_shutdown(self) -> None:
         for router in self.chain_tail:
-            await router.task.emit_shutdown()
+            await router.emit_shutdown()
 
     async def _entry(self, context: JobContext) -> Any:  # noqa: ANN401
         inject_context(context)

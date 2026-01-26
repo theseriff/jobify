@@ -11,7 +11,7 @@ version = "0.5.2"
 description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
 requires-python = ">=3.10,<5"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
     { name = "Sergey Yavorsky", email = "maclovi.dev@gmail.com" },
 ]

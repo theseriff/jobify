@@ -25,6 +25,7 @@ NodeRouter_co = TypeVar("NodeRouter_co", bound="NodeRouter", covariant=True)
 class NodeRoute(Route[ParamsT, ReturnT]):
     def __init__(
         self,
+        *,
         name: str,
         func: Callable[ParamsT, ReturnT],
         options: RouteOptions,
@@ -54,10 +55,10 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
     def __init__(
         self,
         state: State,
-        lifespan: Lifespan[NodeRouter_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
+        route_class: type[NodeRoute[..., Any]],
     ) -> None:
-        super().__init__(state, lifespan, middleware)
+        super().__init__(state, middleware, route_class)
 
     @override
     def register(
@@ -66,10 +67,10 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
         func: Callable[ParamsT, ReturnT],
         options: RouteOptions,
     ) -> NodeRoute[ParamsT, ReturnT]:
-        route = NodeRoute(name, func, options)
+        route = self.route_class(name=name, func=func, options=options)
         _ = functools.update_wrapper(route, func)
         self._routes[name] = route
-        return route
+        return cast("NodeRoute[ParamsT, ReturnT]", route)
 
 
 class NodeRouter(Router):
@@ -79,12 +80,13 @@ class NodeRouter(Router):
         prefix: str | None = None,
         lifespan: Lifespan[NodeRouter_co] | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
+        route_class: type[NodeRoute[..., Any]] = NodeRoute,
     ) -> None:
-        super().__init__(prefix=prefix)
+        super().__init__(prefix=prefix, lifespan=lifespan)
         self._registrator: NodeRegistrator = NodeRegistrator(
             self.state,
-            lifespan,
             middleware,
+            route_class=route_class,
         )
 
     @property
