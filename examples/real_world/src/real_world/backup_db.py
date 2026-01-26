@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from jobify import INJECT, JobRouter, State
 
 if TYPE_CHECKING:
-    from .configs import Configs
+    from real_world.configs import Configs
 
 
 logger = logging.getLogger(__name__)
