@@ -368,7 +368,8 @@ class ScheduleBuilder(Generic[ReturnT]):
                         ctx.run_count,
                     )
                     await self._persist_job(job.id, next_run_at, trigger)
-                self._reschedule_cron(ctx, next_run_at)
+                self._schedule_execution_cron(ctx)
+                job.update(exec_at=next_run_at, status=JobStatus.SCHEDULED)
                 return
 
             job._status = JobStatus.PERMANENTLY_FAILED
@@ -379,22 +380,6 @@ class ScheduleBuilder(Generic[ReturnT]):
                 ctx.cron.max_failures,
             )
         self._shared_state.unregister_job(job.id)
-
-    def _reschedule_cron(
-        self,
-        ctx: CronContext[ReturnT],
-        next_run_at: datetime,
-    ) -> None:
-        delay_seconds = self._calculate_delay_seconds(target_at=next_run_at)
-        loop = self._configs.getloop()
-        when = loop.time() + delay_seconds
-        handle = loop.call_at(when, self._pre_exec_cron, ctx)
-        job = ctx.job
-        job.update(
-            exec_at=next_run_at,
-            time_handler=handle,
-            job_status=JobStatus.SCHEDULED,
-        )
 
     async def _exec_job(self, job: Job[ReturnT]) -> None:
         job._status = JobStatus.RUNNING
