@@ -73,6 +73,8 @@ class Job(Generic[ReturnT]):
         self.exception: Exception | None = None
         self.exec_at = exec_at
 
+        self._event.set()
+
     @property
     def cron_expression(self) -> str | None:
         if self._cron_context is not None:

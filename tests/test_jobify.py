@@ -24,7 +24,7 @@ async def test_app_setup() -> None:
     assert isinstance(app.configs.loader, Mock)
 
     mock = Mock()
-    app._handle_trigger(mock, mock, mock, mock, mock, mock)
+    app._start_restored_job_in_memory((mock, mock, mock), mock)
 
 
 def test_shared_state() -> None:
@@ -48,16 +48,15 @@ async def test_wait_all_receives_signal() -> None:
 
     async def trigger_signal() -> None:
         await asyncio.sleep(0.01)
-        signal.raise_signal(signal.SIGINT)
+        app._handle_exit(signal.SIGINT, None)
 
-    trigger_task = asyncio.create_task(trigger_signal())
+    task = asyncio.create_task(trigger_signal())
 
     try:
         await app.wait_all(timeout=1.0)
         assert signal.SIGINT in app._captured_signals
-
     finally:
-        await trigger_task
+        await task
 
 
 def test_capture_signals_restoration_logic() -> None:
@@ -88,12 +87,11 @@ def test_capture_signals_in_subthread() -> None:
 
 async def test_shutdown_re_raises_signals_integration() -> None:
     app = create_app()
-    with app._capture_signals():
-        signal.raise_signal(signal.SIGINT)
-        signal.raise_signal(signal.SIGTERM)
+    app._handle_exit(signal.SIGINT, None)
+    app._handle_exit(signal.SIGTERM, None)
 
-        assert signal.SIGINT in app._captured_signals
-        assert signal.SIGTERM in app._captured_signals
+    assert signal.SIGINT in app._captured_signals
+    assert signal.SIGTERM in app._captured_signals
 
     with patch("signal.raise_signal") as mock_raise:
         await app.shutdown()

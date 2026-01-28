@@ -85,6 +85,7 @@ async def test_delete_schedule_many(now: datetime) -> None:
 
         expected_scheduled = 0
         assert len(await storage.get_schedules()) == expected_scheduled
+        await storage.delete_schedule_many([])
     finally:
         await storage.shutdown()
 
@@ -460,3 +461,25 @@ async def test_start_pending_crons_non_cron_trigger(
         assert job is not None
         assert len(app.task._shared_state.pending_jobs) == 1
         assert len(await app.configs.storage.get_schedules()) == 1
+
+
+async def test_remove_cron_declarative(
+    storage: SQLiteStorage,
+    amock: AsyncMock,
+) -> None:
+    app = Jobify(storage=storage)
+    _ = app.task(amock, cron="* * * * *")
+    async with app:
+        assert (
+            len(await app.configs.storage.get_schedules())
+            == len(app.get_active_jobs())
+            == 1
+        )
+
+    app2 = Jobify(storage=storage)
+    async with app2:
+        assert (
+            len(await app.configs.storage.get_schedules())
+            == len(app.get_active_jobs())
+            == 0
+        )

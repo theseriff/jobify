@@ -19,6 +19,7 @@ class SharedState:
         self.idle_event.set()
 
     def register_job(self, job: Job[Any]) -> None:
+        job._event.clear()
         self.idle_event.clear()
         self.pending_jobs[job.id] = job
 

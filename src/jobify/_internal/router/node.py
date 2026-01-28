@@ -13,7 +13,10 @@ if TYPE_CHECKING:
     from jobify._internal.common.datastructures import State
     from jobify._internal.common.types import Lifespan
     from jobify._internal.configuration import RouteOptions
-    from jobify._internal.middleware.base import BaseMiddleware
+    from jobify._internal.middleware.base import (
+        BaseMiddleware,
+        BaseOuterMiddleware,
+    )
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
 
 
@@ -54,11 +57,18 @@ class NodeRoute(Route[ParamsT, ReturnT]):
 class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
     def __init__(
         self,
+        *,
         state: State,
-        middleware: Sequence[BaseMiddleware] | None,
         route_class: type[NodeRoute[..., Any]],
+        middleware: Sequence[BaseMiddleware] | None,
+        outer_middleware: Sequence[BaseOuterMiddleware] | None,
     ) -> None:
-        super().__init__(state, middleware, route_class)
+        super().__init__(
+            state=state,
+            route_class=route_class,
+            middleware=middleware,
+            outer_middleware=outer_middleware,
+        )
 
     @override
     def register(
@@ -80,13 +90,15 @@ class NodeRouter(Router):
         prefix: str | None = None,
         lifespan: Lifespan[NodeRouter_co] | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
+        outer_middleware: Sequence[BaseOuterMiddleware] | None = None,
         route_class: type[NodeRoute[..., Any]] = NodeRoute,
     ) -> None:
         super().__init__(prefix=prefix, lifespan=lifespan)
         self._registrator: NodeRegistrator = NodeRegistrator(
-            self.state,
-            middleware,
+            state=self.state,
             route_class=route_class,
+            middleware=middleware,
+            outer_middleware=outer_middleware,
         )
 
     @property

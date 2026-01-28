@@ -106,24 +106,29 @@ def test_misfire_policy() -> None:
     next_run_at = cron_parser.next_run(now=real_now - timedelta(days=7))
     handler = functools.partial(
         handle_misfire_policy,
-        cron_parser,
-        next_run_at,
-        real_now,
+        cron_parser=cron_parser,
+        next_run_at=next_run_at,
+        real_now=real_now,
     )
 
     assert str(GracePolicy(timedelta(days=1)))
-    assert handler(MisfirePolicy.ALL) == next_run_at
-    assert handler(MisfirePolicy.SKIP) == cron_parser.next_run(now=real_now)
-    assert handler(MisfirePolicy.ONCE) == real_now
-    assert handler(MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
+    assert handler(policy=MisfirePolicy.ALL) == next_run_at
+    assert handler(policy=MisfirePolicy.SKIP) == cron_parser.next_run(
+        now=real_now
+    )
+    assert handler(policy=MisfirePolicy.ONCE) == real_now
+    assert (
+        handler(policy=MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
+    )
     expected_next_run_at = cron_parser.next_run(
         now=real_now - timedelta(days=6)
     )
     assert (
-        handler(MisfirePolicy.GRACE(timedelta(days=6))) == expected_next_run_at
+        handler(policy=MisfirePolicy.GRACE(timedelta(days=6)))
+        == expected_next_run_at
     )
     invalid_enum_type: Any = "InvalidEnumType"
-    assert handler(invalid_enum_type) is None
+    assert handler(policy=invalid_enum_type) is None
 
 
 async def test_cron_no_reschedule_if_app_stopped() -> None:

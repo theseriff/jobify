@@ -34,7 +34,10 @@ if TYPE_CHECKING:
 
     from jobify._internal.common.types import Lifespan
     from jobify._internal.configuration import RouteOptions
-    from jobify._internal.middleware.base import BaseMiddleware
+    from jobify._internal.middleware.base import (
+        BaseMiddleware,
+        BaseOuterMiddleware,
+    )
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
 
 
@@ -102,12 +105,17 @@ def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
 class Registrator(ABC, Generic[Route_co]):
     def __init__(
         self,
+        *,
         state: State,
-        middleware: Sequence[BaseMiddleware] | None,
         route_class: type[Route_co],
+        middleware: Sequence[BaseMiddleware] | None,
+        outer_middleware: Sequence[BaseOuterMiddleware] | None,
     ) -> None:
         self._routes: dict[str, Route_co] = {}
         self._middleware: list[BaseMiddleware] = list(middleware or [])
+        self._outer_middleware: list[BaseOuterMiddleware] = list(
+            outer_middleware or []
+        )
         self.state: State = state
         self.route_class: type[Route_co] = route_class
 
@@ -273,6 +281,9 @@ class Router(ABC):
 
     def add_middleware(self, middleware: BaseMiddleware) -> None:
         self.task._middleware.append(middleware)
+
+    def add_outer_middleware(self, middleware: BaseOuterMiddleware) -> None:
+        self.task._outer_middleware.append(middleware)
 
     def remove_route(self, name: str) -> None:
         del self.task._routes[name]

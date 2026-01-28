@@ -1,11 +1,37 @@
+import asyncio
 import inspect
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, get_origin, get_type_hints
 
 from jobify._internal.common.datastructures import RequestState, State
 from jobify._internal.configuration import JobifyConfiguration, RouteOptions
+from jobify._internal.inspection import FuncSpec
+from jobify._internal.message import AtArguments, CronArguments
 from jobify._internal.runners import Runnable
 from jobify._internal.scheduler.job import Job
+
+
+@dataclass(slots=True, kw_only=True)
+class OuterContext:
+    job: Job[Any]
+    state: State
+    trigger: AtArguments | CronArguments
+    runnable: Runnable[Any]
+    arguments: dict[str, Any]
+    func_spec: FuncSpec[Any]
+    is_force: bool
+    is_persist: bool
+    is_replace: bool
+    route_options: RouteOptions
+    jobify_config: JobifyConfiguration
+    request_state: RequestState
+    persist_job_hook: Callable[
+        [str, datetime, AtArguments | CronArguments],
+        Awaitable[None],
+    ]
+    schedule_hook: Callable[[], asyncio.Handle]
 
 
 @dataclass(slots=True, kw_only=True)

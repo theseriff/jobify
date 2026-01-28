@@ -12,6 +12,16 @@ where each piece of middleware can:
 - Break out of the chain by skipping the `call_next()` method
 """
 
-from jobify._internal.middleware.base import BaseMiddleware, CallNext
+from jobify._internal.middleware.base import (
+    BaseMiddleware,
+    BaseOuterMiddleware,
+    CallNext,
+    CallNextOuter,
+)
 
-__all__ = ("BaseMiddleware", "CallNext")
+__all__ = (
+    "BaseMiddleware",
+    "BaseOuterMiddleware",
+    "CallNext",
+    "CallNextOuter",
+)
