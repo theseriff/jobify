@@ -37,7 +37,7 @@ async def test_cron_reschedule() -> None:
         job = await t.schedule("Biba").cron("* * * * *", job_id="test")
 
         cur_exec_at = job.exec_at
-        await job.wait()
+        await asyncio.wait_for(job.wait(), timeout=1.0)
         next_exec_at = job.exec_at
 
         assert job.result() == "hello, Biba!"
@@ -60,8 +60,10 @@ async def test_max_cron_failures(amock: mock.AsyncMock) -> None:
             Cron(expression, max_failures=max_failures),
             job_id="test",
         )
-        await job.wait()
-        await job.wait()
+        _ = await asyncio.wait_for(
+            asyncio.gather(job.wait(), job.wait()),
+            timeout=1.0,
+        )
 
     amock.assert_awaited_once()
 
@@ -75,7 +77,7 @@ async def test_cron_declarative() -> None:
 
     async with app:
         job = app.task._shared_state.pending_jobs.popitem()[1]
-        await job.wait()
+        await asyncio.wait_for(job.wait(), timeout=1.0)
 
     assert job.result() == "ok"
 
@@ -135,5 +137,5 @@ async def test_cron_no_reschedule_if_app_stopped() -> None:
         return "done"
 
     async with app:
-        _s = await ran_event.wait()
+        _s = await asyncio.wait_for(ran_event.wait(), timeout=1.0)
         assert not app.task._shared_state.pending_jobs

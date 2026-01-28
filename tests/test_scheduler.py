@@ -76,7 +76,10 @@ async def test_jobify(  # noqa: PLR0913
         else:
             raise NotImplementedError
 
-        _ = await asyncio.gather(job_sync.wait(), job_async.wait())
+        _ = await asyncio.wait_for(
+            asyncio.gather(job_sync.wait(), job_async.wait()),
+            timeout=1.0,
+        )
 
     assert job_sync.result() == expected
     assert job_async.result() == expected

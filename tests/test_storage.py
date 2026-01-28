@@ -154,7 +154,10 @@ async def test_sqlite_with_jobify() -> None:
             at_scheduled,
             cron_scheduled,
         ]
-        _ = await asyncio.gather(*[job1.wait(), job2.wait(), job1_cron.wait()])
+        _ = await asyncio.wait_for(
+            asyncio.gather(job1.wait(), job2.wait(), job1_cron.wait()),
+            timeout=1.0,
+        )
 
         assert job1.result() == "biba_delay"
         assert job1_cron.result() == "biba_cron"
@@ -209,8 +212,10 @@ async def test_restore_schedules(
         assert len(app2.task._shared_state.pending_jobs) == expected_jobs
         assert job_cron_restored is app2.find_job(job_cron.id)
 
-        await job_at_restored.wait()
-        await job_cron_restored.wait()
+        _ = await asyncio.wait_for(
+            asyncio.gather(job_at_restored.wait(), job_cron_restored.wait()),
+            timeout=1.0,
+        )
         assert job_at_restored.result() == "biba_at_restore"
         assert job_cron_restored.result() == "biba_cron_restore"
 
@@ -303,7 +308,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
     async with app:
         scheduled_job1 = (await app.configs.storage.get_schedules())[0]
         job = app.task._shared_state.pending_jobs.popitem()[1]
-        await job.wait()
+        await asyncio.wait_for(job.wait(), timeout=1.0)
         assert job.result() == "test"
 
     app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
