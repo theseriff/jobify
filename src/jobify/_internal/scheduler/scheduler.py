@@ -9,7 +9,7 @@ from uuid import uuid4
 from jobify._internal.common.constants import JobStatus
 from jobify._internal.common.datastructures import RequestState, State
 from jobify._internal.configuration import Cron
-from jobify._internal.context import JobContext
+from jobify._internal.context import JobContext, OuterContext
 from jobify._internal.exceptions import DuplicateJobError, JobTimeoutError
 from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.scheduler.job import CronContext, Job
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     )
     from jobify._internal.cron_parser import CronParser
     from jobify._internal.inspection import FuncSpec
-    from jobify._internal.middleware.base import CallNext
+    from jobify._internal.middleware.base import CallNext, OuterCallNext
     from jobify._internal.runners import Runnable
     from jobify._internal.serializers.base import JSONCompat
     from jobify._internal.shared_state import SharedState
@@ -37,6 +37,7 @@ logger = logging.getLogger("jobify.scheduler")
 class ScheduleBuilder(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_chain_middleware",
+        "_chain_outer_middleware",
         "_configs",
         "_runnable",
         "_shared_state",
@@ -54,6 +55,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         jobify_config: JobifyConfiguration,
         runnable: Runnable[ReturnT],
         chain_middleware: CallNext,
+        chain_outer_middleware: OuterCallNext,
         func_spec: FuncSpec[ReturnT],
         options: RouteOptions,
         name: str,
@@ -63,6 +65,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self._configs: JobifyConfiguration = jobify_config
         self._runnable: Runnable[ReturnT] = runnable
         self._chain_middleware: CallNext = chain_middleware
+        self._chain_outer_middleware: OuterCallNext = chain_outer_middleware
         self.func_spec: FuncSpec[ReturnT] = func_spec
         self.route_options: RouteOptions = options
         self.name: str = name
@@ -86,10 +89,10 @@ class ScheduleBuilder(Generic[ReturnT]):
     ) -> None:
         await self._configs.storage.add_schedule(
             ScheduledJob.create(
-                job_id,
-                self.name,
-                self._serialize_job_message(trigger),
-                next_run_at,
+                name=self.name,
+                job_id=job_id,
+                message=self._serialize_job_message(trigger),
+                next_run_at=next_run_at,
             )
         )
 
@@ -110,7 +113,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             arguments=dumped_args,
             trigger=trigger,
         )
-        formatted_msg = self._configs.dumper.dump(msg, Message)
+        formatted_msg = dumper_hook(msg, Message)
         return self._configs.serializer.dumpb(formatted_msg)
 
     def _ensure_job_id(
@@ -288,24 +291,32 @@ class ScheduleBuilder(Generic[ReturnT]):
         replace: bool = False,
     ) -> Job[ReturnT]:
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
-
-        if self._is_persist():
-            trigger = AtArguments(at=at, job_id=job_id)
-            await self._persist_job(job_id, at, trigger)
-
         if exists_job is not None:
             exists_job.exec_at = at
-            self._schedule_execution_at(exists_job)
-            return exists_job
-
-        job = Job[ReturnT](
-            exec_at=at,
-            job_id=job_id,
-            unregister_hook=self._shared_state.unregister_job,
-            storage=self._configs.storage,
+            job = exists_job
+        else:
+            job = Job[ReturnT](
+                exec_at=at,
+                job_id=job_id,
+                storage=self._configs.storage,
+                unregister_hook=self._shared_state.unregister_job,
+            )
+        await self._chain_outer_middleware(
+            OuterContext(
+                job=job,
+                state=self._state,
+                trigger=AtArguments(at, job_id),
+                runnable=self._runnable,
+                arguments=self._runnable.bound.arguments,
+                func_spec=self.func_spec,
+                is_persist=self._is_persist(),
+                is_replace=replace,
+                route_options=self.route_options,
+                jobify_config=self._configs,
+                request_state=RequestState(),
+                schedule_hook=lambda: self._schedule_execution_at(job),
+            )
         )
-        self._schedule_execution_at(job)
-        self._shared_state.register_job(job)
         return job
 
     def _at(self, at: datetime, job_id: str) -> Job[ReturnT]:
@@ -315,11 +326,11 @@ class ScheduleBuilder(Generic[ReturnT]):
             unregister_hook=self._shared_state.unregister_job,
             storage=self._configs.storage,
         )
-        self._schedule_execution_at(job)
         self._shared_state.register_job(job)
+        _ = self._schedule_execution_at(job)
         return job
 
-    def _schedule_execution_at(self, job: Job[ReturnT]) -> None:
+    def _schedule_execution_at(self, job: Job[ReturnT]) -> asyncio.Handle:
         loop = self._configs.getloop()
         delay_seconds = self._calculate_delay_seconds(target_at=job.exec_at)
         if delay_seconds <= 0:
@@ -328,6 +339,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             when = loop.time() + delay_seconds
             handle = loop.call_at(when, self._pre_exec_at, job)
         job.bind_handle(handle)
+        return handle
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)

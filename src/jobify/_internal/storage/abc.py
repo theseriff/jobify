@@ -19,8 +19,9 @@ class ScheduledJob(NamedTuple):
     @classmethod
     def create(
         cls,
-        job_id: str,
+        *,
         name: str,
+        job_id: str,
         message: bytes,
         next_run_at: datetime,
     ) -> Self:

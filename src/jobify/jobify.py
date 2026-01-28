@@ -50,7 +50,10 @@ if TYPE_CHECKING:
 
     from jobify._internal.common.types import Lifespan, LoopFactory
     from jobify._internal.cron_parser import CronFactory, CronParser
-    from jobify._internal.middleware.base import BaseMiddleware
+    from jobify._internal.middleware.base import (
+        BaseMiddleware,
+        OuterMiddleware,
+    )
     from jobify._internal.middleware.exceptions import MappingExceptionHandlers
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
@@ -113,6 +116,7 @@ class Jobify(RootRouter):
         lifespan: Lifespan[AppT] | None = None,
         serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
+        outer_middleware: Sequence[OuterMiddleware] | None = None,
         cron_factory: CronFactory = create_crontab,
         loop_factory: LoopFactory = asyncio.get_running_loop,
         exception_handlers: MappingExceptionHandlers | None = None,
@@ -170,6 +174,7 @@ class Jobify(RootRouter):
         super().__init__(
             lifespan=lifespan,
             middleware=middleware,
+            outer_middleware=outer_middleware,
             shared_state=SharedState(),
             jobify_config=self.configs,
             exception_handlers=exception_handlers,
@@ -255,10 +260,10 @@ class Jobify(RootRouter):
                 else:
                     scheduled_to_update.append(
                         ScheduledJob.create(
-                            job_id,
-                            builder.name,
-                            builder._serialize_job_message(trigger),
-                            next_run_at,
+                            name=builder.name,
+                            job_id=job_id,
+                            message=builder._serialize_job_message(trigger),
+                            next_run_at=next_run_at,
                         )
                     )
 
@@ -359,10 +364,10 @@ class Jobify(RootRouter):
                     origin.next_run_at = next_run_at
                     scheduled_to_update.append(
                         ScheduledJob.create(
-                            job_id,
-                            builder.name,
-                            builder._serialize_job_message(trigger),
-                            next_run_at,
+                            name=builder.name,
+                            job_id=job_id,
+                            message=builder._serialize_job_message(trigger),
+                            next_run_at=next_run_at,
                         )
                     )
                 else:
