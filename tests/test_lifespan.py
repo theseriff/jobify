@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import TypedDict
@@ -21,13 +22,13 @@ async def test_lifespan_with_state() -> None:
 
     assert not hasattr(app.state, "client")
 
-    await app.startup()
+    await asyncio.wait_for(app.startup(), timeout=1.0)
 
     assert hasattr(app.state, "client")
 
     client.__aenter__.assert_awaited_once()
     client.__aexit__.assert_not_awaited()
 
-    await app.shutdown()
+    await asyncio.wait_for(app.shutdown(), timeout=1.0)
 
     client.__aexit__.assert_awaited_once()

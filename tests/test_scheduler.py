@@ -76,7 +76,10 @@ async def test_jobify(  # noqa: PLR0913
         else:
             raise NotImplementedError
 
-        _ = await asyncio.gather(job_sync.wait(), job_async.wait())
+        _ = await asyncio.wait_for(
+            asyncio.gather(job_sync.wait(), job_async.wait()),
+            timeout=1.0,
+        )
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
@@ -207,3 +210,28 @@ async def test_update_exists_job(amock: AsyncMock) -> None:
     assert offset3 == offset2
     assert start_date3 is None
     assert offset4 == start_date4 == start_date + timedelta(1)
+
+
+async def test_at_idempotent(now: datetime, amock: AsyncMock) -> None:
+    app = create_app()
+    f = app.task(amock)
+    at = now + timedelta(1)
+    async with app:
+        job1 = await f.schedule().at(at, job_id="test")
+        job2 = await f.schedule().at(at, job_id="test", replace=True)
+        assert job1 is job2
+
+
+async def test_cron_def_idempotent() -> None:
+    storage = SQLiteStorage("temp_test.db")
+    for _n in range(2):
+        app = Jobify(storage=storage)
+
+        @app.task(cron="0 12 1 1 1")
+        async def _() -> None:
+            pass
+
+        async with app:
+            pass
+
+    storage.database.unlink()

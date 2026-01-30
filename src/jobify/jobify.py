@@ -9,7 +9,6 @@ import signal
 import sys
 import threading
 from contextlib import contextmanager
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
 from zoneinfo import ZoneInfo
 
@@ -25,6 +24,7 @@ from jobify._internal.message import AtArguments, CronArguments, Message
 from jobify._internal.router.root import (
     CRONS_DEF_KEY,
     CronsDefinition,
+    RootRoute,
     RootRouter,
 )
 from jobify._internal.scheduler.misfire_policy import (
@@ -35,26 +35,29 @@ from jobify._internal.scheduler.misfire_policy import (
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
 from jobify._internal.shared_state import SharedState
-from jobify._internal.storage.abc import ScheduledJob
 from jobify._internal.storage.dummy import DummyStorage
 from jobify._internal.storage.sqlite import SQLiteStorage
 from jobify._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobify.crontab import create_crontab
 
 if TYPE_CHECKING:
+    import inspect
     from collections.abc import Callable, Iterator, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from datetime import datetime
     from types import FrameType, TracebackType
 
     from jobify._internal.common.types import Lifespan, LoopFactory
-    from jobify._internal.cron_parser import CronFactory, CronParser
-    from jobify._internal.middleware.base import BaseMiddleware
+    from jobify._internal.cron_parser import CronFactory
+    from jobify._internal.middleware.base import (
+        BaseMiddleware,
+        BaseOuterMiddleware,
+    )
     from jobify._internal.middleware.exceptions import MappingExceptionHandlers
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import Storage
+    from jobify._internal.storage.abc import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 HANDLED_SIGNALS = (
@@ -70,14 +73,6 @@ logger = logging.getLogger("Jobify")
 AppT = TypeVar("AppT", bound="Jobify")
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
-
-
-@dataclass(slots=True)
-class _CronSchedule:
-    arg: CronArguments
-    builder: ScheduleBuilder[Any]
-    next_run_at: datetime
-    cron_parser: CronParser
 
 
 def cache_result(f: Callable[ParamsT, ReturnT]) -> Callable[ParamsT, ReturnT]:
@@ -112,11 +107,13 @@ class Jobify(RootRouter):
         lifespan: Lifespan[AppT] | None = None,
         serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
+        outer_middleware: Sequence[BaseOuterMiddleware] | None = None,
         cron_factory: CronFactory = create_crontab,
         loop_factory: LoopFactory = asyncio.get_running_loop,
         exception_handlers: MappingExceptionHandlers | None = None,
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
+        route_class: type[RootRoute[..., Any]] = RootRoute,
     ) -> None:
         """Initialize a `Jobify` instance."""
         getloop = cache_result(loop_factory)
@@ -168,9 +165,11 @@ class Jobify(RootRouter):
         super().__init__(
             lifespan=lifespan,
             middleware=middleware,
+            outer_middleware=outer_middleware,
             shared_state=SharedState(),
             jobify_config=self.configs,
             exception_handlers=exception_handlers,
+            route_class=route_class,
         )
         self._captured_signals: list[int] = []
 
@@ -223,165 +222,139 @@ class Jobify(RootRouter):
         await self._restore_schedules()
 
     async def _restore_schedules(self) -> None:
+        """Restore schedules.
+
+        Phase 1: Synchronize Declarative Cron Jobs (Code and Database)
+            - If there are changes or new jobs, run the full process
+              (middleware and database persistence).
+            - If no changes, silently restore jobs in memory.
+        Phase 2: Restore Imperative Jobs (Database Only)
+            - Restore valid jobs and delete obsolete ones from the database.
+        """
         crons_def: CronsDefinition = self.state.pop(CRONS_DEF_KEY, {})
         schedules = await self.configs.storage.get_schedules()
+
+        to_delete: list[str] = []
+        processed_jobs: set[str] = set()
         db_map = {sch.job_id: sch for sch in schedules}
 
-        at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]] = {}
-        crons_args: dict[str, _CronSchedule] = {}
-        crons_def_persist: set[str] = set()
-        scheduled_to_update: list[ScheduledJob] = []
-        scheduled_to_delete: list[str] = []
-
-        for job_id, (rout, cron) in crons_def.items():
+        # --- PHASE 1: Declarative Crons ---
+        for job_id, (rout, cron_def) in crons_def.items():
+            processed_jobs.add(job_id)
             builder = rout.schedule()
-            offset = builder.now()
 
-            cron_parser = self.configs.cron_factory(cron.expression)
-            next_run_at = cron_parser.next_run(now=offset)
-            trigger = CronArguments(cron, job_id, offset)
-            crons_args[job_id] = _CronSchedule(
-                trigger,
-                builder,
-                next_run_at,
-                cron_parser,
-            )
-            if builder._is_persist():
-                if job_id in db_map:
-                    crons_def_persist.add(job_id)
-                else:
-                    scheduled_to_update.append(
-                        ScheduledJob.create(
-                            job_id,
-                            builder.name,
-                            builder._serialize_job_message(trigger),
-                            next_run_at,
-                        )
+            if (sch_in_db := db_map.get(job_id)) is not None:
+                restored = self._restore_job_from_storage(sch_in_db)
+                if (
+                    restored is not None
+                    and (msg := restored[1])
+                    and isinstance(msg.trigger, CronArguments)
+                ):
+                    self._start_restored_job_in_memory(
+                        restored,
+                        sch_in_db.next_run_at,
                     )
+                    if msg.trigger.cron == cron_def:
+                        continue
 
-        loadb = self.configs.serializer.loadb
-        type_adaptive = self.configs.loader.load
+            _ = await builder.cron(
+                cron_def,
+                job_id=job_id,
+                replace=True,
+                force=True,
+            )
 
+        # --- PHASE 2: Dynamic/Imperative Jobs & Cleanup ---
         for job_id, sch in db_map.items():
-            route = self.task._routes.get(sch.name, ...)
-            if (
-                route is ...
-                or route.options.get("durable") is False
-                or (
-                    job_id.endswith(PATCH_CRON_DEF_ID)
-                    and job_id not in crons_def
-                )
-            ):
-                scheduled_to_delete.append(job_id)
+            if job_id in processed_jobs:
                 continue
-            try:
-                msg = type_adaptive(loadb(sch.message), Message)
-                for name, raw_arg in msg.arguments.items():
-                    param_type = route.func_spec.params_type[name]
-                    msg.arguments[name] = type_adaptive(raw_arg, param_type)
-                bound = route.func_spec.signature.bind(**msg.arguments)
-            except (KeyError, TypeError, ValueError) as exc:
-                # KeyError: The function has been removed from the router
-                #   (the code has changed).
-                # TypeError: The arguments in the database do not match the new
-                #   function signature.
-                # ValueError: Serializer error.
-                warn = (
-                    f"Cannot restore <job_id {job_id!r}>"
-                    f"<name {sch.name!r}>.\n"
-                    f"Exception Type: {type(exc)}. "
-                    f"Reason: {exc}. Removing from storage."
-                )
-                logger.warning(warn)
-                scheduled_to_delete.append(job_id)
-            except Exception:  # pragma: no cover
-                err = f"Unexpected error restoring job {job_id}"
-                logger.exception(err)
-                scheduled_to_delete.append(job_id)
-            else:
-                builder = route.create_builder(bound)
-                self._handle_trigger(
-                    msg.trigger,
-                    builder,
-                    scheduled_to_update,
-                    crons_def_persist,
-                    crons_args,
-                    at_args,
-                )
-        await self.configs.storage.add_schedule(*scheduled_to_update)
-        await self.configs.storage.delete_schedule_many(scheduled_to_delete)
-        self._start_pending_schedules(crons_args, at_args)
 
-    def _handle_trigger(  # noqa: PLR0913
+            if job_id.endswith(PATCH_CRON_DEF_ID):
+                to_delete.append(job_id)
+                continue
+
+            if (restored := self._restore_job_from_storage(sch)) is not None:
+                self._start_restored_job_in_memory(restored, sch.next_run_at)
+                continue
+
+            to_delete.append(job_id)
+
+        if to_delete:
+            logger.info("Cleaning up %d obsolete/broken jobs", len(to_delete))
+            await self.configs.storage.delete_schedule_many(to_delete)
+
+    def _restore_job_from_storage(
         self,
-        trigger: CronArguments | AtArguments,
-        builder: ScheduleBuilder[Any],
-        scheduled_to_update: list[ScheduledJob],
-        crons_declare_persist: set[str],
-        crons_args: dict[str, _CronSchedule],
-        at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
-    ) -> None:
-        match trigger:
-            case CronArguments(db_cron, job_id, db_offset) as trigger:
-                if job_id in crons_declare_persist:
-                    origin = crons_args[job_id]
-                    new_cron = origin.arg.cron
-                    new_builder = origin.builder
+        sch: ScheduledJob,
+    ) -> tuple[ScheduleBuilder[Any], Message, inspect.BoundArguments] | None:
+        """Safely deserializes and binds a job from storage.
 
-                    offset, next_run_at = new_builder._calculate_next_run_at(
-                        old_cron=db_cron,
-                        new_cron=new_cron,
-                        real_now=new_builder.now(),
-                        parser=origin.cron_parser,
-                        offset=db_offset,
-                    )
-                    trigger.cron = new_cron
-                    trigger.run_count = 0
-                    trigger.offset = offset
-                    origin.arg.run_count = 0
-                    origin.arg.offset = offset
-                    origin.next_run_at = next_run_at
-                    scheduled_to_update.append(
-                        ScheduledJob.create(
-                            job_id,
-                            builder.name,
-                            builder._serialize_job_message(trigger),
-                            next_run_at,
-                        )
-                    )
-                else:
-                    parser = self.configs.cron_factory(db_cron.expression)
-                    next_run_at = handle_misfire_policy(
-                        parser,
-                        parser.next_run(now=db_offset),
-                        builder.now(),
-                        db_cron.misfire_policy,
-                    )
-                    crons_args[job_id] = _CronSchedule(
-                        trigger,
-                        builder,
-                        next_run_at,
-                        parser,
-                    )
-            case AtArguments(_, job_id) as trigger:
-                at_args[job_id] = (builder, trigger)
+        Returns:
+            Tuple (Builder, Message, BoundArguments) or None if failed.
 
-    def _start_pending_schedules(
-        self,
-        crons_args: dict[str, _CronSchedule],
-        at_args: dict[str, tuple[ScheduleBuilder[Any], AtArguments]],
-    ) -> None:
-        for cron in crons_args.values():
-            _ = cron.builder._create_cron_job(
-                cron=cron.arg.cron,
-                job_id=cron.arg.job_id,
-                next_run_at=cron.next_run_at,
-                cron_parser=cron.cron_parser,
-                offset=cron.arg.offset,
-                run_count=cron.arg.run_count,
+        """
+        route = self.task._routes.get(sch.name)
+        if not route or route.options.get("durable") is False:
+            return None
+        try:
+            raw_msg = self.configs.serializer.loadb(sch.message)
+            msg = self.configs.loader.load(raw_msg, Message)
+
+            for name, raw_arg in msg.arguments.items():
+                param_type = route.func_spec.params_type[name]
+                msg.arguments[name] = self.configs.loader.load(
+                    raw_arg,
+                    param_type,
+                )
+            bound = route.func_spec.signature.bind(**msg.arguments)
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to revive job %s (%s). Reason: %s",
+                sch.job_id,
+                sch.name,
+                exc,
             )
-        for builder, arg in at_args.values():
-            _ = builder._at(arg.at, arg.job_id)
+            return None
+        else:
+            builder = route.create_builder(bound)
+            return builder, msg, bound
+
+    def _start_restored_job_in_memory(
+        self,
+        restored_data: tuple[
+            ScheduleBuilder[Any],
+            Message,
+            inspect.BoundArguments,
+        ],
+        db_next_run_at: datetime,
+    ) -> None:
+        """Start the internal timer for a restored job.
+
+        IMPORTANT: This bypasses middleware and database persistence.
+        It handles misfire policy to ensure we do not execute old jobs
+        incorrectly.
+        """
+        builder, msg, _ = restored_data
+        trigger = msg.trigger
+        match trigger:
+            case CronArguments():
+                parser = self.configs.cron_factory(trigger.cron.expression)
+                next_run_at = handle_misfire_policy(
+                    cron_parser=parser,
+                    next_run_at=db_next_run_at,
+                    real_now=builder.now(),
+                    policy=trigger.cron.misfire_policy,
+                )
+                builder._cron(
+                    cron=trigger.cron,
+                    job_id=trigger.job_id,
+                    offset=trigger.offset,
+                    next_run_at=next_run_at,
+                    cron_parser=parser,
+                    run_count=trigger.run_count,
+                )
+            case AtArguments():
+                builder._at(trigger.at, trigger.job_id)
 
     async def __aexit__(
         self,

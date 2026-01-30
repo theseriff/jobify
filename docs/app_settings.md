@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
 
 from adaptix import Retort
+from dishka_jobify import DishkaRoute
 
 from jobify import Jobify
 from jobify.crontab import create_crontab
@@ -30,11 +31,13 @@ app = Jobify(
     lifespan=mylifespan,
     serializer=JSONSerializer(),
     middleware=[],
+    outer_middleware=[],
     cron_factory=create_crontab,
     loop_factory=asyncio.get_running_loop,
     exception_handlers={},
     threadpool_executor=ThreadPoolExecutor(max_workers=4),
     processpool_executor=ProcessPoolExecutor(max_workers=3),
+    route_class=DishkaRoute,
 )
 ```
 
@@ -207,6 +210,48 @@ class SkipMiddleware(BaseMiddleware):
         return await call_next(context)
 ```
 
+## outer_middleware
+
+- **Type**: `Sequence[BaseOuterMiddleware] | None`
+- **Default**: `None`
+
+A sequence of middleware that intercepts the **scheduling process** itself.
+Unlike regular middleware, which runs when a job _executes_, outer middleware runs when you call `.schedule().at/delay(...)` or `.cron(...)`.
+
+This allows you to:
+
+- Modify job arguments before they are saved or scheduled.
+- Prevent a job from being scheduled under certain conditions.
+- Perform additional actions (like logging) when the job is scheduled.
+
+It receives an `OuterContext` object that contains information about the scheduling request (trigger, arguments, etc.).
+
+!!! warning "Execution Logic"
+    By default, the outer middleware is only executed when a job is newly created or when its configuration (schedule, arguments) has changed.
+    This prevents unnecessary side effects, such as spamming logs or metrics, when the application is restarted or when the same schedule is applied idempotently.
+
+    If you need the middleware to run every time .schedule() is called, regardless of whether the job has changed, you can pass `force=True` as an argument.
+
+Example:
+
+```python
+import asyncio
+from jobify import Jobify, OuterContext
+from jobify.middleware import BaseOuterMiddleware, CallNextOuter
+
+class ScheduleLoggerMiddleware(BaseOuterMiddleware):
+    async def __call__(
+        self, call_next: CallNextOuter, context: OuterContext
+    ) -> asyncio.Handle:
+        print(
+            f"Scheduling job {context.job.id} with trigger: {context.trigger}"
+        )
+        # You can inspect context.arguments, context.trigger, etc.
+        return await call_next(context)
+
+app = Jobify(outer_middleware=[ScheduleLoggerMiddleware()])
+```
+
 ## cron_factory
 
 - **Type**: `CronFactory | None`
@@ -239,3 +284,15 @@ Executors for running tasks in separate threads or processes.
 - `processpool_executor`: This is used for running synchronous, CPU-intensive functions in a separate process in order to avoid blocking the main event loop and the Global Interpreter Lock (GIL).
 
 If not specified, `Jobify` will automatically create and manage executors as needed.
+
+## route_class
+
+- **Type**: `type[RootRoute] | None`
+- **Default**: `jobify.router.RootRoute`
+
+The `route_class` parameter allows you to specify a custom class for handling tasks.
+This is an advanced feature that can be used to integrate with dependency injection frameworks or customize how tasks are executed.
+
+By default, tasks are handled by the `jobify.router.RootRoute` class.
+However, you can create a subclass of this class and override its methods to change the behavior of tasks.
+If a custom `route_class` is specified, it will be used globally for all tasks and routers in the `Jobify` application.

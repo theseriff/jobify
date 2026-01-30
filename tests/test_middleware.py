@@ -1,12 +1,17 @@
 import asyncio
 from typing import Any
 from unittest import mock
-from unittest.mock import call
+from unittest.mock import AsyncMock, call
 
 from typing_extensions import override
 
-from jobify import JobContext, JobStatus
-from jobify.middleware import BaseMiddleware, CallNext
+from jobify import JobContext, JobStatus, OuterContext
+from jobify.middleware import (
+    BaseMiddleware,
+    BaseOuterMiddleware,
+    CallNext,
+    CallNextOuter,
+)
 from tests.conftest import create_app
 
 
@@ -84,3 +89,24 @@ async def test_retry(
     sleep_mock.assert_has_awaits(
         mock.call(min(2**attempt, 60)) for attempt in range(retry)
     )
+
+
+async def test_outer_middlewares(amock: AsyncMock) -> None:
+    handle: asyncio.Handle | None = None
+
+    class MyOuterMiddleware(BaseOuterMiddleware):
+        @override
+        async def __call__(
+            self,
+            call_next: CallNextOuter,
+            context: OuterContext,
+        ) -> Any:
+            nonlocal handle
+            handle = await call_next(context)
+
+    app = create_app()
+    f = app.task(amock)
+    app.add_outer_middleware(MyOuterMiddleware())
+    async with app:
+        job = await f.schedule().delay(0.01)
+        assert job._handle is handle is not None

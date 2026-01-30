@@ -34,6 +34,9 @@ async def test_app_runtime_error() -> None:
             app.add_middleware(Mock())
 
         with pytest.raises(ApplicationStateError, match=reason):
+            app.add_outer_middleware(Mock())
+
+        with pytest.raises(ApplicationStateError, match=reason):
             app.add_exception_handler(Exception, Mock())
 
 

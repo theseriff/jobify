@@ -37,7 +37,7 @@ async def test_cron_reschedule() -> None:
         job = await t.schedule("Biba").cron("* * * * *", job_id="test")
 
         cur_exec_at = job.exec_at
-        await job.wait()
+        await asyncio.wait_for(job.wait(), timeout=1.0)
         next_exec_at = job.exec_at
 
         assert job.result() == "hello, Biba!"
@@ -60,8 +60,10 @@ async def test_max_cron_failures(amock: mock.AsyncMock) -> None:
             Cron(expression, max_failures=max_failures),
             job_id="test",
         )
-        await job.wait()
-        await job.wait()
+        _ = await asyncio.wait_for(
+            asyncio.gather(job.wait(), job.wait()),
+            timeout=1.0,
+        )
 
     amock.assert_awaited_once()
 
@@ -75,7 +77,7 @@ async def test_cron_declarative() -> None:
 
     async with app:
         job = app.task._shared_state.pending_jobs.popitem()[1]
-        await job.wait()
+        await asyncio.wait_for(job.wait(), timeout=1.0)
 
     assert job.result() == "ok"
 
@@ -104,24 +106,29 @@ def test_misfire_policy() -> None:
     next_run_at = cron_parser.next_run(now=real_now - timedelta(days=7))
     handler = functools.partial(
         handle_misfire_policy,
-        cron_parser,
-        next_run_at,
-        real_now,
+        cron_parser=cron_parser,
+        next_run_at=next_run_at,
+        real_now=real_now,
     )
 
     assert str(GracePolicy(timedelta(days=1)))
-    assert handler(MisfirePolicy.ALL) == next_run_at
-    assert handler(MisfirePolicy.SKIP) == cron_parser.next_run(now=real_now)
-    assert handler(MisfirePolicy.ONCE) == real_now
-    assert handler(MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
+    assert handler(policy=MisfirePolicy.ALL) == next_run_at
+    assert handler(policy=MisfirePolicy.SKIP) == cron_parser.next_run(
+        now=real_now
+    )
+    assert handler(policy=MisfirePolicy.ONCE) == real_now
+    assert (
+        handler(policy=MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
+    )
     expected_next_run_at = cron_parser.next_run(
         now=real_now - timedelta(days=6)
     )
     assert (
-        handler(MisfirePolicy.GRACE(timedelta(days=6))) == expected_next_run_at
+        handler(policy=MisfirePolicy.GRACE(timedelta(days=6)))
+        == expected_next_run_at
     )
     invalid_enum_type: Any = "InvalidEnumType"
-    assert handler(invalid_enum_type) is None
+    assert handler(policy=invalid_enum_type) is None
 
 
 async def test_cron_no_reschedule_if_app_stopped() -> None:
@@ -135,5 +142,5 @@ async def test_cron_no_reschedule_if_app_stopped() -> None:
         return "done"
 
     async with app:
-        _s = await ran_event.wait()
+        _s = await asyncio.wait_for(ran_event.wait(), timeout=1.0)
         assert not app.task._shared_state.pending_jobs

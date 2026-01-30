@@ -26,6 +26,7 @@ class MisfirePolicy(str, Enum):
 
 
 def handle_misfire_policy(
+    *,
     cron_parser: CronParser,
     next_run_at: datetime,
     real_now: datetime,

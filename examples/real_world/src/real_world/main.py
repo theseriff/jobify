@@ -9,7 +9,7 @@ import logging
 
 from jobify import Cron, Jobify, JobRouter, MisfirePolicy
 from real_world.backup_db import backup_router, schedule_daily_backups
-from real_world.configs import load_configs
+from real_world.configs import Configs
 from real_world.notifications import notifications_router, send_email_alert
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def setup_routes(app: Jobify) -> None:
 
 def create_app() -> Jobify:
     """Create and configure Jobify application instance."""
-    configs = load_configs()
+    configs = Configs.from_env()
     app = Jobify(tz=configs.tz)
     app.state.configs = configs
     setup_routes(app)

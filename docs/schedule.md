@@ -116,14 +116,20 @@ schedule(*args, **kwargs).cron(
     *,
     job_id: str, # Required unique identifier for the job.
     replace: bool = False, # If True, updates the existing job.
+    force: bool = False, # Force scheduling even if the job already exists with the same parameters.
 )
 ```
 
-!!! info "Idempotency During Replacement"
+!!! warning "Outer Middleware Execution"
+    By default, the **Outer Middleware** is only executed when a new job is created or when an existing job's parameters are updated, such as a new schedule or different arguments.
+    If you try to schedule a job with identical configuration to an existing job, the outer middleware will not be executed to prevent unnecessary side effects like logging or metric spam.
+
+    To ensure that the outer middleware always runs, set `force=True`.
+
+!!! info "Idempotency during Replacement"
     - When using replace=True for cron jobs, the scheduler will preserve the current execution progress if the start_date has not changed in your code.
     - This prevents "double-firing" or schedule resets during app redeploys.
     - If the start_date is modified, however, the schedule will be "hard-reset" to the new date.
-
 
 example:
 
@@ -166,6 +172,7 @@ schedule(*args, **kwargs).delay(
     job_id: str | None = None, # Optional unique identifier for the job.
     now: datetime | None = None, # Optional reference datetime.
     replace: bool = False, # If True, updates the existing job.
+    force: bool = False, # Force scheduling even if the job already exists with the same parameters.
 )
 ```
 example:
@@ -203,6 +210,7 @@ schedule(*args, **kwargs).at(
     *,
     job_id: str | None = None, # Optional unique identifier for the job.
     replace: bool = False, # If True, updates the existing job.
+    force: bool = False, # Force scheduling even if the job already exists with the same parameters.
 )
 ```
 

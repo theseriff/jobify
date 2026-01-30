@@ -73,6 +73,8 @@ class Job(Generic[ReturnT]):
         self.exception: Exception | None = None
         self.exec_at = exec_at
 
+        self._event.set()
+
     @property
     def cron_expression(self) -> str | None:
         if self._cron_context is not None:
@@ -115,16 +117,9 @@ class Job(Generic[ReturnT]):
         self.exception = exc
         self._status = status
 
-    def update(
-        self,
-        *,
-        exec_at: datetime,
-        job_status: JobStatus,
-        time_handler: asyncio.TimerHandle,
-    ) -> None:
-        self._status = job_status
+    def update(self, *, exec_at: datetime, status: JobStatus) -> None:
+        self._status = status
         self._event = asyncio.Event()
-        self._handle = time_handler
         self.exec_at = exec_at
 
     def is_done(self) -> bool:

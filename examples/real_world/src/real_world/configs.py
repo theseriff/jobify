@@ -12,11 +12,11 @@ class Configs(NamedTuple):
     cron: str
     db_file_path: str
 
-
-def load_configs() -> Configs:
-    """Load configurations from environment variables with defaults."""
-    return Configs(
-        tz=ZoneInfo(os.getenv("TZ", "UTC")),
-        cron=os.getenv("CRON", "@daily"),  # Default to midnight
-        db_file_path=os.getenv("DB_FILE_PATH", "db.sqlite"),
-    )
+    @classmethod
+    def from_env(cls) -> "Configs":
+        """Load configurations from environment variables with defaults."""
+        return cls(
+            tz=ZoneInfo(os.getenv("TZ", "UTC")),
+            cron=os.getenv("CRON", "@daily"),  # Default to midnight
+            db_file_path=os.getenv("DB_FILE_PATH", "db.sqlite"),
+        )
