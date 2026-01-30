@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-01-30)
+
+### Documentation
+
+- Add contributing guidelines and update documentation
+  ([`e77b483`](https://github.com/theseriff/jobify/commit/e77b483382e68520cf974f9608951a5553423782))
+
+- Document OuterMiddleware, OuterContext and force parameter
+  ([`0d2e139`](https://github.com/theseriff/jobify/commit/0d2e139ca8343bc19023e3ad79532f671246c643))
+
+- Update README.md
+  ([`9969e02`](https://github.com/theseriff/jobify/commit/9969e02b1b0fd9325eb843925949e4c14e327087))
+
+### Features
+
+- **middleware**: Introduce outer middleware for job scheduling
+  ([`2a9d366`](https://github.com/theseriff/jobify/commit/2a9d3660ff28eab5043969b08afc9698c96aedff))
+
+- **router**: Support custom route_class for Jobify and JobRouter
+  ([`e32f94a`](https://github.com/theseriff/jobify/commit/e32f94a6bfd72acca250dd647217a45b9109b0b2))
+
+
 ## v0.5.2 (2026-01-25)
 
 ### Bug Fixes
