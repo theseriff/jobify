@@ -135,11 +135,11 @@ async with app:
     job = await my_task.schedule().delay(0)
 ```
 
-## Router-level Lifespan and Middleware
+## Router-level Lifespan, Middleware, and Outer Middleware
 
-Just like the main `Jobify` app, each `JobRouter` can have its own `middleware` and `lifespan` events.
+Similar to the main `Jobify` application, each `JobRouter` has its own `middleware`, `outerMiddleware`, and `lifespan` events.
 
-- **Middleware** applied to a parent router will also be applied to all of its sub-routers, in addition to any middleware they have defined.
+- **Middleware** and **Outer Middleware** applied to a parent router will also be applied to all of its sub-routers, in addition to any middleware they have defined.
 - **Lifespan** events on a router can be useful for managing resources related to a specific group of tasks, such as connecting to a particular service.
 
 ```python

@@ -60,3 +60,23 @@ def my_other_job(current_job: Job[None] = INJECT) -> None:
 ```
 
 You can inject any attribute of the `JobContext` by using its type hint (e.g., `Job`, `State`, `JobifyConfiguration`).
+
+# OuterContext
+
+`OuterContext` is similar to `JobContext`, but it is used exclusively during the scheduling phase by **outer middleware**.
+It provides information about a job before it is registered with the scheduler or persisted in the database.
+
+## `OuterContext` Attributes
+
+- `job: Job[Any]`: The job object that is being scheduled.
+- `trigger: AtArguments | CronArguments`: Details of the scheduling trigger (e.g., specific time or cron expression).
+- `runnable: Runnable[Any]`: The internal runnable object.
+- `arguments: dict[str, Any]`: Arguments passed to the job function.
+- `func_spec: FuncSpec[Any]`: Metadata about the job function (signature, etc.).
+- `is_force: bool`: Whether `force=True` was passed as an argument.
+- `is_persist: bool`: Whether the job should be persisted to storage.
+- `is_replace: bool`: Whether `replace=True` was passed as an argument.
+- `state: State`: The global application state.
+- `route_options: RouteOptions`: Configuration options for the route.
+- `jobify_config: JobifyConfiguration`: Global application configuration.
+- `request_state: RequestState`: A temporary object used during the scheduling process.
