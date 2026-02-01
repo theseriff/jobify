@@ -60,7 +60,7 @@ class Job(Generic[ReturnT]):
         storage: Storage,
         exec_at: datetime,
         unregister_hook: Callable[[str], None],
-        job_status: JobStatus = JobStatus.SCHEDULED,
+        job_status: JobStatus = JobStatus.PENDING,
     ) -> None:
         self._unregister_hook = unregister_hook
         self._event = asyncio.Event()
@@ -85,12 +85,22 @@ class Job(Generic[ReturnT]):
     def status(self) -> JobStatus:
         return self._status
 
+    @status.setter
+    def status(self, new_status: JobStatus, /) -> None:
+        self._status = new_status
+
     @override
     def __repr__(self) -> str:
+        if self.cron_expression is not None:
+            cron_info = f", cron={self.cron_expression!r}"
+        else:
+            cron_info = ""
         return (
-            f"{self.__class__.__qualname__}("
-            f"instance_id={id(self)}, "
-            f"exec_at={self.exec_at.isoformat()}"
+            f"<{type(self).__name__} "
+            f"id={self.id!r}, "
+            f"status={self._status.value!r}, "
+            f"exec_at={self.exec_at.isoformat()!r}"
+            f"{cron_info}>"
         )
 
     def bind_handle(self, handle: asyncio.Handle) -> None:

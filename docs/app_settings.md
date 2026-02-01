@@ -10,10 +10,10 @@ from contextlib import asynccontextmanager
 from zoneinfo import ZoneInfo
 
 from adaptix import Retort
-from dishka_jobify import DishkaRoute
 
 from jobify import Jobify
 from jobify.crontab import create_crontab
+from jobify.router import RootRoute
 from jobify.serializers import JSONSerializer
 from jobify.storage import SQLiteStorage
 
@@ -37,7 +37,7 @@ app = Jobify(
     exception_handlers={},
     threadpool_executor=ThreadPoolExecutor(max_workers=4),
     processpool_executor=ProcessPoolExecutor(max_workers=3),
-    route_class=DishkaRoute,
+    route_class=RootRoute,
 )
 ```
 

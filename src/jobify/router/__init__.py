@@ -4,6 +4,7 @@ Includes JobRouter for grouping tasks into logical units, and RootRoute
 and NodeRoute classes as basis for task execution and hierarchical routing.
 """
 
+from jobify._internal.router.base import Route
 from jobify._internal.router.node import NodeRoute
 from jobify._internal.router.node import NodeRouter as JobRouter
 from jobify._internal.router.root import RootRoute
@@ -12,4 +13,5 @@ __all__ = (
     "JobRouter",
     "NodeRoute",
     "RootRoute",
+    "Route",
 )
