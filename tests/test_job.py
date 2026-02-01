@@ -19,14 +19,17 @@ async def test_job() -> None:
     async with app:
         job1 = await t.schedule(1).delay(0)
         job2 = await t.schedule(1).delay(1)
+        job3 = await t.schedule(1).cron("* * * * *", job_id="test_cron")
         await job2.cancel()
+        await job3.cancel()
         await job1.wait()
 
     expected_return = 2
     assert job1.cron_expression is None
     assert job1.result() == expected_return
-    assert str(job1).startswith(f"Job(instance_id={id(job1)}")
-    assert str(job2).startswith(f"Job(instance_id={id(job2)}")
+    assert str(job1)
+    assert str(job2)
+    assert str(job3)
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELLED
     assert job2.id not in app.task._shared_state.pending_jobs

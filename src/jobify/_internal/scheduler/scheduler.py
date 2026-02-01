@@ -370,7 +370,7 @@ class ScheduleBuilder(Generic[ReturnT]):
                 _ = self._schedule_execution_cron(ctx)
                 return
 
-            job._status = JobStatus.PERMANENTLY_FAILED
+            job.status = JobStatus.PERMANENTLY_FAILED
             logger.warning(
                 "Job %s stopped due to max failures policy (%s/%s)",
                 job.id,
@@ -380,7 +380,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self._shared_state.unregister_job(job.id)
 
     async def _exec_job(self, job: Job[ReturnT]) -> None:
-        job._status = JobStatus.RUNNING
+        job.status = JobStatus.RUNNING
         job_context = JobContext(
             job=job,
             state=self._state,

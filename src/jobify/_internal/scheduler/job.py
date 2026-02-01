@@ -45,12 +45,12 @@ class Job(Generic[ReturnT]):
         "_event",
         "_handle",
         "_result",
-        "_status",
         "_storage",
         "_unregister_hook",
         "exception",
         "exec_at",
         "id",
+        "status",
     )
 
     def __init__(
@@ -60,16 +60,16 @@ class Job(Generic[ReturnT]):
         storage: Storage,
         exec_at: datetime,
         unregister_hook: Callable[[str], None],
-        job_status: JobStatus = JobStatus.SCHEDULED,
+        job_status: JobStatus = JobStatus.PENDING,
     ) -> None:
         self._unregister_hook = unregister_hook
         self._event = asyncio.Event()
         self._result: ReturnT = EMPTY
-        self._status = job_status
         self._storage = storage
         self._handle: asyncio.Handle | None = None
         self._cron_context: CronContext[ReturnT] | None = None
         self.id = job_id
+        self.status = job_status
         self.exception: Exception | None = None
         self.exec_at = exec_at
 
@@ -81,16 +81,18 @@ class Job(Generic[ReturnT]):
             return self._cron_context.cron.expression
         return None
 
-    @property
-    def status(self) -> JobStatus:
-        return self._status
-
     @override
     def __repr__(self) -> str:
+        if self.cron_expression is not None:
+            cron_info = f", cron={self.cron_expression!r}"
+        else:
+            cron_info = ""
         return (
-            f"{self.__class__.__qualname__}("
-            f"instance_id={id(self)}, "
-            f"exec_at={self.exec_at.isoformat()}"
+            f"<{type(self).__name__} "
+            f"id={self.id!r}, "
+            f"status={self.status.value!r}, "
+            f"exec_at={self.exec_at.isoformat()!r}"
+            f"{cron_info}>"
         )
 
     def bind_handle(self, handle: asyncio.Handle) -> None:
@@ -111,14 +113,14 @@ class Job(Generic[ReturnT]):
 
     def set_result(self, val: ReturnT, *, status: JobStatus) -> None:
         self._result = val
-        self._status = status
+        self.status = status
 
     def set_exception(self, exc: Exception, *, status: JobStatus) -> None:
         self.exception = exc
-        self._status = status
+        self.status = status
 
     def update(self, *, exec_at: datetime, status: JobStatus) -> None:
-        self._status = status
+        self.status = status
         self._event = asyncio.Event()
         self.exec_at = exec_at
 
@@ -126,7 +128,7 @@ class Job(Generic[ReturnT]):
         return self._event.is_set()
 
     def is_reschedulable(self) -> bool:
-        return self._status not in (
+        return self.status not in (
             JobStatus.PERMANENTLY_FAILED,
             JobStatus.CANCELLED,
         )
@@ -140,7 +142,7 @@ class Job(Generic[ReturnT]):
         _ = await self._event.wait()
 
     async def cancel(self) -> None:
-        self._status = JobStatus.CANCELLED
+        self.status = JobStatus.CANCELLED
         self._cancel()
         await self._storage.delete_schedule(self.id)
 

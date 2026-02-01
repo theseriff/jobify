@@ -11,6 +11,7 @@ PATCH_CRON_DEF_ID = "__jobify_cron_definition"
 
 @unique
 class JobStatus(str, Enum):
+    PENDING = "pending"
     SCHEDULED = "scheduled"
     RUNNING = "running"
     CANCELLED = "cancelled"

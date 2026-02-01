@@ -18,6 +18,7 @@ from typing_extensions import override
 from jobify._internal.common.constants import (
     PATCH_CRON_DEF_ID,
     PATCH_FUNC_NAME,
+    JobStatus,
 )
 from jobify._internal.configuration import Cron
 from jobify._internal.context import OuterContext, inject_context
@@ -355,7 +356,9 @@ class RootRouter(Router):
                 context.trigger,
             )
         self.task._shared_state.register_job(context.job)
-        return context.schedule_hook()
+        handle = context.schedule_hook()
+        context.job.status = JobStatus.SCHEDULED
+        return handle
 
     async def _execution(self, context: JobContext) -> Any:  # noqa: ANN401
         inject_context(context)
