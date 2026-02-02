@@ -105,7 +105,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         params_type = self.func_spec.params_type
         args_dumped = {
             name: dumper(arg, params_type[name])
-            for name, arg in self._runnable.bound.arguments.items()
+            for name, arg in self._runnable.origin_arguments.items()
         }
         msg = Message(
             job_id=job_id,
