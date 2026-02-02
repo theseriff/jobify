@@ -7,10 +7,18 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from jobify import Cron, GracePolicy, MisfirePolicy
+from jobify import (
+    INJECT,
+    Cron,
+    GracePolicy,
+    Jobify,
+    MisfirePolicy,
+    RequestState,
+)
 from jobify._internal.scheduler.misfire_policy import handle_misfire_policy
 from jobify.crontab import create_crontab
-from tests.conftest import create_app
+from jobify.storage import SQLiteStorage
+from tests.conftest import create_app, create_cron_factory
 
 
 def test_cronparser() -> None:
@@ -144,3 +152,21 @@ async def test_cron_no_reschedule_if_app_stopped() -> None:
     async with app:
         _s = await asyncio.wait_for(ran_event.wait(), timeout=1.0)
         assert not app.task._shared_state.pending_jobs
+
+
+async def test_cron_success_via_inject() -> None:
+    m = mock.Mock()
+    app = Jobify(
+        cron_factory=create_cron_factory(0, 0),
+        storage=SQLiteStorage(":memory:"),
+    )
+
+    @app.task(cron=Cron("* * * * * * *", max_runs=2))
+    async def _(context: RequestState = INJECT) -> None:
+        m(context)
+
+    async with app:
+        await app.wait_all(timeout=0.05)
+
+    total_calls = 2
+    assert m.call_count == total_calls
