@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.1 (2026-02-02)
+
+### Bug Fixes
+
+- **scheduler**: Getting origin_arguments instead bound.argument
+  ([`1e68c2f`](https://github.com/theseriff/jobify/commit/1e68c2f14b91dcf33ac41df2bf3c7a2d2e10c726))
+
+
 ## v0.6.0 (2026-01-30)
 
 ### Documentation
