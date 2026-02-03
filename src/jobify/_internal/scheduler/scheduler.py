@@ -435,3 +435,14 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         self._shared_state.register_job(job)
         _ = self._schedule_execution_at(job)
+
+    def _push(self, job_id: str, exec_at: datetime) -> None:
+        job = Job[ReturnT](
+            job_id=job_id,
+            exec_at=exec_at,
+            storage=self._configs.storage,
+            unregister_hook=self._shared_state.unregister_job,
+        )
+        self._shared_state.register_job(job)
+        handle = self._configs.getloop().call_soon(self._pre_exec_at, job)
+        job.bind_handle(handle)
