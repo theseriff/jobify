@@ -17,6 +17,7 @@ if TYPE_CHECKING:
         BaseMiddleware,
         BaseOuterMiddleware,
     )
+    from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
 
 
@@ -36,6 +37,16 @@ class NodeRoute(Route[ParamsT, ReturnT]):
         super().__init__(name, func, options)
         self._real_route: Route[ParamsT, ReturnT] | None = None
 
+    @property
+    def real_route(self) -> Route[ParamsT, ReturnT]:
+        if self._real_route is None:
+            msg = (
+                f"Job {self.name!r} is not attached to any Jobify app."
+                " Did you forget to call app.include_router()?"
+            )
+            raise RuntimeError(msg)
+        return self._real_route
+
     def bind(self, route: Route[ParamsT, ReturnT]) -> None:
         self._real_route = route
 
@@ -44,14 +55,16 @@ class NodeRoute(Route[ParamsT, ReturnT]):
         self,
         *args: ParamsT.args,
         **kwargs: ParamsT.kwargs,
-    ) -> ScheduleBuilder[Any]:
-        if self._real_route is None:
-            msg = (
-                f"Job {self.name!r} is not attached to any Jobify app."
-                " Did you forget to call app.include_router()?"
-            )
-            raise RuntimeError(msg)
-        return self._real_route.schedule(*args, **kwargs)
+    ) -> ScheduleBuilder[ReturnT]:
+        return self.real_route.schedule(*args, **kwargs)
+
+    @override
+    async def push(
+        self,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> Job[ReturnT]:
+        return await self.real_route.push(*args, **kwargs)
 
 
 class NodeRegistrator(Registrator[NodeRoute[..., Any]]):

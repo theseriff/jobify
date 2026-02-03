@@ -11,7 +11,12 @@ from jobify._internal.common.datastructures import RequestState, State
 from jobify._internal.configuration import Cron
 from jobify._internal.context import JobContext, OuterContext
 from jobify._internal.exceptions import DuplicateJobError, JobTimeoutError
-from jobify._internal.message import AtArguments, CronArguments, Message
+from jobify._internal.message import (
+    AtArguments,
+    CronArguments,
+    Message,
+    Triggers,
+)
 from jobify._internal.scheduler.job import CronContext, Job
 from jobify._internal.scheduler.misfire_policy import handle_misfire_policy
 from jobify._internal.storage.abc import ScheduledJob
@@ -76,93 +81,6 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     def now(self) -> datetime:
         return datetime.now(tz=self._configs.tz)
-
-    def _calculate_delay_seconds(self, target_at: datetime) -> float:
-        return target_at.timestamp() - self.now().timestamp()
-
-    def _is_persist(self) -> bool:
-        is_dummy = isinstance(self._configs.storage, DummyStorage)
-        is_durable = self.route_options.get("durable", True)
-        return not is_dummy and is_durable
-
-    async def _persist_job(
-        self,
-        job_id: str,
-        next_run_at: datetime,
-        trigger: CronArguments | AtArguments,
-    ) -> None:
-        await self._configs.storage.add_schedule(
-            self._create_scheduled_job(job_id, next_run_at, trigger)
-        )
-
-    def _create_scheduled_job(
-        self,
-        job_id: str,
-        next_run_at: datetime,
-        trigger: CronArguments | AtArguments,
-    ) -> ScheduledJob:
-        dumper = self._configs.dumper.dump
-        params_type = self.func_spec.params_type
-        args_dumped = {
-            name: dumper(arg, params_type[name])
-            for name, arg in self._runnable.origin_arguments.items()
-        }
-        msg = Message(
-            job_id=job_id,
-            name=self.name,
-            arguments=args_dumped,
-            trigger=trigger,
-        )
-        serializer = self._configs.serializer.dumpb
-        serialized_message = serializer(dumper(msg, Message))
-        return ScheduledJob(
-            name=self.name,
-            job_id=job_id,
-            message=serialized_message,
-            status=JobStatus.SCHEDULED,
-            next_run_at=next_run_at,
-        )
-
-    def _ensure_job_id(
-        self,
-        job_id: str | None,
-        *,
-        replace: bool,
-    ) -> tuple[str, Job[ReturnT] | None]:
-        job_id = job_id or uuid4().hex
-        if job := self._shared_state.pending_jobs.get(job_id):
-            if replace is True:
-                return (job_id, job)
-
-            raise DuplicateJobError(job_id)
-
-        return (job_id, None)
-
-    def _create_outer_context(
-        self,
-        *,
-        job: Job[ReturnT],
-        trigger: AtArguments | CronArguments,
-        is_force: bool,
-        is_replace: bool,
-        schedule_hook: Callable[[], asyncio.Handle],
-    ) -> OuterContext:
-        return OuterContext(
-            job=job,
-            state=self._state,
-            trigger=trigger,
-            runnable=self._runnable,
-            arguments=self._runnable.bound.arguments,
-            func_spec=self.func_spec,
-            is_force=is_force,
-            is_persist=self._is_persist(),
-            is_replace=is_replace,
-            route_options=self.route_options,
-            jobify_config=self._configs,
-            request_state=RequestState(),
-            persist_job_hook=self._persist_job,
-            schedule_hook=schedule_hook,
-        )
 
     async def cron(
         self,
@@ -233,43 +151,6 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         return job
 
-    def _calculate_schedule_cron(
-        self,
-        *,
-        old_cron: Cron | None,
-        new_cron: Cron,
-        parser: CronParser,
-        offset: datetime,
-        real_now: datetime,
-    ) -> tuple[datetime, datetime]:
-        start_date_changed = old_cron is None or (
-            old_cron.start_date != new_cron.start_date
-        )
-        if start_date_changed and new_cron.start_date is not None:
-            target_at = new_cron.start_date
-            offset = target_at
-        else:
-            target_at = parser.next_run(now=offset)
-
-        next_run_at = handle_misfire_policy(
-            cron_parser=parser,
-            next_run_at=target_at,
-            real_now=real_now,
-            policy=new_cron.misfire_policy,
-        )
-        return (offset, next_run_at)
-
-    def _schedule_execution_cron(
-        self,
-        ctx: CronContext[ReturnT],
-    ) -> asyncio.Handle:
-        delay_seconds = self._calculate_delay_seconds(ctx.job.exec_at)
-        loop = self._configs.getloop()
-        when = loop.time() + delay_seconds
-        handle = loop.call_at(when, self._pre_exec_cron, ctx)
-        ctx.job.bind_handle(handle)
-        return handle
-
     async def delay(
         self,
         seconds: float,
@@ -315,6 +196,35 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         return job
 
+    async def push(self) -> Job[ReturnT]:
+        job = Job[ReturnT](
+            exec_at=self.now(),
+            job_id=uuid4().hex,
+            storage=self._configs.storage,
+            unregister_hook=self._shared_state.unregister_job,
+        )
+        _ = await self._chain_outer_middleware(
+            self._create_outer_context(
+                job=job,
+                trigger=None,
+                is_force=False,
+                is_replace=False,
+                schedule_hook=lambda: self._push_execution(job),
+            )
+        )
+        return job
+
+    def _schedule_execution_cron(
+        self,
+        ctx: CronContext[ReturnT],
+    ) -> asyncio.Handle:
+        delay_seconds = self._calculate_delay_seconds(ctx.job.exec_at)
+        loop = self._configs.getloop()
+        when = loop.time() + delay_seconds
+        handle = loop.call_at(when, self._pre_exec_cron, ctx)
+        ctx.job.bind_handle(handle)
+        return handle
+
     def _schedule_execution_at(self, job: Job[ReturnT]) -> asyncio.Handle:
         loop = self._configs.getloop()
         delay_seconds = self._calculate_delay_seconds(target_at=job.exec_at)
@@ -326,15 +236,153 @@ class ScheduleBuilder(Generic[ReturnT]):
         job.bind_handle(handle)
         return handle
 
+    def _push_execution(self, job: Job[ReturnT]) -> asyncio.Handle:
+        handle = self._configs.getloop().call_soon(self._pre_exec_at, job)
+        job.bind_handle(handle)
+        return handle
+
+    async def _exec_job(self, job: Job[ReturnT]) -> None:
+        job.status = JobStatus.RUNNING
+        job_context = JobContext(
+            job=job,
+            state=self._state,
+            request_state=RequestState(),
+            runnable=self._runnable,
+            route_options=self.route_options,
+            jobify_config=self._configs,
+        )
+        try:
+            result = await self._chain_middleware(job_context)
+        except JobTimeoutError as exc:
+            job.set_exception(exc, status=JobStatus.TIMEOUT)
+        except Exception as exc:
+            logger.exception("Job %s failed with unexpected error", job.id)
+            job.set_exception(exc, status=JobStatus.FAILED)
+        else:
+            job.set_result(result, status=JobStatus.SUCCESS)
+
+    def _calculate_delay_seconds(self, target_at: datetime) -> float:
+        return target_at.timestamp() - self.now().timestamp()
+
+    def _is_persist(self) -> bool:
+        is_dummy = isinstance(self._configs.storage, DummyStorage)
+        is_durable = self.route_options.get("durable", True)
+        return not is_dummy and is_durable
+
+    async def _persist_job(
+        self,
+        job_id: str,
+        next_run_at: datetime,
+        trigger: Triggers,
+    ) -> None:
+        await self._configs.storage.add_schedule(
+            self._create_scheduled_job(job_id, next_run_at, trigger)
+        )
+
+    def _create_scheduled_job(
+        self,
+        job_id: str,
+        next_run_at: datetime,
+        trigger: Triggers,
+    ) -> ScheduledJob:
+        dumper = self._configs.dumper.dump
+        params_type = self.func_spec.params_type
+        args_dumped = {
+            name: dumper(arg, params_type[name])
+            for name, arg in self._runnable.origin_arguments.items()
+        }
+        msg = Message(
+            job_id=job_id,
+            name=self.name,
+            arguments=args_dumped,
+            trigger=trigger,
+        )
+        serializer = self._configs.serializer.dumpb
+        serialized_message = serializer(dumper(msg, Message))
+        return ScheduledJob(
+            name=self.name,
+            job_id=job_id,
+            message=serialized_message,
+            status=JobStatus.SCHEDULED,
+            next_run_at=next_run_at,
+        )
+
+    def _ensure_job_id(
+        self,
+        job_id: str | None,
+        *,
+        replace: bool,
+    ) -> tuple[str, Job[ReturnT] | None]:
+        job_id = job_id or uuid4().hex
+        if job := self._shared_state.pending_jobs.get(job_id):
+            if replace is True:
+                return (job_id, job)
+
+            raise DuplicateJobError(job_id)
+
+        return (job_id, None)
+
+    def _create_outer_context(
+        self,
+        *,
+        job: Job[ReturnT],
+        trigger: Triggers,
+        is_force: bool,
+        is_replace: bool,
+        schedule_hook: Callable[[], asyncio.Handle],
+    ) -> OuterContext:
+        return OuterContext(
+            job=job,
+            state=self._state,
+            trigger=trigger,
+            runnable=self._runnable,
+            arguments=self._runnable.bound.arguments,
+            func_spec=self.func_spec,
+            is_force=is_force,
+            is_persist=self._is_persist(),
+            is_replace=is_replace,
+            route_options=self.route_options,
+            jobify_config=self._configs,
+            request_state=RequestState(),
+            persist_job_hook=self._persist_job,
+            schedule_hook=schedule_hook,
+        )
+
+    def _calculate_schedule_cron(
+        self,
+        *,
+        old_cron: Cron | None,
+        new_cron: Cron,
+        parser: CronParser,
+        offset: datetime,
+        real_now: datetime,
+    ) -> tuple[datetime, datetime]:
+        start_date_changed = old_cron is None or (
+            old_cron.start_date != new_cron.start_date
+        )
+        if start_date_changed and new_cron.start_date is not None:
+            target_at = new_cron.start_date
+            offset = target_at
+        else:
+            target_at = parser.next_run(now=offset)
+
+        next_run_at = handle_misfire_policy(
+            cron_parser=parser,
+            next_run_at=target_at,
+            real_now=real_now,
+            policy=new_cron.misfire_policy,
+        )
+        return (offset, next_run_at)
+
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)
         self._shared_state.track_task(task, job._event)
 
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
-        self._shared_state.unregister_job(job.id)
         if self._is_persist():
             await self._configs.storage.delete_schedule(job.id)
+        self._shared_state.unregister_job(job.id)
 
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
@@ -378,26 +426,6 @@ class ScheduleBuilder(Generic[ReturnT]):
                 ctx.cron.max_failures,
             )
         self._shared_state.unregister_job(job.id)
-
-    async def _exec_job(self, job: Job[ReturnT]) -> None:
-        job.status = JobStatus.RUNNING
-        job_context = JobContext(
-            job=job,
-            state=self._state,
-            request_state=RequestState(),
-            runnable=self._runnable,
-            route_options=self.route_options,
-            jobify_config=self._configs,
-        )
-        try:
-            result = await self._chain_middleware(job_context)
-        except JobTimeoutError as exc:
-            job.set_exception(exc, status=JobStatus.TIMEOUT)
-        except Exception as exc:
-            logger.exception("Job %s failed with unexpected error", job.id)
-            job.set_exception(exc, status=JobStatus.FAILED)
-        else:
-            job.set_result(result, status=JobStatus.SUCCESS)
 
     def _cron(  # noqa: PLR0913
         self,

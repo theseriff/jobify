@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     )
     from jobify._internal.router.node import NodeRouter
     from jobify._internal.runners import RunStrategy
+    from jobify._internal.scheduler.job import Job
     from jobify._internal.shared_state import SharedState
 
 
@@ -141,15 +142,24 @@ class RootRoute(Route[ParamsT, ReturnT]):
         self,
         *args: ParamsT.args,
         **kwargs: ParamsT.kwargs,
-    ) -> ScheduleBuilder[Any]:
+    ) -> ScheduleBuilder[ReturnT]:
         bound = self.func_spec.signature.bind(*args, **kwargs)
         return self.create_builder(bound)
+
+    @override
+    async def push(
+        self,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> Job[ReturnT]:
+        bound = self.func_spec.signature.bind(*args, **kwargs)
+        return await self.create_builder(bound).push()
 
     def create_builder(
         self,
         bound: inspect.BoundArguments,
         /,
-    ) -> ScheduleBuilder[Any]:
+    ) -> ScheduleBuilder[ReturnT]:
         if not (
             self.jobify_config.app_started
             and self._chain_middleware is not None

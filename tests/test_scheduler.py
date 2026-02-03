@@ -44,6 +44,7 @@ async def f2(num: int) -> int:
         pytest.param("at", 1, 2),
         pytest.param("cron", 3, 4),
         pytest.param("delay", 2, 3),
+        pytest.param("push", 3, 4),
     ],
 )
 async def test_jobify(  # noqa: PLR0913
@@ -73,6 +74,9 @@ async def test_jobify(  # noqa: PLR0913
             cron = Cron("* * * * *", max_runs=1)
             job_sync = await f1_reg.schedule(num).cron(cron, job_id="test1")
             job_async = await f2_reg.schedule(num).cron(cron, job_id="test2")
+        elif method == "push":
+            job_sync = await f1_reg.push(num)
+            job_async = await f2_reg.push(num)
         else:
             raise NotImplementedError
 

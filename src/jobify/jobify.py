@@ -274,7 +274,11 @@ class Jobify(RootRouter):
                 continue
 
             if (restored := self._restore_job_from_storage(sch)) is not None:
-                self._start_restored_job_in_memory(restored, sch.next_run_at)
+                self._start_restored_job_in_memory(
+                    restored,
+                    sch.next_run_at,
+                    sch.job_id,
+                )
                 continue
 
             to_delete.append(job_id)
@@ -327,6 +331,7 @@ class Jobify(RootRouter):
             inspect.BoundArguments,
         ],
         db_next_run_at: datetime,
+        job_id: str = "",
     ) -> None:
         """Start the internal timer for a restored job.
 
@@ -355,6 +360,8 @@ class Jobify(RootRouter):
                 )
             case AtArguments():
                 builder._at(trigger.at, trigger.job_id)
+            case None:
+                builder._push(job_id, db_next_run_at)
 
     async def __aexit__(
         self,
