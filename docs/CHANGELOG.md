@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-02-04)
+
+### Build System
+
+- **deps**: Bump the github-actions group with 3 updates
+  ([`7528bba`](https://github.com/theseriff/jobify/commit/7528bba485a1f2a6277a07ccf0dc1d602ebd6fde))
+
+- **deps**: Bump the pip group with 11 updates
+  ([`252943f`](https://github.com/theseriff/jobify/commit/252943f52077132d7d9bd04a5acbfb8317fd6a00))
+
+### Documentation
+
+- Add guide for immediate execution via .push()
+  ([`0499e5c`](https://github.com/theseriff/jobify/commit/0499e5c604d364290e8db793c6ad63b92b4e0474))
+
+### Features
+
+- **scheduler**: Introduce .push() as a concise alternative to .delay(0)
+  ([`60db048`](https://github.com/theseriff/jobify/commit/60db048507254c5e67eaa13c5261746526cd7f83))
+
+
 ## v0.6.1 (2026-02-02)
 
 ### Bug Fixes
