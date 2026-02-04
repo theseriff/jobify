@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -483,3 +483,44 @@ async def test_remove_cron_declarative(
             == len(app.get_active_jobs())
             == 0
         )
+
+
+async def test_restore_push(storage: SQLiteStorage) -> None:
+    app = Jobify(storage=storage)
+
+    job_id = "test_push_id"
+    name = "test_name_push"
+
+    raw_msg = app.configs.serializer.dumpb(
+        app.configs.dumper.dump(
+            Message(
+                job_id=job_id,
+                name=name,
+                arguments={"name": "biba"},
+                trigger=None,
+            ),
+            Message,
+        )
+    )
+    await storage.startup()
+    await storage.add_schedule(
+        ScheduledJob(
+            job_id=job_id,
+            name=name,
+            message=raw_msg,
+            status=JobStatus.SCHEDULED,
+            next_run_at=datetime.now(tz=UTC),
+        )
+    )
+    await storage.shutdown()
+
+    mock = Mock()
+
+    @app.task(name=name)
+    def _(name: str) -> None:
+        mock(name)
+
+    async with app:
+        await app.wait_all()
+
+    mock.assert_called_once_with("biba")

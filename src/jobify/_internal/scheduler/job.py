@@ -127,6 +127,9 @@ class Job(Generic[ReturnT]):
     def is_done(self) -> bool:
         return self._event.is_set()
 
+    def is_cron(self) -> bool:
+        return self._cron_context is not None
+
     def is_reschedulable(self) -> bool:
         return self.status not in (
             JobStatus.PERMANENTLY_FAILED,

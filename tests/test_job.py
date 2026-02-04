@@ -35,6 +35,7 @@ async def test_job() -> None:
     assert job2.id not in app.task._shared_state.pending_jobs
     assert job2._handle
     assert job2._handle.cancelled()
+    assert job3.is_cron()
 
 
 async def test_all_jobs_completed(amock: AsyncMock) -> None:

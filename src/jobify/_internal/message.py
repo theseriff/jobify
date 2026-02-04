@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeAlias
 
 from jobify._internal.configuration import Cron
+
+Triggers: TypeAlias = "CronArguments | AtArguments | None"
 
 
 @dataclass(slots=True)
@@ -23,4 +25,4 @@ class Message:
     job_id: str
     name: str
     arguments: dict[str, Any]
-    trigger: CronArguments | AtArguments
+    trigger: Triggers

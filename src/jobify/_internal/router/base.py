@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         BaseMiddleware,
         BaseOuterMiddleware,
     )
+    from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
 
 
@@ -86,6 +87,28 @@ class Route(ABC, Generic[ParamsT, Return_co]):
         *args: ParamsT.args,
         **kwargs: ParamsT.kwargs,
     ) -> ScheduleBuilder[Any]:
+        raise NotImplementedError
+
+    @overload
+    async def push(
+        self: Route[ParamsT, Coroutine[object, object, T_co]],
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> Job[T_co]: ...
+
+    @overload
+    async def push(
+        self: Route[ParamsT, Return_co],
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> Job[Return_co]: ...
+
+    @abstractmethod
+    async def push(
+        self,
+        *args: ParamsT.args,
+        **kwargs: ParamsT.kwargs,
+    ) -> Job[Any]:
         raise NotImplementedError
 
 

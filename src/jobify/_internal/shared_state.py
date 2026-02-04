@@ -23,9 +23,13 @@ class SharedState:
         self.idle_event.clear()
         self.pending_jobs[job.id] = job
 
+    def check_state(self) -> None:
+        if not (self.pending_jobs or self.pending_tasks):
+            self.idle_event.set()
+
     def unregister_job(self, job_id: str) -> None:
         if self.pending_jobs.pop(job_id, None):
-            self._check_state()
+            self.check_state()
 
     def track_task(
         self,
@@ -43,9 +47,5 @@ class SharedState:
         event: asyncio.Event,
     ) -> None:
         self.pending_tasks.discard(task)
-        self._check_state()
+        self.check_state()
         event.set()
-
-    def _check_state(self) -> None:
-        if not (self.pending_jobs or self.pending_tasks):
-            self.idle_event.set()

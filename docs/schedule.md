@@ -105,6 +105,50 @@ In addition to cron jobs that are defined at the application level, users can al
 
 To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can do this by calling the `.schedule()` method on the task function. The arguments that you pass to `.schedule()` will be used when the task runs.
 
+### push (Immediate Execution)
+
+The .push() method is the fastest way to offload a task to the background.
+It schedules the task to run as soon as possible, similar to the .delay(0), but more concise.
+
+Unlike the .schedule() method, which requires you to create the schedule first, the .push() method accepts your function arguments directly.
+
+```python
+# Immediately schedules the job for execution.
+await my_task.push(*args, **kwargs)
+```
+
+!!! note "Persistence"
+    Just like other scheduling methods, tasks created using .push() are automatically saved to storage (unless the durable=False parameter is set on the task).
+    This ensures that even if the application crashes immediately after the task is pushed, it will be picked up and processed when the application restarts.
+
+example:
+
+```python
+import asyncio
+from typing import Any
+
+from jobify import Jobify
+
+app = Jobify()
+
+
+@app.task(durable=False, retry=3)
+def process_data(data: dict[str, Any]) -> None:
+    print(f"Processing: {data}")
+
+
+async def main() -> None:
+    async with app:
+        # Offload execution immediately
+        job = await process_data.push({"id": 1, "value": "test"})
+
+        # You can still wait the result for it if needed
+        await job.wait()
+
+
+asyncio.run(main())
+```
+
 ### cron
 
 To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
