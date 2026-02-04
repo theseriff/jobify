@@ -10,7 +10,7 @@ updates:
           - "*"
     target-branch: develop
     cooldown:
-      default-days: 4
+      default-days: 7
 
   - package-ecosystem: uv
     directory: /
@@ -22,4 +22,4 @@ updates:
           - "*"
     target-branch: develop
     cooldown:
-      default-days: 4
+      default-days: 7
