@@ -80,11 +80,17 @@ def my_job(name: str) -> None:
 async def main() -> None:
     # 4. Run the Jobify application context
     async with app:
+        # Run immediately in the background.
+        job = await my_job.push("Alex")
+
+        # Schedule a one-time job at a specific time.
         run_next_day = datetime.now(tz=UTC) + timedelta(days=1)
         job_at = await my_job.schedule("Connor").at(run_next_day)
 
+        # Schedule a one-time job after a delay.
         job_delay = await my_job.schedule("Sara").delay(20)
 
+        # Start a dynamic cron job.
         job_cron = await my_cron.schedule("Mike").cron(
             "* * * * *",
             job_id="dynamic_cron_id",
