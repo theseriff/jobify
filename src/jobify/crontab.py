@@ -15,36 +15,15 @@ class CronTab(CronParser):
     __slots__: tuple[str, ...] = ("_entry",)
 
     def __init__(self, expression: str) -> None:
-        """Initialize a CronTab parser.
-
-        Args:
-            expression: A cron expression.
-
-        """
+        """Initialize a CronTab parser."""
         self._entry: Final = _CronTab(expression)
 
     @override
     def next_run(self, *, now: datetime) -> datetime:
-        """Compute the next scheduled execution time.
-
-        Args:
-            now: Current datetime.
-
-        Returns:
-            The next run datetime.
-
-        """
+        """Compute the next scheduled execution time."""
         return self._entry.next(now=now, return_datetime=True)  # type: ignore[no-any-return] # pyright: ignore[reportAttributeAccessIssue,reportUnknownMemberType,reportUnknownVariableType]
 
 
 def create_crontab(expression: str) -> CronTab:
-    """Create a CronTab instance.
-
-    Args:
-        expression: A cron expression.
-
-    Returns:
-        A new CronTab instance.
-
-    """
+    """Create a CronTab instance."""
     return CronTab(expression)

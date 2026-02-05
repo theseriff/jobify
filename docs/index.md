@@ -54,7 +54,7 @@ pip install jobify
 
 Here is a simple example showing how to define a task and schedule it.
 
-```python linenums="1" hl_lines="27 29 31-34"
+```python linenums="1" hl_lines="27 31 34 37-40"
 import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
