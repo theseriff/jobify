@@ -403,7 +403,9 @@ class Jobify(RootRouter):
             for job in jobs:
                 job._cancel()
 
-        if tasks := self.task._shared_state.pending_tasks:  # pragma: no cover
+        if (
+            tasks := self.task._shared_state.pending_tasks.values()
+        ):  # pragma: no cover
             for task in tuple(tasks):
                 _ = task.cancel()
             _ = await asyncio.gather(*tasks, return_exceptions=True)

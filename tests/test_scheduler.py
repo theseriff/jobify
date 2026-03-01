@@ -88,7 +88,7 @@ async def test_jobify(  # noqa: PLR0913
     assert job_sync.result() == expected
     assert job_async.result() == expected
     assert app.task._shared_state.pending_jobs == {}
-    assert app.task._shared_state.pending_tasks == set()
+    assert app.task._shared_state.pending_tasks == {}
 
 
 @pytest.mark.parametrize("storage", [False, SQLiteStorage(":memory:")])

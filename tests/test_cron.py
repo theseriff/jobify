@@ -99,7 +99,7 @@ async def test_cron_shutdown_graceful() -> None:
 
     async with app:
         await asyncio.sleep(0.005)
-        task = app.task._shared_state.pending_tasks.pop()
+        _id, task = app.task._shared_state.pending_tasks.popitem()
         _is_cancelled = task.cancel()
 
     with pytest.raises(asyncio.CancelledError):
