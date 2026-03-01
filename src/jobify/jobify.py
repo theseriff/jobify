@@ -20,7 +20,12 @@ from jobify._internal.configuration import (
     JobifyConfiguration,
     WorkerPools,
 )
-from jobify._internal.message import AtArguments, CronArguments, Message
+from jobify._internal.message import (
+    AtArguments,
+    CronArguments,
+    Message,
+    Triggers,
+)
 from jobify._internal.router.root import (
     CRONS_DEF_KEY,
     CronsDefinition,
@@ -251,7 +256,8 @@ class Jobify(RootRouter):
                     and isinstance(msg.trigger, CronArguments)
                 ):
                     self._start_restored_job_in_memory(
-                        restored,
+                        restored[0],
+                        msg.trigger,
                         sch_in_db.next_run_at,
                     )
                     if msg.trigger.cron == cron_def:
@@ -274,8 +280,10 @@ class Jobify(RootRouter):
                 continue
 
             if (restored := self._restore_job_from_storage(sch)) is not None:
+                builder, msg, _ = restored
                 self._start_restored_job_in_memory(
-                    restored,
+                    builder,
+                    msg.trigger,
                     sch.next_run_at,
                     sch.job_id,
                 )
@@ -325,11 +333,8 @@ class Jobify(RootRouter):
 
     def _start_restored_job_in_memory(
         self,
-        restored_data: tuple[
-            ScheduleBuilder[Any],
-            Message,
-            inspect.BoundArguments,
-        ],
+        builder: ScheduleBuilder[Any],
+        trigger: Triggers,
         db_next_run_at: datetime,
         job_id: str = "",
     ) -> None:
@@ -339,8 +344,6 @@ class Jobify(RootRouter):
         It handles misfire policy to ensure we do not execute old jobs
         incorrectly.
         """
-        builder, msg, _ = restored_data
-        trigger = msg.trigger
         match trigger:
             case CronArguments():
                 parser = self.configs.cron_factory(trigger.cron.expression)
