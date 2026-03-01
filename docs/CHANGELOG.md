@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.7.1 (2026-03-01)
+
+### Bug Fixes
+
+- Cancel task when task is running
+  ([`02ac298`](https://github.com/theseriff/jobify/commit/02ac298a648822dea8e865c33c03e94a5ff42efd))
+
+### Documentation
+
+- Refactor quick start
+  ([`603a8fd`](https://github.com/theseriff/jobify/commit/603a8fd167a01b3f779c5f646b21fad9e4c2cf60))
+
+- **index**: Fix hl_lines
+  ([`06f69de`](https://github.com/theseriff/jobify/commit/06f69de0c57492bc2fadf927d6ab7fd9cd735999))
+
+
 ## v0.7.0 (2026-02-04)
 
 ### Build System
