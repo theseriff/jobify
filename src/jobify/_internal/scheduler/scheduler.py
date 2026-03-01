@@ -376,7 +376,7 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     def _pre_exec_at(self, job: Job[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_at(job), name=job.id)
-        self._shared_state.track_task(task, job._event)
+        self._shared_state.track_task(job.id, task, job._event)
 
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
@@ -386,7 +386,7 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     def _pre_exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         task = asyncio.create_task(self._exec_cron(ctx=ctx), name=ctx.job.id)
-        self._shared_state.track_task(task, ctx.job._event)
+        self._shared_state.track_task(ctx.job.id, task, ctx.job._event)
 
     async def _exec_cron(self, ctx: CronContext[ReturnT]) -> None:
         job = ctx.job
