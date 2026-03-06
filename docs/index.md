@@ -67,7 +67,7 @@ app = Jobify(tz=UTC)
 
 
 @app.task(cron="* * * * * * *")  # Runs every seconds
-async def my_cron(name: str) -> None:
+async def my_cron() -> None:
     print(f"Hello, {name}! cron running every seconds")
 
 
@@ -91,7 +91,7 @@ async def main() -> None:
         job_delay = await my_job.schedule("Sara").delay(20)
 
         # Start a dynamic cron job.
-        job_cron = await my_cron.schedule("Mike").cron(
+        job_cron = await my_cron.schedule().cron(
             "* * * * *",
             job_id="dynamic_cron_id",
         )
