@@ -1,27 +1,28 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, NamedTuple, TypeAlias
 
 from jobify._internal.configuration import Cron
 
-Triggers: TypeAlias = "CronArguments | AtArguments | None"
+Triggers: TypeAlias = "PushArguments | AtArguments | CronArguments"
 
 
-@dataclass(slots=True)
-class CronArguments:
-    cron: Cron
+class PushArguments(NamedTuple):
     job_id: str
+
+
+class AtArguments(NamedTuple):
+    job_id: str
+    at: datetime
+
+
+class CronArguments(NamedTuple):
+    job_id: str
+    cron: Cron
     offset: datetime
     run_count: int = 0
 
 
-class AtArguments(NamedTuple):
-    at: datetime
-    job_id: str
-
-
-@dataclass(slots=True, kw_only=True)
-class Message:
+class Message(NamedTuple):
     job_id: str
     name: str
     arguments: dict[str, Any]

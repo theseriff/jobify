@@ -15,7 +15,7 @@ from jobify._internal.scheduler.misfire_policy import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
@@ -71,6 +71,8 @@ class Cron:
     max_failures: int = 10
     misfire_policy: MisfirePolicy | GracePolicy = MisfirePolicy.ONCE
     start_date: datetime | None = None
+    args: Collection[Any] = ()
+    kwargs: Mapping[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
     def __post_init__(self) -> None:
         if self.max_failures < 1:

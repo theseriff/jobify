@@ -20,6 +20,6 @@ updates:
       pip:
         patterns:
           - "*"
-    target-branch: develop
+    target-branch: main
     cooldown:
       default-days: 7

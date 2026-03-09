@@ -9,7 +9,12 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from jobify import Cron, Job, Jobify, JobStatus, MisfirePolicy
-from jobify._internal.message import AtArguments, CronArguments, Message
+from jobify._internal.message import (
+    AtArguments,
+    CronArguments,
+    Message,
+    PushArguments,
+)
 from jobify._internal.storage.abc import ScheduledJob
 from jobify._internal.storage.sqlite import SQLiteStorage
 from jobify.crontab import create_crontab
@@ -121,7 +126,7 @@ async def test_sqlite_with_jobify() -> None:
                     job_id=job1.id,
                     name=f1.name,
                     arguments={"name": "biba_delay"},
-                    trigger=AtArguments(job1.exec_at, job1.id),
+                    trigger=AtArguments(job1.id, job1.exec_at),
                 ),
                 Message,
             )
@@ -132,7 +137,7 @@ async def test_sqlite_with_jobify() -> None:
                     job_id=job1_cron.id,
                     name=f1.name,
                     arguments={"name": "biba_cron"},
-                    trigger=CronArguments(cron, job1_cron.id, start_date),
+                    trigger=CronArguments(job1_cron.id, cron, start_date),
                 ),
                 Message,
             )
@@ -233,7 +238,7 @@ async def test_restore_schedules_invalid_jobs(storage: SQLiteStorage) -> None:
                 job_id="job_missing_route",
                 name="removed_func",
                 arguments={},
-                trigger=AtArguments(now, "job_missing_route"),
+                trigger=AtArguments("job_missing_route", now),
             )
         ),
         status=JobStatus.SCHEDULED,
@@ -255,8 +260,8 @@ async def test_restore_schedules_invalid_jobs(storage: SQLiteStorage) -> None:
                 name="job_unexpected_arguments",
                 arguments={"name": "biba_cron"},
                 trigger=CronArguments(
-                    Cron("* * * * *"),
                     "job_unexpected_arguments",
+                    Cron("* * * * *"),
                     now,
                 ),
             )
@@ -386,7 +391,7 @@ async def test_declarative_cron_updated(storage: SQLiteStorage) -> None:
                     job_id=job_id,
                     name="test_declarative",
                     arguments={},
-                    trigger=CronArguments(cron, job_id, trigger.offset),
+                    trigger=CronArguments(job_id, cron, trigger.offset),
                 )
             ),
             status=JobStatus.SCHEDULED,
@@ -497,7 +502,7 @@ async def test_restore_push(storage: SQLiteStorage) -> None:
                 job_id=job_id,
                 name=name,
                 arguments={"name": "biba"},
-                trigger=None,
+                trigger=PushArguments(job_id=job_id),
             ),
             Message,
         )

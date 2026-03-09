@@ -44,9 +44,11 @@ from jobify import Cron, MisfirePolicy
         max_failures=5,
         misfire_policy=MisfirePolicy.ALL,
         start_date=datetime(2027, 1, 1), # The task will start on January 1, 2027.
+        args=("financial",),
+        kwargs={"recipient": "admin@example.com"},
     )
 )
-def my_daily_report() -> None:
+def my_daily_report(report_type: str, recipient: str) -> None:
     ...
 ```
 
