@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-03-10)
+
+### Build System
+
+- **deps**: Bump the github-actions group with 5 updates
+  ([`e6c6716`](https://github.com/theseriff/jobify/commit/e6c6716d38c207b85a81ce03f580423595d22821))
+
+### Documentation
+
+- Fix quick start code sample error
+  ([`7e22631`](https://github.com/theseriff/jobify/commit/7e22631f5c61ad13980bf12e67983b4e504d7431))
+
+### Features
+
+- **cron**: Add args and kwargs support for scheduled tasks
+  ([`20e20da`](https://github.com/theseriff/jobify/commit/20e20da7cf73ffc6babd91c480dd1b1e1f19586d))
+
+
 ## v0.7.1 (2026-03-01)
 
 ### Bug Fixes
