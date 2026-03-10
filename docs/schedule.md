@@ -84,6 +84,8 @@ Cron(
     max_failures=5,
     misfire_policy=MisfirePolicy.ALL,
     start_date=datetime(2027, 1, 1), # The task will start on January 1, 2027.
+    args=("sales",),
+    kwargs={"file_format": "csv"},
 )
 ```
 
@@ -98,6 +100,8 @@ The **Cron** class has the following properties:
     - `MisfirePolicy.ONCE`: If there were missed executions, run only once.
     - `MisfirePolicy.GRACE(timedelta)`: If the missed schedule is within the specified grace period, please start it immediately.
 - **start_date** (`datetime | None`, default: `None`): The scheduled start time is used to anchor the first execution of the job to a specific datetime.
+- **args** (`Collection[Any]`, default: `()`): Positional arguments to be passed to the task function when it is executed.
+- **kwargs** (`Mapping[str, Any]`, default: `{}`): Keyword arguments to be passed to the task function when it is executed.
 
 ## Dynamic Scheduling
 
@@ -105,49 +109,6 @@ In addition to cron jobs that are defined at the application level, users can al
 
 To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can do this by calling the `.schedule()` method on the task function. The arguments that you pass to `.schedule()` will be used when the task runs.
 
-### push (Immediate Execution)
-
-The .push() method is the fastest way to offload a task to the background.
-It schedules the task to run as soon as possible, similar to the .delay(0), but more concise.
-
-Unlike the .schedule() method, which requires you to create the schedule first, the .push() method accepts your function arguments directly.
-
-```python
-# Immediately schedules the job for execution.
-await my_task.push(*args, **kwargs)
-```
-
-!!! note "Persistence"
-    Just like other scheduling methods, tasks created using .push() are automatically saved to storage (unless the durable=False parameter is set on the task).
-    This ensures that even if the application crashes immediately after the task is pushed, it will be picked up and processed when the application restarts.
-
-example:
-
-```python
-import asyncio
-from typing import Any
-
-from jobify import Jobify
-
-app = Jobify()
-
-
-@app.task(durable=False, retry=3)
-def process_data(data: dict[str, Any]) -> None:
-    print(f"Processing: {data}")
-
-
-async def main() -> None:
-    async with app:
-        # Offload execution immediately
-        job = await process_data.push({"id": 1, "value": "test"})
-
-        # You can still wait the result for it if needed
-        await job.wait()
-
-
-asyncio.run(main())
-```
 
 ### cron
 
@@ -191,6 +152,16 @@ def cleanup_logs() -> None:
 def daily_report() -> None:
     print("Generating daily report...")
 
+@app.task(
+    cron=Cron(
+        "@weekly",
+        args=("performance",),
+        kwargs={"detailed": True},
+    )
+)
+def weekly_report(report_type: str, detailed: bool) -> None:
+    print(f"Generating weekly {report_type} report. Detailed: {detailed}")
+
 async def main() -> None:
     async with app:
         # Schedule cleanup every 5 minutes
@@ -198,8 +169,59 @@ async def main() -> None:
             cron="*/5 * * * *",
             job_id="cleanup_task_dynamic",
         )
+
+        # Imperatively schedule another weekly report with different arguments
+        await weekly_report.schedule("security", detailed=False).cron(
+            cron="@weekly",
+            job_id="weekly_security_report",
+        )
+
         # Keep the app running...
         await app.wait_all()
+
+asyncio.run(main())
+```
+
+### push (Immediate Execution)
+
+The .push() method is the fastest way to offload a task to the background.
+It schedules the task to run as soon as possible, similar to the .delay(0), but more concise.
+
+Unlike the .schedule() method, which requires you to create the schedule first, the .push() method accepts your function arguments directly.
+
+```python
+# Immediately schedules the job for execution.
+await my_task.push(*args, **kwargs)
+```
+
+!!! note "Persistence"
+    Just like other scheduling methods, tasks created using .push() are automatically saved to storage (unless the durable=False parameter is set on the task).
+    This ensures that even if the application crashes immediately after the task is pushed, it will be picked up and processed when the application restarts.
+
+example:
+
+```python
+import asyncio
+from typing import Any
+
+from jobify import Jobify
+
+app = Jobify()
+
+
+@app.task(durable=False, retry=3)
+def process_data(data: dict[str, Any]) -> None:
+    print(f"Processing: {data}")
+
+
+async def main() -> None:
+    async with app:
+        # Offload execution immediately
+        job = await process_data.push({"id": 1, "value": "test"})
+
+        # You can still wait the result for it if needed
+        await job.wait()
+
 
 asyncio.run(main())
 ```

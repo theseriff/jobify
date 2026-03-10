@@ -24,7 +24,7 @@ async def test_app_setup() -> None:
     assert isinstance(app.configs.loader, Mock)
 
     mock = Mock()
-    app._start_restored_job_in_memory((mock, mock, mock), mock)
+    app._start_restored_job_in_memory(mock, mock, mock)
 
 
 def test_shared_state() -> None:

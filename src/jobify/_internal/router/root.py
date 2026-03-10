@@ -245,6 +245,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
         if cron := options.get("cron"):
             if isinstance(cron, str):
                 cron = Cron(cron)
+
             job_id = f"{route.name}{PATCH_CRON_DEF_ID}"
             p = {job_id: (route, cron)}
             self.state.setdefault(CRONS_DEF_KEY, {}).update(p)

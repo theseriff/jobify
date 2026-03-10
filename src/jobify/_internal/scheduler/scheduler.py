@@ -15,6 +15,7 @@ from jobify._internal.message import (
     AtArguments,
     CronArguments,
     Message,
+    PushArguments,
     Triggers,
 )
 from jobify._internal.scheduler.job import CronContext, Job
@@ -188,7 +189,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         _ = await self._chain_outer_middleware(
             self._create_outer_context(
                 job=job,
-                trigger=AtArguments(at, job_id),
+                trigger=AtArguments(job_id=job_id, at=at),
                 is_force=force,
                 is_replace=replace,
                 schedule_hook=lambda: self._schedule_execution_at(job),
@@ -206,7 +207,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         _ = await self._chain_outer_middleware(
             self._create_outer_context(
                 job=job,
-                trigger=None,
+                trigger=PushArguments(job_id=job.id),
                 is_force=False,
                 is_replace=False,
                 schedule_hook=lambda: self._push_execution(job),
@@ -408,10 +409,10 @@ class ScheduleBuilder(Generic[ReturnT]):
 
                 if self._is_persist():
                     trigger = CronArguments(
-                        ctx.cron,
-                        job.id,
-                        offset,
-                        ctx.run_count,
+                        job_id=job.id,
+                        cron=ctx.cron,
+                        offset=offset,
+                        run_count=ctx.run_count,
                     )
                     await self._persist_job(job.id, next_run_at, trigger)
                 job.update(exec_at=next_run_at, status=JobStatus.SCHEDULED)

@@ -20,7 +20,13 @@ from jobify._internal.configuration import (
     JobifyConfiguration,
     WorkerPools,
 )
-from jobify._internal.message import AtArguments, CronArguments, Message
+from jobify._internal.message import (
+    AtArguments,
+    CronArguments,
+    Message,
+    PushArguments,
+    Triggers,
+)
 from jobify._internal.router.root import (
     CRONS_DEF_KEY,
     CronsDefinition,
@@ -133,8 +139,9 @@ class Jobify(RootRouter):
             system_types = (
                 Message,
                 Cron,
-                CronArguments,
+                PushArguments,
                 AtArguments,
+                CronArguments,
                 MisfirePolicy,
                 GracePolicy,
             )
@@ -221,6 +228,8 @@ class Jobify(RootRouter):
         await self._propagate_startup(self)
         await self._restore_schedules()
 
+        logger.info("Jobify startup complete. Ready to schedule jobs.")
+
     async def _restore_schedules(self) -> None:
         """Restore schedules.
 
@@ -241,7 +250,7 @@ class Jobify(RootRouter):
         # --- PHASE 1: Declarative Crons ---
         for job_id, (rout, cron_def) in crons_def.items():
             processed_jobs.add(job_id)
-            builder = rout.schedule()
+            builder = rout.schedule(*cron_def.args, **cron_def.kwargs)
 
             if (sch_in_db := db_map.get(job_id)) is not None:
                 restored = self._restore_job_from_storage(sch_in_db)
@@ -251,7 +260,8 @@ class Jobify(RootRouter):
                     and isinstance(msg.trigger, CronArguments)
                 ):
                     self._start_restored_job_in_memory(
-                        restored,
+                        restored[0],
+                        msg.trigger,
                         sch_in_db.next_run_at,
                     )
                     if msg.trigger.cron == cron_def:
@@ -274,10 +284,11 @@ class Jobify(RootRouter):
                 continue
 
             if (restored := self._restore_job_from_storage(sch)) is not None:
+                builder, msg, _ = restored
                 self._start_restored_job_in_memory(
-                    restored,
+                    builder,
+                    msg.trigger,
                     sch.next_run_at,
-                    sch.job_id,
                 )
                 continue
 
@@ -325,13 +336,9 @@ class Jobify(RootRouter):
 
     def _start_restored_job_in_memory(
         self,
-        restored_data: tuple[
-            ScheduleBuilder[Any],
-            Message,
-            inspect.BoundArguments,
-        ],
+        builder: ScheduleBuilder[Any],
+        trigger: Triggers,
         db_next_run_at: datetime,
-        job_id: str = "",
     ) -> None:
         """Start the internal timer for a restored job.
 
@@ -339,9 +346,11 @@ class Jobify(RootRouter):
         It handles misfire policy to ensure we do not execute old jobs
         incorrectly.
         """
-        builder, msg, _ = restored_data
-        trigger = msg.trigger
         match trigger:
+            case PushArguments():
+                builder._push(trigger.job_id, exec_at=db_next_run_at)
+            case AtArguments():
+                builder._at(trigger.at, trigger.job_id)
             case CronArguments():
                 parser = self.configs.cron_factory(trigger.cron.expression)
                 next_run_at = handle_misfire_policy(
@@ -358,10 +367,6 @@ class Jobify(RootRouter):
                     cron_parser=parser,
                     run_count=trigger.run_count,
                 )
-            case AtArguments():
-                builder._at(trigger.at, trigger.job_id)
-            case None:
-                builder._push(job_id, db_next_run_at)
 
     async def __aexit__(
         self,
@@ -419,6 +424,8 @@ class Jobify(RootRouter):
         # done LIFO, see https://stackoverflow.com/questions/48434964
         for captured_signal in reversed(self._captured_signals):
             signal.raise_signal(captured_signal)
+
+        logger.info("Jobify shutdown complete.")
 
     async def wait_all(self, timeout: float | None = None) -> None:
         """Wait for all currently scheduled jobs to complete.
