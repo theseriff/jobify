@@ -15,7 +15,7 @@ from jobify._internal.message import (
     Message,
     PushArguments,
 )
-from jobify._internal.storage.abc import ScheduledJob
+from jobify._internal.storage.base import ScheduledJob
 from jobify._internal.storage.sqlite import SQLiteStorage
 from jobify.crontab import create_crontab
 from jobify.serializers import ExtendedJSONSerializer

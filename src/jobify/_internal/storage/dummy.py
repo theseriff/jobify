@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 from typing_extensions import override
 
-from jobify._internal.storage.abc import ScheduledJob, Storage
+from jobify._internal.storage.base import ScheduledJob, Storage
 
 
 class DummyStorage(Storage):

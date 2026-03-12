@@ -63,7 +63,7 @@ if TYPE_CHECKING:
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import ScheduledJob, Storage
+    from jobify._internal.storage.base import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 HANDLED_SIGNALS = (

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
     from jobify._internal.configuration import Cron
     from jobify._internal.cron_parser import CronParser
-    from jobify._internal.storage.abc import Storage
+    from jobify._internal.storage.base import Storage
 
 ReturnT = TypeVar("ReturnT")
 

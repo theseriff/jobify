@@ -20,7 +20,7 @@ from jobify._internal.message import (
 )
 from jobify._internal.scheduler.job import CronContext, Job
 from jobify._internal.scheduler.misfire_policy import handle_misfire_policy
-from jobify._internal.storage.abc import ScheduledJob
+from jobify._internal.storage.base import ScheduledJob
 from jobify._internal.storage.dummy import DummyStorage
 
 if TYPE_CHECKING:

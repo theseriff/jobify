@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from jobify._internal.common.types import LoopFactory
     from jobify._internal.cron_parser import CronFactory
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import Storage
+    from jobify._internal.storage.base import Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 
