@@ -6,8 +6,6 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypedDict, final
 
-from typing_extensions import NotRequired
-
 from jobify._internal.common.constants import INFINITY
 from jobify._internal.scheduler.misfire_policy import (
     GracePolicy,
@@ -20,7 +18,10 @@ if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
 
     from jobify._internal.common.constants import RunMode
-    from jobify._internal.common.types import LoopFactory
+    from jobify._internal.common.types import (
+        LoopFactory,
+        MappingExceptionHandlers,
+    )
     from jobify._internal.cron_parser import CronFactory
     from jobify._internal.serializers.base import Serializer
     from jobify._internal.storage.base import Storage
@@ -116,11 +117,12 @@ class Cron:
             raise ValueError(msg)
 
 
-class RouteOptions(TypedDict):
-    name: NotRequired[str]
-    cron: NotRequired[Cron | str]
-    retry: NotRequired[int]
-    timeout: NotRequired[float]
-    durable: NotRequired[bool]
-    run_mode: NotRequired[RunMode]
-    metadata: NotRequired[Mapping[str, Any]]
+class RouteOptions(TypedDict, total=False):
+    name: str
+    cron: Cron | str
+    retry: int
+    timeout: float
+    durable: bool
+    run_mode: RunMode
+    metadata: Mapping[str, Any]
+    exception_handlers: MappingExceptionHandlers

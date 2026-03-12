@@ -20,11 +20,11 @@ async def test_lifespan_with_state() -> None:
 
     app = Jobify(lifespan=lifespan, storage=False)
 
-    assert not hasattr(app.state, "client")
+    assert not hasattr(app.task.state, "client")
 
     await asyncio.wait_for(app.startup(), timeout=1.0)
 
-    assert hasattr(app.state, "client")
+    assert hasattr(app.task.state, "client")
 
     client.__aenter__.assert_awaited_once()
     client.__aexit__.assert_not_awaited()

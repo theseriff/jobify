@@ -1,37 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Any, TypeAlias, final
+from typing import TYPE_CHECKING, Any, final
 
 from typing_extensions import override
 
-from jobify._internal.context import JobContext
 from jobify._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
     from jobify._internal.configuration import JobifyConfiguration
-
-
-ExceptionHandler: TypeAlias = Callable[
-    [Exception, JobContext], Awaitable[None] | None
-]
-ExceptionHandlers: TypeAlias = dict[type[Exception], ExceptionHandler]
-MappingExceptionHandlers: TypeAlias = Mapping[
-    type[Exception], ExceptionHandler
-]
+    from jobify._internal.context import JobContext
 
 
 @final
 class ExceptionMiddleware(BaseMiddleware):
-    __slots__: tuple[str, ...] = ("exc_handlers", "jobify_config")
+    __slots__: tuple[str, ...] = ("jobify_config",)
 
-    def __init__(
-        self,
-        exc_handlers: ExceptionHandlers,
-        jobify_config: JobifyConfiguration,
-    ) -> None:
-        self.exc_handlers = exc_handlers
+    def __init__(self, jobify_config: JobifyConfiguration) -> None:
         self.jobify_config = jobify_config
 
     @override
@@ -39,8 +24,10 @@ class ExceptionMiddleware(BaseMiddleware):
         try:
             return await call_next(context)
         except Exception as exc:
-            handler = self._lookup_exc_handler(exc)
-            if handler is None:
+            for cls_exc in type(exc).__mro__:
+                if handler := context.exception_handlers.get(cls_exc):
+                    break
+            else:
                 raise
 
             if asyncio.iscoroutinefunction(handler):
@@ -49,9 +36,3 @@ class ExceptionMiddleware(BaseMiddleware):
             loop = self.jobify_config.getloop()
             thread = self.jobify_config.worker_pools.threadpool
             return await loop.run_in_executor(thread, handler, exc, context)
-
-    def _lookup_exc_handler(self, exc: Exception) -> ExceptionHandler | None:
-        for cls_exc in type(exc).__mro__:
-            if handler := self.exc_handlers.get(cls_exc):
-                return handler
-        return None

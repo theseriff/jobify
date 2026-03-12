@@ -87,8 +87,8 @@ async def test_jobify(  # noqa: PLR0913
 
     assert job_sync.result() == expected
     assert job_async.result() == expected
-    assert app.task._shared_state.pending_jobs == {}
-    assert app.task._shared_state.pending_tasks == {}
+    assert app.task._task_tracker.pending_jobs == {}
+    assert app.task._task_tracker.pending_tasks == {}
 
 
 @pytest.mark.parametrize("storage", [False, SQLiteStorage(":memory:")])
@@ -137,7 +137,7 @@ async def test_schedule_replace(
         assert first_job.exec_at == second_job.exec_at
 
         job: Job[None] | None = app.find_job(job_id)
-        assert len(app.task._shared_state.pending_jobs) == 1
+        assert len(app.task._task_tracker.pending_jobs) == 1
         assert job is not None
         assert job is second_job
         assert job.exec_at == second_job.exec_at

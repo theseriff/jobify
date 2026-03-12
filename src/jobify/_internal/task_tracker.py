@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from jobify._internal.scheduler.job import Job
 
 
-class SharedState(NamedTuple):
+class TaskTracker(NamedTuple):
     pending_jobs: dict[str, Job[Any]]
     pending_tasks: dict[str, asyncio.Task[Any]]
     idle_event: asyncio.Event

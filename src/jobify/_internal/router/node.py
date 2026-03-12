@@ -11,7 +11,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
     from jobify._internal.common.datastructures import State
-    from jobify._internal.common.types import Lifespan
+    from jobify._internal.common.types import (
+        ExceptionHandlers,
+        Lifespan,
+        MappingExceptionHandlers,
+    )
     from jobify._internal.configuration import RouteOptions
     from jobify._internal.middleware.base import (
         BaseMiddleware,
@@ -68,19 +72,23 @@ class NodeRoute(Route[ParamsT, ReturnT]):
 
 
 class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
-        state: State,
+        state: State | None,
+        lifespan: Lifespan[NodeRouter_co] | None,
         route_class: type[NodeRoute[..., Any]],
         middleware: Sequence[BaseMiddleware] | None,
         outer_middleware: Sequence[BaseOuterMiddleware] | None,
+        exception_handlers: MappingExceptionHandlers | None,
     ) -> None:
         super().__init__(
             state=state,
+            lifespan=lifespan,
             route_class=route_class,
             middleware=middleware,
             outer_middleware=outer_middleware,
+            exception_handlers=exception_handlers,
         )
 
     @override
@@ -97,21 +105,29 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
 
 
 class NodeRouter(Router):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
+        state: State | None = None,
         prefix: str | None = None,
         lifespan: Lifespan[NodeRouter_co] | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
         outer_middleware: Sequence[BaseOuterMiddleware] | None = None,
+        exception_handlers: MappingExceptionHandlers | None = None,
         route_class: type[NodeRoute[..., Any]] = NodeRoute,
     ) -> None:
-        super().__init__(prefix=prefix, lifespan=lifespan)
+        super().__init__(prefix=prefix)
         self._registrator: NodeRegistrator = NodeRegistrator(
-            state=self.state,
-            route_class=route_class,
+            state=state,
+            lifespan=lifespan,
             middleware=middleware,
             outer_middleware=outer_middleware,
+            exception_handlers=exception_handlers,
+            route_class=route_class,
+        )
+        self.state: State = self._registrator.state
+        self.exception_handlers: ExceptionHandlers = (
+            self._registrator._exception_handlers
         )
 
     @property

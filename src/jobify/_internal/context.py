@@ -2,9 +2,16 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Any, NamedTuple, final, get_origin, get_type_hints
+from typing import (
+    Any,
+    NamedTuple,
+    final,
+    get_origin,
+    get_type_hints,
+)
 
 from jobify._internal.common.datastructures import RequestState, State
+from jobify._internal.common.types import ExceptionHandlers
 from jobify._internal.configuration import JobifyConfiguration, RouteOptions
 from jobify._internal.inspection import FuncSpec
 from jobify._internal.message import Triggers
@@ -72,6 +79,7 @@ class JobContext(NamedTuple):
     request_state: RequestState
     route_options: RouteOptions
     jobify_config: JobifyConfiguration
+    exception_handlers: ExceptionHandlers
 
 
 INJECT: Any = object()

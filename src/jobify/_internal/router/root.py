@@ -47,22 +47,22 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
     from jobify._internal.common.datastructures import State
-    from jobify._internal.common.types import Lifespan
+    from jobify._internal.common.types import (
+        ExceptionHandler,
+        ExceptionHandlers,
+        Lifespan,
+        MappingExceptionHandlers,
+    )
     from jobify._internal.configuration import (
         JobifyConfiguration,
         RouteOptions,
     )
     from jobify._internal.context import JobContext
     from jobify._internal.middleware.base import BaseMiddleware, CallNext
-    from jobify._internal.middleware.exceptions import (
-        ExceptionHandler,
-        ExceptionHandlers,
-        MappingExceptionHandlers,
-    )
     from jobify._internal.router.node import NodeRouter
     from jobify._internal.runners import RunStrategy
     from jobify._internal.scheduler.job import Job
-    from jobify._internal.shared_state import SharedState
+    from jobify._internal.task_tracker import TaskTracker
 
 
 logger = logging.getLogger("Jobify.router")
@@ -85,14 +85,16 @@ class RootRoute(Route[ParamsT, ReturnT]):
         state: State,
         options: RouteOptions,
         strategy: RunStrategy[ParamsT, ReturnT],
-        shared_state: SharedState,
+        task_tracker: TaskTracker,
+        exception_handlers: ExceptionHandlers,
         jobify_config: JobifyConfiguration,
     ) -> None:
         super().__init__(name, func, options)
         self._run_strategy: RunStrategy[ParamsT, ReturnT] = strategy
+        self._task_state: TaskTracker = task_tracker
         self._chain_middleware: CallNext | None = None
         self._chain_outer_middleware: CallNextOuter | None = None
-        self._shared_state: SharedState = shared_state
+        self._exception_handlers: ExceptionHandlers = exception_handlers
         self.state: State = state
         self.func_spec: FuncSpec[ReturnT] = func_spec
         self.jobify_config: JobifyConfiguration = jobify_config
@@ -160,20 +162,21 @@ class RootRoute(Route[ParamsT, ReturnT]):
         bound: inspect.BoundArguments,
         /,
     ) -> ScheduleBuilder[ReturnT]:
-        if not (
-            self.jobify_config.app_started
-            and self._chain_middleware is not None
-            and self._chain_outer_middleware is not None
+        if (
+            self.jobify_config.app_started is False
+            or self._chain_middleware is None
+            or self._chain_outer_middleware is None
         ):
             raise_app_not_started_error("schedule")
         return ScheduleBuilder(
+            name=self.name,
             state=self.state,
             options=self.options,
-            name=self.name,
             func_spec=self.func_spec,
-            shared_state=self._shared_state,
+            task_tracker=self._task_state,
             jobify_config=self.jobify_config,
             chain_middleware=self._chain_middleware,
+            exception_handlers=self._exception_handlers,
             chain_outer_middleware=self._chain_outer_middleware,
             runnable=Runnable(
                 name=self.name,
@@ -187,28 +190,30 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
     def __init__(  # noqa: PLR0913
         self,
         *,
-        state: State,
+        state: State | None,
+        lifespan: Lifespan[RootRouter_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
         outer_middleware: Sequence[BaseOuterMiddleware] | None,
-        shared_state: SharedState,
+        task_tracker: TaskTracker,
         jobify_config: JobifyConfiguration,
         exception_handlers: MappingExceptionHandlers | None,
         route_class: type[RootRoute[..., Any]],
     ) -> None:
         super().__init__(
             state=state,
+            lifespan=lifespan,
             route_class=route_class,
             middleware=middleware,
             outer_middleware=outer_middleware,
+            exception_handlers=exception_handlers,
         )
-        self._shared_state: SharedState = shared_state
-        self._exc_handlers: ExceptionHandlers = dict(exception_handlers or {})
+        self._task_tracker: TaskTracker = task_tracker
         self._jobify_config: JobifyConfiguration = jobify_config
-        self._system_middleware: list[BaseMiddleware] = [
-            ExceptionMiddleware(self._exc_handlers, jobify_config),
+        self._system_middleware: tuple[BaseMiddleware, ...] = (
             RetryMiddleware(),
+            ExceptionMiddleware(jobify_config),
             TimeoutMiddleware(),
-        ]
+        )
 
     @override
     def register(
@@ -236,8 +241,9 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             state=self.state,
             options=options,
             strategy=strategy,
-            shared_state=self._shared_state,
+            task_tracker=self._task_tracker,
             jobify_config=self._jobify_config,
+            exception_handlers=self._exception_handlers,
         )
         _ = functools.update_wrapper(route, func)
         self._routes[name] = route
@@ -257,23 +263,29 @@ class RootRouter(Router):
     def __init__(  # noqa: PLR0913
         self,
         *,
+        state: State | None,
         lifespan: Lifespan[RootRouter_co] | None,
         middleware: Sequence[BaseMiddleware] | None,
         outer_middleware: Sequence[BaseOuterMiddleware] | None,
-        shared_state: SharedState,
+        task_tracker: TaskTracker,
         jobify_config: JobifyConfiguration,
         exception_handlers: MappingExceptionHandlers | None,
         route_class: type[RootRoute[..., Any]],
     ) -> None:
-        super().__init__(prefix=None, lifespan=lifespan)
+        super().__init__(prefix=None)
         self._registrator: RootRegistrator = RootRegistrator(
-            state=self.state,
+            state=state,
+            lifespan=lifespan,
             middleware=middleware,
             outer_middleware=outer_middleware,
-            shared_state=shared_state,
+            task_tracker=task_tracker,
             jobify_config=jobify_config,
             exception_handlers=exception_handlers,
             route_class=route_class,
+        )
+        self.state: State = self._registrator.state
+        self.exception_handlers: ExceptionHandlers = (
+            self._registrator._exception_handlers
         )
 
     @property
@@ -288,7 +300,7 @@ class RootRouter(Router):
     ) -> None:
         if self.task._jobify_config.app_started is True:
             raise_app_already_started_error("add_exception_handler")
-        self.task._exc_handlers[cls_exc] = handler
+        self.task._exception_handlers[cls_exc] = handler
 
     @override
     def add_middleware(self, middleware: BaseMiddleware) -> None:
@@ -305,7 +317,10 @@ class RootRouter(Router):
     @override
     def include_router(self, router: Router) -> None:
         super().include_router(router)
-        self._propagate_real_routes(cast("NodeRouter", router))
+
+    def propagate_real_routes(self) -> None:
+        for router in self.sub_routers:
+            self._propagate_real_routes(cast("NodeRouter", router))
 
     def _propagate_real_routes(self, router: NodeRouter) -> None:
         for route in tuple(router.routes):
@@ -326,7 +341,7 @@ class RootRouter(Router):
             self._propagate_real_routes(sub_router)
 
     async def _propagate_startup(self, router: Router) -> None:
-        await router.emit_startup()
+        await router.task.emit_startup()
 
         merged_middleware = [
             *router.task._middleware,
@@ -340,9 +355,17 @@ class RootRouter(Router):
             route.state = router.task.state
             route._chain_middleware = chain
             route._chain_outer_middleware = chain_outer
+            route._exception_handlers = {
+                **router.task._exception_handlers,
+                **route.options.get("exception_handlers", {}),
+            }
 
         for sub_router in router.sub_routers:
             sub_router.task.state = router.task.state | sub_router.task.state
+            sub_router.task._exception_handlers = (
+                router.task._exception_handlers
+                | sub_router.task._exception_handlers
+            )
             sub_router.task._middleware = [
                 *router.task._middleware,
                 *sub_router.task._middleware,
@@ -355,7 +378,7 @@ class RootRouter(Router):
 
     async def _propagate_shutdown(self) -> None:
         for router in self.chain_tail:
-            await router.emit_shutdown()
+            await router.task.emit_shutdown()
 
     async def _schedule(self, context: OuterContext) -> asyncio.Handle:
         if context.is_replace and (handle := context.job._handle) is not None:
@@ -366,7 +389,7 @@ class RootRouter(Router):
                 context.job.exec_at,
                 context.trigger,
             )
-        self.task._shared_state.register_job(context.job)
+        self.task._task_tracker.register_job(context.job)
         handle = context.schedule_hook()
         context.job.status = JobStatus.SCHEDULED
         return handle
