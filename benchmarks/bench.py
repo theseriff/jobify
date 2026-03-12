@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -6,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TypeAlias
 
+from benchmarks.latency_run import latency_measure
 from .serializers import serializers_measure
 
 logger = logging.getLogger(__name__)
@@ -29,10 +31,11 @@ def write_results(results: Results) -> None:
     logger.info("Results saved to: %s", benches_file)
 
 
-def main() -> None:
+async def main() -> None:
     results: Results = {}
     with timer():
         results |= serializers_measure()
+        results |= await latency_measure()
     write_results(results)
 
 
@@ -42,4 +45,4 @@ if __name__ == "__main__":
         format="[%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler()],
     )
-    main()
+    asyncio.run(main())

@@ -1,6 +1,15 @@
 {
   "serializers": {
-    "pickle": 0.58,
-    "json": 3.2
+    "pickle": 0.55798,
+    "json": 3.17285
+  },
+  "latency": {
+    "directly_run": 0.00295,
+    "push_nondb_pickle": 0.57292,
+    "push_nondb_json": 0.57831,
+    "push_nondb_extended_json": 0.58227,
+    "push_sqlite_pickle": 1.796,
+    "push_sqlite_json": 1.71668,
+    "push_sqlite_extended_json": 1.79059
   }
 }

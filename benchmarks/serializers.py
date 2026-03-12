@@ -192,6 +192,6 @@ def serializers_measure() -> dict[str, dict[str, float]]:
         "pickle": UnsafePickleSerializer(),
     }.items():
         globs = common_globs | {"serializer": serializer}
-        results[name] = round(timeit(stmt, globals=globs, number=1000), 2)
+        results[name] = round(timeit(stmt, globals=globs, number=1000), 5)
     results = dict(sorted(results.items(), key=lambda item: item[1]))
     return {"serializers": results}
