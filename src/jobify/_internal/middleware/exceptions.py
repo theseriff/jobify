@@ -40,14 +40,15 @@ class ExceptionMiddleware(BaseMiddleware):
             return await call_next(context)
         except Exception as exc:
             handler = self._lookup_exc_handler(exc)
-            if handler:
-                if asyncio.iscoroutinefunction(handler):
-                    await handler(exc, context)
-                else:
-                    loop = self.jobify_config.getloop()
-                    thread = self.jobify_config.worker_pools.threadpool
-                    await loop.run_in_executor(thread, handler, exc, context)  # pyright: ignore[reportUnusedCallResult]
-            raise
+            if handler is None:
+                raise
+
+            if asyncio.iscoroutinefunction(handler):
+                return await handler(exc, context)
+
+            loop = self.jobify_config.getloop()
+            thread = self.jobify_config.worker_pools.threadpool
+            return await loop.run_in_executor(thread, handler, exc, context)
 
     def _lookup_exc_handler(self, exc: Exception) -> ExceptionHandler | None:
         for cls_exc in type(exc).__mro__:
