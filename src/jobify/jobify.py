@@ -169,11 +169,17 @@ class Jobify(RootRouter):
             ),
             cron_factory=cron_factory,
         )
+        idle_event = asyncio.Event()
+        idle_event.set()
         super().__init__(
             lifespan=lifespan,
             middleware=middleware,
             outer_middleware=outer_middleware,
-            shared_state=SharedState(),
+            shared_state=SharedState(
+                pending_jobs={},
+                pending_tasks={},
+                idle_event=idle_event,
+            ),
             jobify_config=self.configs,
             exception_handlers=exception_handlers,
             route_class=route_class,

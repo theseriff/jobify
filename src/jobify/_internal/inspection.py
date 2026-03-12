@@ -1,7 +1,14 @@
 import inspect
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Generic, ParamSpec, TypeAlias, TypeVar, get_type_hints
+from typing import (
+    Any,
+    Generic,
+    ParamSpec,
+    TypeAlias,
+    TypeVar,
+    final,
+    get_type_hints,
+)
 
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
@@ -10,12 +17,27 @@ ParamName: TypeAlias = str
 TypeHint: TypeAlias = Any
 
 
-@dataclass(slots=True, kw_only=True)
+@final
 class FuncSpec(Generic[ReturnT]):
-    name: str
-    signature: inspect.Signature
-    params_type: dict[ParamName, TypeHint]
-    result_type: type[ReturnT]
+    __slots__: tuple[str, ...] = (
+        "name",
+        "params_type",
+        "result_type",
+        "signature",
+    )
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        signature: inspect.Signature,
+        params_type: dict[ParamName, TypeHint],
+        result_type: type[ReturnT],
+    ) -> None:
+        self.name = name
+        self.signature = signature
+        self.params_type = params_type
+        self.result_type = result_type
 
 
 def get_params_type(

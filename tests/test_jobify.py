@@ -28,8 +28,7 @@ async def test_app_setup() -> None:
 
 
 def test_shared_state() -> None:
-    shared_state = SharedState()
-    assert shared_state.idle_event.is_set()
+    shared_state = SharedState({}, {}, asyncio.Event())
 
     mock_job = Mock()
     mock_job.id = "test mock"
