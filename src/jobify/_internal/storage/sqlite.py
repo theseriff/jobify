@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from typing_extensions import override
 
 from jobify._internal.common.constants import JobStatus
-from jobify._internal.storage.abc import (
+from jobify._internal.storage.base import (
     ScheduledJob,
     Storage,
     validate_table_name,

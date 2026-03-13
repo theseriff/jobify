@@ -6,6 +6,34 @@ This is similar to how web frameworks such as FastAPI and aiogram handle routing
 
 This approach leads to a more organized code structure, better separation of responsibilities, and easier maintenance.
 
+## JobRouter Configuration
+
+A `JobRouter` can be configured with several parameters, similar to the main `Jobify` application. These parameters apply to all tasks and sub-routers within the router.
+
+```python
+from jobify import JobRouter, NodeRoute
+
+router = JobRouter(
+    prefix="my_router",
+    state={"some": "data"},
+    lifespan=my_lifespan,
+    middleware=[MyMiddleware()],
+    outer_middleware=[MyOuterMiddleware()],
+    exception_handlers={ValueError: my_handler},
+    route_class=NodeRoute,
+)
+```
+
+### Parameters
+
+- **`prefix`**: A prefix string added to the names of all tasks in this router.
+- **`state`**: The initial state dictionary for this router.
+- **`lifespan`**: An asynchronous context manager for routing startup/shutdown events.
+- **`middleware`**: A sequence of middlewares applied to all tasks in this router.
+- **`outer_middleware`**: A sequence of outer middlewares applied to all tasks in the router.
+- **`exception_handlers`**: A dictionary mapping exception types to custom handlers.
+- **`route_class`**: The custom class used for handling tasks within the router (default: `NodeRoute`).
+
 ## Basic Usage
 
 First, create a `JobRouter` instance. A router is a mini-application that can define its own tasks, middleware, and lifecycle events.
@@ -137,8 +165,6 @@ async with app:
 
 ## Router-level Lifespan, Middleware, and Outer Middleware
 
-Similar to the main `Jobify` application, each `JobRouter` has its own `middleware`, `outerMiddleware`, and `lifespan` events.
-
 - **Middleware** and **Outer Middleware** applied to a parent router will also be applied to all of its sub-routers, in addition to any middleware they have defined.
 - **Lifespan** events on a router can be useful for managing resources related to a specific group of tasks, such as connecting to a particular service.
 
@@ -164,6 +190,20 @@ app.include_router(reports_router)
 ```
 
 When the application starts, you will see a `starting up` message. All tasks within `reports_router` will have access to `router.state`.
+
+### Exception Handlers
+
+You can define exception handlers specifically for a router. These handlers will catch exceptions raised by any task within the router (unless overridden by a task-level handler).
+
+```python
+router = JobRouter(
+    exception_handlers={
+        ValueError: lambda exc, context: print(f"Handled ValueError: {exc}")
+    }
+)
+```
+
+For more details, see the [Exception Handlers](advanced_usage/exception_handlers.md) guide.
 
 ### Custom Route Class
 

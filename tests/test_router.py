@@ -22,6 +22,7 @@ def test_nested_prefix() -> None:
 
     app = create_app()
     app.include_router(router1)
+    app.propagate_real_routes()
 
     assert repr(router1) == "<NodeRouter>"
     assert router5.prefix == "1.2.3.4"
@@ -48,6 +49,7 @@ def test_nested_name() -> None:
     app = create_app()
     app.include_router(router1)
     app.include_router(router3)
+    app.propagate_real_routes()
 
     assert f.name == "level1:test1"
     assert f2.name == "level1.level2:test2"

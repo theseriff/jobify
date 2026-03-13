@@ -15,7 +15,7 @@ from jobify._internal.message import (
     Message,
     PushArguments,
 )
-from jobify._internal.storage.abc import ScheduledJob
+from jobify._internal.storage.base import ScheduledJob
 from jobify._internal.storage.sqlite import SQLiteStorage
 from jobify.crontab import create_crontab
 from jobify.serializers import ExtendedJSONSerializer
@@ -215,7 +215,7 @@ async def test_restore_schedules(
 
         assert job_at_restored
         assert job_cron_restored
-        assert len(app2.task._shared_state.pending_jobs) == expected_jobs
+        assert len(app2.task._task_tracker.pending_jobs) == expected_jobs
         assert job_cron_restored is app2.find_job(job_cron.id)
 
         _ = await asyncio.wait_for(
@@ -313,7 +313,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
 
     async with app:
         scheduled_job1 = (await app.configs.storage.get_schedules())[0]
-        job = app.task._shared_state.pending_jobs.popitem()[1]
+        job = app.task._task_tracker.pending_jobs.popitem()[1]
         await asyncio.wait_for(job.wait(), timeout=1.0)
         assert job.result() == "test"
 
@@ -322,7 +322,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
 
     async with app2:
         scheduled_job2 = (await app2.configs.storage.get_schedules())[0]
-        job2 = app2.task._shared_state.pending_jobs.popitem()[1]
+        job2 = app2.task._task_tracker.pending_jobs.popitem()[1]
         assert job2.id == job.id
 
     assert scheduled_job1.next_run_at < scheduled_job2.next_run_at
@@ -464,7 +464,7 @@ async def test_start_pending_crons_non_cron_trigger(
         job: Job[None] | None = app.find_job(job_id)
 
         assert job is not None
-        assert len(app.task._shared_state.pending_jobs) == 1
+        assert len(app.task._task_tracker.pending_jobs) == 1
         assert len(await app.configs.storage.get_schedules()) == 1
 
 

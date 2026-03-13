@@ -40,9 +40,9 @@ from jobify._internal.scheduler.misfire_policy import (
 )
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
-from jobify._internal.shared_state import SharedState
 from jobify._internal.storage.dummy import DummyStorage
 from jobify._internal.storage.sqlite import SQLiteStorage
+from jobify._internal.task_tracker import TaskTracker
 from jobify._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobify.crontab import create_crontab
 
@@ -53,17 +53,21 @@ if TYPE_CHECKING:
     from datetime import datetime
     from types import FrameType, TracebackType
 
-    from jobify._internal.common.types import Lifespan, LoopFactory
+    from jobify._internal.common.datastructures import State
+    from jobify._internal.common.types import (
+        Lifespan,
+        LoopFactory,
+        MappingExceptionHandlers,
+    )
     from jobify._internal.cron_parser import CronFactory
     from jobify._internal.middleware.base import (
         BaseMiddleware,
         BaseOuterMiddleware,
     )
-    from jobify._internal.middleware.exceptions import MappingExceptionHandlers
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import ScheduledJob, Storage
+    from jobify._internal.storage.base import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 HANDLED_SIGNALS = (
@@ -107,6 +111,7 @@ class Jobify(RootRouter):
         self,
         *,
         tz: ZoneInfo | None = None,
+        state: State | None = None,
         dumper: Dumper | None = None,
         loader: Loader | None = None,
         storage: Storage | Literal[False] = EMPTY,
@@ -169,11 +174,18 @@ class Jobify(RootRouter):
             ),
             cron_factory=cron_factory,
         )
+        idle_event = asyncio.Event()
+        idle_event.set()
         super().__init__(
+            state=state,
             lifespan=lifespan,
             middleware=middleware,
             outer_middleware=outer_middleware,
-            shared_state=SharedState(),
+            task_tracker=TaskTracker(
+                pending_jobs={},
+                pending_tasks={},
+                idle_event=idle_event,
+            ),
             jobify_config=self.configs,
             exception_handlers=exception_handlers,
             route_class=route_class,
@@ -191,11 +203,11 @@ class Jobify(RootRouter):
             otherwise `None`.
 
         """
-        return self.task._shared_state.pending_jobs.get(id_)
+        return self.task._task_tracker.pending_jobs.get(id_)
 
     def get_active_jobs(self) -> list[Job[Any]]:
         """Return a list of all currently active jobs."""
-        return list(self.task._shared_state.pending_jobs.values())
+        return list(self.task._task_tracker.pending_jobs.values())
 
     async def __aenter__(self) -> Self:
         """Enter the Jobify context manager.
@@ -223,7 +235,9 @@ class Jobify(RootRouter):
             issues or router initialization errors.
 
         """
+        self.propagate_real_routes()
         self.configs.app_started = True
+
         await self.configs.storage.startup()
         await self._propagate_startup(self)
         await self._restore_schedules()
@@ -240,7 +254,7 @@ class Jobify(RootRouter):
         Phase 2: Restore Imperative Jobs (Database Only)
             - Restore valid jobs and delete obsolete ones from the database.
         """
-        crons_def: CronsDefinition = self.state.pop(CRONS_DEF_KEY, {})
+        crons_def: CronsDefinition = self.task.state.pop(CRONS_DEF_KEY, {})
         schedules = await self.configs.storage.get_schedules()
 
         to_delete: list[str] = []
@@ -404,12 +418,12 @@ class Jobify(RootRouter):
         """
         self.configs.app_started = False
 
-        if jobs := tuple(self.task._shared_state.pending_jobs.values()):
+        if jobs := tuple(self.task._task_tracker.pending_jobs.values()):
             for job in jobs:
                 job._cancel()
 
         if (
-            tasks := self.task._shared_state.pending_tasks.values()
+            tasks := self.task._task_tracker.pending_tasks.values()
         ):  # pragma: no cover
             for task in tuple(tasks):
                 _ = task.cancel()
@@ -446,7 +460,7 @@ class Jobify(RootRouter):
                 an `asyncio.TimeoutError`.
 
         """
-        idle_event = self.task._shared_state.idle_event
+        idle_event = self.task._task_tracker.idle_event
         with self._capture_signals():
             _ = await asyncio.wait_for(idle_event.wait(), timeout=timeout)
 
@@ -471,5 +485,5 @@ class Jobify(RootRouter):
     def _handle_exit(self, sig: int, _: FrameType | None) -> None:
         self._captured_signals.append(sig)
         loop = self.configs.getloop()
-        idle_event = self.task._shared_state.idle_event
+        idle_event = self.task._task_tracker.idle_event
         _handle = loop.call_soon_threadsafe(idle_event.set)

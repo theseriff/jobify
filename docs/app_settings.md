@@ -273,6 +273,8 @@ A callable that returns an `asyncio` event loop for the application to use.
 
 A dictionary that maps exception types to custom error handling functions, allowing for more fine-grained and customized error handling when jobs fail.
 
+[**read more here**](advanced_usage/exception_handlers.md){ data-preview }
+
 ## threadpool_executor `and` processpool_executor
 
 - **Type**: `ThreadPoolExecutor | None`, `ProcessPoolExecutor | None`

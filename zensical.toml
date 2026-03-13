@@ -25,6 +25,10 @@ nav = [
   { "Integrations" = "integrations.md" },
   { "Contributing" = "contributing.md" },
   { "Changelog" = "CHANGELOG.md" },
+  { "Advanced Usage" = [
+        "advanced_usage/exceptions.md",
+        "advanced_usage/exception_handlers.md",
+    ] },
 ]
 # ----------------------------------------------------------------------------
 [project.theme]

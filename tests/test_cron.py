@@ -84,7 +84,7 @@ async def test_cron_declarative() -> None:
         return "ok"
 
     async with app:
-        job = app.task._shared_state.pending_jobs.popitem()[1]
+        job = app.task._task_tracker.pending_jobs.popitem()[1]
         await asyncio.wait_for(job.wait(), timeout=1.0)
 
     assert job.result() == "ok"
@@ -99,13 +99,13 @@ async def test_cron_shutdown_graceful() -> None:
 
     async with app:
         await asyncio.sleep(0.005)
-        _id, task = app.task._shared_state.pending_tasks.popitem()
+        _id, task = app.task._task_tracker.pending_tasks.popitem()
         _is_cancelled = task.cancel()
 
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    assert len(app.task._shared_state.pending_jobs) == 0
+    assert len(app.task._task_tracker.pending_jobs) == 0
 
 
 def test_misfire_policy() -> None:
@@ -151,7 +151,7 @@ async def test_cron_no_reschedule_if_app_stopped() -> None:
 
     async with app:
         _s = await asyncio.wait_for(ran_event.wait(), timeout=1.0)
-        assert not app.task._shared_state.pending_jobs
+        assert not app.task._task_tracker.pending_jobs
 
 
 async def test_cron_success_via_inject() -> None:

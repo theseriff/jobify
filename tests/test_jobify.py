@@ -4,7 +4,7 @@ import threading
 from unittest.mock import Mock, call, patch
 
 from jobify import Jobify
-from jobify._internal.shared_state import SharedState
+from jobify._internal.task_tracker import TaskTracker
 from jobify._internal.typeadapter.dummy import DummyDumper, DummyLoader
 from jobify.serializers import ExtendedJSONSerializer, JSONSerializer
 from jobify.storage import SQLiteStorage
@@ -27,24 +27,23 @@ async def test_app_setup() -> None:
     app._start_restored_job_in_memory(mock, mock, mock)
 
 
-def test_shared_state() -> None:
-    shared_state = SharedState()
-    assert shared_state.idle_event.is_set()
+def test_task_tracker() -> None:
+    task_tracker = TaskTracker({}, {}, asyncio.Event())
 
     mock_job = Mock()
     mock_job.id = "test mock"
 
-    shared_state.register_job(mock_job)
-    assert shared_state.idle_event.is_set() is False
-    shared_state.unregister_job("test mock")
-    assert shared_state.idle_event.is_set()
-    shared_state.unregister_job("invalid job id")
-    assert shared_state.idle_event.is_set()
+    task_tracker.register_job(mock_job)
+    assert task_tracker.idle_event.is_set() is False
+    task_tracker.unregister_job("test mock")
+    assert task_tracker.idle_event.is_set()
+    task_tracker.unregister_job("invalid job id")
+    assert task_tracker.idle_event.is_set()
 
 
 async def test_wait_all_receives_signal() -> None:
     app = create_app()
-    app.task._shared_state.idle_event.clear()
+    app.task._task_tracker.idle_event.clear()
 
     async def trigger_signal() -> None:
         await asyncio.sleep(0.01)

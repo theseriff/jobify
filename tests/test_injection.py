@@ -50,9 +50,9 @@ async def test_injection() -> None:
         await job.wait()
 
         assert ctx.job is job
-        assert ctx.state is app.state
+        assert ctx.state is app.task.state
         assert ctx.request_state.test == 1
-        assert state is app.state
+        assert state is app.task.state
         assert job_id == job.id
         assert request_test_num == 1
 

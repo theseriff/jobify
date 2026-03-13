@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, TypeVar, final
 
 from typing_extensions import override
@@ -15,19 +14,38 @@ if TYPE_CHECKING:
 
     from jobify._internal.configuration import Cron
     from jobify._internal.cron_parser import CronParser
-    from jobify._internal.storage.abc import Storage
+    from jobify._internal.storage.base import Storage
 
 ReturnT = TypeVar("ReturnT")
 
 
-@dataclass(slots=True, kw_only=True)
+@final
 class CronContext(Generic[ReturnT]):
-    job: Job[ReturnT]
-    cron: Cron
-    offset: datetime
-    cron_parser: CronParser
-    run_count: int
-    failure_count: int = 0
+    __slots__: tuple[str, ...] = (
+        "cron",
+        "cron_parser",
+        "failure_count",
+        "job",
+        "offset",
+        "run_count",
+    )
+
+    def __init__(  # noqa: PLR0913
+        self,
+        *,
+        cron: Cron,
+        cron_parser: CronParser,
+        failure_count: int = 0,
+        job: Job[ReturnT],
+        offset: datetime,
+        run_count: int,
+    ) -> None:
+        self.cron = cron
+        self.cron_parser = cron_parser
+        self.failure_count = failure_count
+        self.job = job
+        self.offset = offset
+        self.run_count = run_count
 
     def is_run_exceeded_by_limit(self) -> bool:
         if self.cron.max_runs == INFINITY:

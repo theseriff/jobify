@@ -4,9 +4,7 @@ import multiprocessing
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, TypedDict
-
-from typing_extensions import NotRequired
+from typing import TYPE_CHECKING, Any, TypedDict, final
 
 from jobify._internal.common.constants import INFINITY
 from jobify._internal.scheduler.misfire_policy import (
@@ -20,17 +18,28 @@ if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
 
     from jobify._internal.common.constants import RunMode
-    from jobify._internal.common.types import LoopFactory
+    from jobify._internal.common.types import (
+        LoopFactory,
+        MappingExceptionHandlers,
+    )
     from jobify._internal.cron_parser import CronFactory
     from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.abc import Storage
+    from jobify._internal.storage.base import Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
 
-@dataclass(slots=True, kw_only=True)
+@final
 class WorkerPools:
-    _processpool: ProcessPoolExecutor | None
-    threadpool: ThreadPoolExecutor | None = None
+    __slots__: tuple[str, ...] = ("_processpool", "threadpool")
+
+    def __init__(
+        self,
+        *,
+        _processpool: ProcessPoolExecutor | None = None,
+        threadpool: ThreadPoolExecutor | None = None,
+    ) -> None:
+        self._processpool = _processpool
+        self.threadpool = threadpool
 
     @property
     def processpool(self) -> ProcessPoolExecutor:  # pragma: no cover
@@ -51,17 +60,42 @@ class WorkerPools:
             self._processpool = None
 
 
-@dataclass(slots=True, kw_only=True)
+@final
 class JobifyConfiguration:
-    tz: ZoneInfo
-    dumper: Dumper
-    loader: Loader
-    storage: Storage
-    getloop: LoopFactory
-    serializer: Serializer
-    worker_pools: WorkerPools
-    cron_factory: CronFactory
-    app_started: bool = False
+    __slots__: tuple[str, ...] = (
+        "app_started",
+        "cron_factory",
+        "dumper",
+        "getloop",
+        "loader",
+        "serializer",
+        "storage",
+        "tz",
+        "worker_pools",
+    )
+
+    def __init__(  # noqa: PLR0913
+        self,
+        *,
+        tz: ZoneInfo,
+        dumper: Dumper,
+        loader: Loader,
+        storage: Storage,
+        getloop: LoopFactory,
+        serializer: Serializer,
+        worker_pools: WorkerPools,
+        cron_factory: CronFactory,
+        app_started: bool = False,
+    ) -> None:
+        self.tz = tz
+        self.dumper = dumper
+        self.loader = loader
+        self.storage = storage
+        self.getloop = getloop
+        self.serializer = serializer
+        self.worker_pools = worker_pools
+        self.cron_factory = cron_factory
+        self.app_started = app_started
 
 
 @dataclass(slots=True, kw_only=True, order=True)
@@ -83,11 +117,12 @@ class Cron:
             raise ValueError(msg)
 
 
-class RouteOptions(TypedDict):
-    name: NotRequired[str]
-    cron: NotRequired[Cron | str]
-    retry: NotRequired[int]
-    timeout: NotRequired[float]
-    durable: NotRequired[bool]
-    run_mode: NotRequired[RunMode]
-    metadata: NotRequired[Mapping[str, Any]]
+class RouteOptions(TypedDict, total=False):
+    name: str
+    cron: Cron | str
+    retry: int
+    timeout: float
+    durable: bool
+    run_mode: RunMode
+    metadata: Mapping[str, Any]
+    exception_handlers: MappingExceptionHandlers

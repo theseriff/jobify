@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-import asyncio
 import functools
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
+    import asyncio
+
     from jobify._internal.scheduler.job import Job
 
 
-@dataclass(slots=True, kw_only=True, frozen=True)
-class SharedState:
-    pending_jobs: dict[str, Job[Any]] = field(default_factory=dict)
-    pending_tasks: dict[str, asyncio.Task[Any]] = field(default_factory=dict)
-    idle_event: asyncio.Event = field(default_factory=asyncio.Event)
-
-    def __post_init__(self) -> None:
-        self.idle_event.set()
+class TaskTracker(NamedTuple):
+    pending_jobs: dict[str, Job[Any]]
+    pending_tasks: dict[str, asyncio.Task[Any]]
+    idle_event: asyncio.Event
 
     def register_job(self, job: Job[Any]) -> None:
         job._event.clear()

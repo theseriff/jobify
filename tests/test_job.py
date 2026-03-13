@@ -32,7 +32,7 @@ async def test_job() -> None:
     assert str(job3)
     assert job2.is_done()
     assert job2.status is JobStatus.CANCELLED
-    assert job2.id not in app.task._shared_state.pending_jobs
+    assert job2.id not in app.task._task_tracker.pending_jobs
     assert job2._handle
     assert job2._handle.cancelled()
     assert job3.is_cron()
@@ -49,7 +49,7 @@ async def test_all_jobs_completed(amock: AsyncMock) -> None:
 
         await app.wait_all()
 
-        assert len(app.task._shared_state.pending_jobs) == 0
+        assert len(app.task._task_tracker.pending_jobs) == 0
 
         _ = await f.schedule().delay(10)
         _ = await f.schedule().delay(10)
@@ -60,7 +60,7 @@ async def test_all_jobs_completed(amock: AsyncMock) -> None:
 
         expected_planned_jobs = 3
         assert (
-            len(app.task._shared_state.pending_jobs) == expected_planned_jobs
+            len(app.task._task_tracker.pending_jobs) == expected_planned_jobs
         )
 
 

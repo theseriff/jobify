@@ -32,7 +32,11 @@ if TYPE_CHECKING:
         Sequence,
     )
 
-    from jobify._internal.common.types import Lifespan
+    from jobify._internal.common.types import (
+        ExceptionHandlers,
+        Lifespan,
+        MappingExceptionHandlers,
+    )
     from jobify._internal.configuration import RouteOptions
     from jobify._internal.middleware.base import (
         BaseMiddleware,
@@ -47,6 +51,19 @@ Return_co = TypeVar("Return_co", covariant=True)
 ParamsT = ParamSpec("ParamsT")
 Route_co = TypeVar("Route_co", bound="Route[..., Any]", covariant=True)
 Router_co = TypeVar("Router_co", bound="Router", covariant=True)
+
+
+def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
+    name = func.__name__
+    name = getattr(func, "__qualname__", name).removesuffix(PATCH_FUNC_NAME)
+    fmodule = func.__module__
+    if name == "<lambda>":
+        name = f"lambda_{uuid.uuid4().hex}"
+    if fmodule == "__main__":
+        mod = inspect.getmodule(func)
+        fallback = sys.argv[0] if sys.argv else "."
+        fmodule = Path(getattr(mod, "__file__", fallback)).stem
+    return f"{fmodule}:{name}"
 
 
 class Route(ABC, Generic[ParamsT, Return_co]):
@@ -112,34 +129,29 @@ class Route(ABC, Generic[ParamsT, Return_co]):
         raise NotImplementedError
 
 
-def resolve_name(func: Callable[ParamsT, Return_co], /) -> str:
-    name = func.__name__
-    name = getattr(func, "__qualname__", name).removesuffix(PATCH_FUNC_NAME)
-    fmodule = func.__module__
-    if name == "<lambda>":
-        name = f"lambda_{uuid.uuid4().hex}"
-    if fmodule == "__main__":
-        mod = inspect.getmodule(func)
-        fallback = sys.argv[0] if sys.argv else "."
-        fmodule = Path(getattr(mod, "__file__", fallback)).stem
-    return f"{fmodule}:{name}"
-
-
 class Registrator(ABC, Generic[Route_co]):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
-        state: State,
+        state: State | None,
+        lifespan: Lifespan[Router_co] | None,
         route_class: type[Route_co],
         middleware: Sequence[BaseMiddleware] | None,
         outer_middleware: Sequence[BaseOuterMiddleware] | None,
+        exception_handlers: MappingExceptionHandlers | None,
     ) -> None:
         self._routes: dict[str, Route_co] = {}
         self._middleware: list[BaseMiddleware] = list(middleware or [])
         self._outer_middleware: list[BaseOuterMiddleware] = list(
             outer_middleware or []
         )
-        self.state: State = state
+        self._state_lifespan: Final = self._iter_lifespan(
+            lifespan or dummy_lifespan
+        )
+        self._exception_handlers: ExceptionHandlers = dict(
+            exception_handlers or {}
+        )
+        self.state: State = state or State()
         self.route_class: type[Route_co] = route_class
 
     @overload
@@ -203,27 +215,6 @@ class Registrator(ABC, Generic[Route_co]):
     ) -> Route[ParamsT, Return_co]:
         raise NotImplementedError
 
-
-@asynccontextmanager
-async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
-    yield None
-
-
-class Router(ABC):
-    def __init__(
-        self,
-        *,
-        prefix: str | None,
-        lifespan: Lifespan[Router_co] | None,
-    ) -> None:
-        self.state: State = State()
-        self.prefix: str = prefix if prefix else ""
-        self._parent: Router | None = None
-        self._sub_routers: list[Router] = []
-        self._state_lifespan: Final = self._iter_lifespan(
-            lifespan or dummy_lifespan
-        )
-
     async def _iter_lifespan(
         self,
         user_lifespan: Lifespan[Any],
@@ -238,6 +229,18 @@ class Router(ABC):
 
     async def emit_shutdown(self) -> None:
         await anext(self._state_lifespan, None)
+
+
+@asynccontextmanager
+async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
+    yield None
+
+
+class Router(ABC):
+    def __init__(self, *, prefix: str | None) -> None:
+        self.prefix: str = prefix if prefix else ""
+        self._parent: Router | None = None
+        self._sub_routers: list[Router] = []
 
     @property
     @abstractmethod
