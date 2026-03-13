@@ -91,6 +91,15 @@ Specifies the mode of execution for the task.
 - `'RunMode.THREAD'`: For `#!python def` functions. This runs in the `ThreadPoolExecutor`, which is the default for synchronous functions.
 - `'RunMode.PROCESS'`: This mode is used for `#!python def` definitions. It runs in the `ProcessPoolExecutor`.
 
+## exception_handlers
+
+- **Type**: `MappingExceptionHandlers | None`
+- **Default**: `None`
+
+A dictionary that maps exception types to custom error handling functions, specifically for this task. Task-level handlers take precedence over router-level and global handlers.
+
+[**Read more here**](./advanced_usage/exception_handlers.md){ data-preview }
+
 ## metadata
 
 - **Type**: `Mapping[str, Any] | None`

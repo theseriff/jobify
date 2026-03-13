@@ -66,9 +66,9 @@ UTC = ZoneInfo("UTC")
 app = Jobify(tz=UTC)
 
 
-@app.task(cron="* * * * * * *")  # Runs every seconds
+@app.task(cron="* * * * * * *")  # Runs every second
 async def my_cron() -> None:
-    print(f"Hello, {name}! cron running every seconds")
+    print("Hello! cron running every second")
 
 
 @app.task
