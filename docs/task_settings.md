@@ -91,6 +91,23 @@ Specifies the mode of execution for the task.
 - `'RunMode.THREAD'`: For `#!python def` functions. This runs in the `ThreadPoolExecutor`, which is the default for synchronous functions.
 - `'RunMode.PROCESS'`: This mode is used for `#!python def` definitions. It runs in the `ProcessPoolExecutor`.
 
+example:
+
+```python
+from jobify import Jobify, RunMode
+
+app = Jobify()
+
+@app.task(run_mode=RunMode.MAIN)  # default for async func
+async def f1() -> None: ...
+
+@app.task(run_mode=RunMode.THREAD)  # default for sync func
+def f2() -> None: ...
+
+@app.task(run_mode=RunMode.PROCESS)  # run in ProcessPoolExecutor
+def f3() -> None: ...
+```
+
 ## exception_handlers
 
 - **Type**: `MappingExceptionHandlers | None`
