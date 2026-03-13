@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.8.1 (2026-03-13)
+
+### Bug Fixes
+
+- **middleware**: Allow exception handlers to return values
+  ([`27043eb`](https://github.com/theseriff/jobify/commit/27043eb04cd35b83d358999190e7d48305d357f2))
+
+### Documentation
+
+- Add exception_handlers
+  ([`1e55dca`](https://github.com/theseriff/jobify/commit/1e55dca8061a69c10cf21f919ba4cc08aaf3d4a6))
+
+
 ## v0.8.0 (2026-03-10)
 
 ### Build System
