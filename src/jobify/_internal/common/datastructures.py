@@ -2,26 +2,32 @@
 from __future__ import annotations
 
 from collections import UserDict
-from typing import Any
+from typing import Any, Literal
 
-from typing_extensions import override
+from typing_extensions import Self, override
 
 
-class EmptyPlaceholder:
+class EmptyPlaceholder(str):
+    __slots__: tuple[()] = ()
+
+    def __new__(cls) -> Self:
+        # Создаем пустую строку как основу
+        return super().__new__(cls, "__EMPTY__")
+
+    def __bool__(self) -> Literal[False]:
+        return False
+
     @override
-    def __repr__(self) -> str:
-        return "EMPTY"
+    def __str__(self) -> str:
+        return super().__str__()
 
     @override
     def __hash__(self) -> int:
-        return hash("EMPTY")
+        return hash(super().__str__())
 
     @override
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, self.__class__)
-
-    def __bool__(self) -> bool:
-        return False
+        return other == super().__str__()
 
 
 class State(UserDict[str, Any]):
