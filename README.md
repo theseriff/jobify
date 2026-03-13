@@ -24,13 +24,15 @@ Jobify uses the native timer mechanisms of asyncio for efficient and precise tas
 
 ## Key Features
 
-- **Async/Await**: Built from the ground up with `asyncio` in mind.
-- **Scheduling**: Run jobs immediately, with a delay, at a specified time, or using Cron expressions (second-level precision supported).
-- **Storage**: Built-in SQLite ensures scheduled jobs persist through application restarts.
-- **Routing**: Organize tasks with `JobRouter`, similar to FastAPI or Aiogram.
-- **Error Handling**: Comprehensive middleware for automatic retries, timeouts, and custom error handling.
-- **Concurrency**: Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
-- **Dependency Injection**: Powerful system for injecting job contexts.
+- [x] [**Async/Await**](https://theseriff.github.io/jobify/#why-jobify): Built from the ground up with `asyncio` in mind.
+- [x] [**Scheduling**](https://theseriff.github.io/jobify/schedule/): Run jobs immediately, with a delay, at a specified time, or using Cron expressions (second-level precision supported).
+- [x] [**Storage**](https://theseriff.github.io/jobify/app_settings/#storage): Built-in SQLite ensures scheduled jobs persist through application restarts.
+- [x] [**Routing**](https://theseriff.github.io/jobify/router/): Organize tasks with `JobRouter`, similar to FastAPI or Aiogram.
+- [x] [**Error Handling**](https://theseriff.github.io/jobify/advanced_usage/exception_handlers/): Comprehensive middleware for automatic retries, timeouts, and custom error handling.
+- [x] [**Concurrency**:](https://theseriff.github.io/jobify/task_settings/#run_mode) Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
+- [ ] Distributed task queue. Soon.
+- [ ] Many different adapters to the database. Soon.
+- [ ] Many different serializers. Soon.
 
 ## Installation
 
@@ -59,7 +61,7 @@ app = Jobify(tz=UTC)
 
 @app.task(cron="* * * * * * *")  # Runs every second
 async def my_cron() -> None:
-    print(f"Hello, {name}! cron running every second")
+    print("Hello! cron running every second")
 
 
 @app.task
