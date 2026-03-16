@@ -11,7 +11,6 @@ class EmptyPlaceholder(str):
     __slots__: tuple[()] = ()
 
     def __new__(cls) -> Self:
-        # Создаем пустую строку как основу
         return super().__new__(cls, "__EMPTY__")
 
     def __bool__(self) -> Literal[False]:
