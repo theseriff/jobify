@@ -2,6 +2,9 @@
 
 You can schedule tasks in two main ways: using recurring cron expressions or dynamically at runtime.
 
+!!! info "Precision & System Time"
+    Jobify uses high-precision timers instead of polling, which makes the scheduler very efficient. However, this also means that it is sensitive to changes in the system time. For details, see [System Time and Scheduling Trade-offs](advanced_usage/system_time.md).
+
 ## Cron Expressions
 
 `Jobify` uses the [crontab](https://pypi.org/project/crontab/) library to parse and schedule jobs from cron expressions. This provides a flexible and powerful way to define recurring tasks.

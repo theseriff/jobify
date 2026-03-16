@@ -24,11 +24,15 @@ Jobify uses the native timer mechanisms of asyncio for efficient and precise tas
 
 ## Key Features
 
-- [x] [**Async/Await**](https://theseriff.github.io/jobify/#why-jobify): Built from the ground up with `asyncio` in mind.
+- [x] [**Precision**](https://theseriff.github.io/jobify/#why-jobify): No polling! Uses native `asyncio` timers for sub-millisecond accuracy and zero idle CPU usage.
 - [x] [**Scheduling**](https://theseriff.github.io/jobify/schedule/): Run jobs immediately, with a delay, at a specified time, or using Cron expressions (second-level precision supported).
 - [x] [**Storage**](https://theseriff.github.io/jobify/app_settings/#storage): Built-in SQLite ensures scheduled jobs persist through application restarts.
 - [x] [**Routing**](https://theseriff.github.io/jobify/router/): Organize tasks with `JobRouter`, similar to FastAPI or Aiogram.
-- [x] [**Error Handling**](https://theseriff.github.io/jobify/advanced_usage/exception_handlers/): Comprehensive middleware for automatic retries, timeouts, and custom error handling.
+- [x] [**Inject Context**](https://theseriff.github.io/jobify/context/): Inject application state or custom dependencies directly into your tasks.
+- [x] [**Middlewares**](https://theseriff.github.io/jobify/app_settings/#middleware): Powerful interceptors for both job execution and the scheduling process.
+- [x] [**Exception Handlers**](https://theseriff.github.io/jobify/advanced_usage/exception_handlers/): Hierarchical error management at the task, router, or global level.
+- [x] [**Lifespan Support**](https://theseriff.github.io/jobify/app_settings/#lifespan): Manage startup and shutdown events, just like in FastAPI.
+- [x] [**Job Control**](https://theseriff.github.io/jobify/job/): Full control over jobs — wait for completion, cancel tasks, or check results with ease.
 - [x] [**Concurrency**:](https://theseriff.github.io/jobify/task_settings/#run_mode) Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
 - [ ] Distributed task queue. Soon.
 - [ ] Many different adapters to the database. Soon.
