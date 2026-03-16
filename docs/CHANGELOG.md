@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.9.0 (2026-03-16)
+
+### Documentation
+
+- Add FastAPI example and fix dishka-jobify description
+  ([`09f55f8`](https://github.com/theseriff/jobify/commit/09f55f8431e6aa454c7483f3f35e222a4f3446bb))
+
+- Enhance feature showcase and add system time trade-off docs
+  ([`ec60fe5`](https://github.com/theseriff/jobify/commit/ec60fe51b04055bbb88776d8b2a7b13c20ee788e))
+
+- **task_settings**: Improve describe run mode
+  ([`7f90cb9`](https://github.com/theseriff/jobify/commit/7f90cb92fcabe2e5b1fc97231c05b1a57c81dff1))
+
+### Features
+
+- Add NoResultError to abort retries immediately
+  ([`e517919`](https://github.com/theseriff/jobify/commit/e517919b2a46c6e664238de5d88edff22f8e7209))
+
+
 ## v0.8.1 (2026-03-13)
 
 ### Bug Fixes
