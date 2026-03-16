@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
+from jobify._internal.exceptions import NoResultError
 from jobify._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
@@ -25,7 +26,9 @@ class RetryMiddleware(BaseMiddleware):
         while True:
             try:
                 return await call_next(context)
-            except Exception as exc:  # noqa: PERF203
+            except NoResultError:  # noqa: PERF203
+                raise
+            except Exception as exc:
                 failures += 1
                 if failures > max_retries:
                     msg = (

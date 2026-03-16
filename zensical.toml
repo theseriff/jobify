@@ -28,6 +28,7 @@ nav = [
   { "Advanced Usage" = [
         "advanced_usage/exceptions.md",
         "advanced_usage/exception_handlers.md",
+        "advanced_usage/system_time.md",
     ] },
 ]
 # ----------------------------------------------------------------------------

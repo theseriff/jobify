@@ -2,9 +2,12 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, Mock, call, patch, sentinel
 
+import pytest
 from typing_extensions import override
 
 from jobify import JobContext, JobStatus, OuterContext
+from jobify._internal.common.constants import EMPTY
+from jobify.exceptions import JobFailedError, NoResultError
 from jobify.middleware import (
     BaseMiddleware,
     BaseOuterMiddleware,
@@ -124,3 +127,22 @@ async def test_outer_middlewares(amock: AsyncMock) -> None:
     async with app:
         job = await f.schedule().delay(0.01)
         assert job._handle is handle is not None
+
+
+async def test_retry_no_result_error(amock: AsyncMock) -> None:
+    amock.side_effect = NoResultError("Fatal failure")
+
+    app = create_app()
+    f = app.task(amock, retry=3)
+    async with app:
+        job = await f.push()
+        await job.wait()
+
+    assert job.status is JobStatus.FAILED
+
+    with pytest.raises(JobFailedError, match="Fatal failure"):
+        job.result()
+
+    assert job._result is EMPTY
+    assert type(job.exception) is NoResultError
+    amock.assert_awaited_once()

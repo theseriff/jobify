@@ -6,32 +6,41 @@ similar to modern web frameworks like FastAPI.
 
 ## Key Features
 
-- **Async First**: Built on top of `asyncio`.
-- [**Flexible Scheduling**](schedule.md#dynamic-scheduling){ data-preview }: Run jobs immediately, after a delay, at a specific time, or via Cron expressions.
-- **Persistence**: Built-in SQLite storage ensures scheduled jobs survive application restarts.
-- [**Modular**](router.md){ data-preview }: Organize tasks using `JobRouter`s (similar to FastAPI routers).
-- **Resilient**: Middleware support for automatic retries, timeouts, and error handling.
-- [**Concurrency**](task_settings/#run_mode){ data-preview }: Support for `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor`.
+- [**Precision**](#why-jobify){ data-preview }: No polling! Uses native `asyncio` timers for sub-millisecond accuracy and zero idle CPU usage.
+- [**Scheduling**](schedule.md){ data-preview }: Run jobs immediately, with a delay, at a specified time, or using Cron expressions (second-level precision supported).
+- [**Storage**](app_settings.md#storage){ data-preview }: Built-in SQLite ensures scheduled jobs persist through application restarts.
+- [**Routing**](router.md){ data-preview }: Organize tasks with `JobRouter`, similar to FastAPI or Aiogram.
+- [**Inject Context**](context.md){ data-preview }: Inject application state or custom dependencies directly into your tasks.
+- [**Middlewares**](app_settings.md#middleware){ data-preview }: Powerful interceptors for both job execution and the scheduling process.
+- [**Exception Handlers**](advanced_usage/exception_handlers.md){ data-preview }: Hierarchical error management at the task, router, or global level.
+- [**Lifespan Support**](app_settings.md#lifespan){ data-preview }: Manage startup and shutdown events, just like in FastAPI.
+- [**Job Control**](job.md){ data-preview }: Full control over jobs — wait for completion, cancel tasks, or check results with ease.
+- [**Concurrency**](task_settings.md#run_mode){ data-preview }: Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
+- **Distributed task queue**: Soon.
+- **Many different adapters to the database**: Soon.
+- **Many different serializers**: Soon.
 
 ## Comparison
 
 You might have seen other libraries like `APScheduler`, `Celery`, or `Taskiq`.
 Below is a comparison of features to help you decide if Jobify fits your needs.
 
-| Feature name                                                              |        Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
-| :------------------------------------------------------------------------ | :------------------: | :---------------: | :--------------: | :---------------: |
-| **Event-driven Scheduling**                                               | ✅ (Low-level timer) | ❌ (Polling/Loop) |  ❌ (Interval)   | ❌ (Polling/Loop) |
-| **Async Native (asyncio)**                                                |          ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
-| [**Context Injection**](context.md){ data-preview }                       |          ✅          |        ✅         |        ❌        |        ❌         |
-| [**FastAPI-style Routing**](router.md){ data-preview }                    |          ✅          |        ❌         |        ❌        |        ❌         |
-| [**Middleware Support**](app_settings/#middleware){ data-preview }        |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
-| [**Job Cancellation**](job/#await-jobcancel){ data-preview }              |          ✅          |        ❌         |        ✅        |        ✅         |
-| [**Cron Scheduling**](schedule/#cron-expressions){ data-preview }         |          ✅          |        ✅         |        ✅        |        ✅         |
-| [**Misfire Policy**](schedule/#the-cron-object){ data-preview }           |          ✅          |        ❌         |        ✅        |        ❌         |
-| [**Run Modes (Thread/Process)**](task_settings/#run_mode){ data-preview } |          ✅          |        ✅         |        ✅        |        ✅         |
-| **Rich Typing Support**                                                   |          ✅          |        ✅         |        ❌        |        ❌         |
-| **Zero-config Persistence**                                               | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
-| **Broker-backend execution**                                              |      ❌ (soon)       |        ✅         |        ❌        |        ✅         |
+| Feature name                                                                   |        Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
+| :----------------------------------------------------------------------------- | :------------------: | :---------------: | :--------------: | :---------------: |
+| **Event-driven Scheduling**                                                    | ✅ (Low-level timer) | ❌ (Polling/Loop) |  ❌ (Interval)   | ❌ (Polling/Loop) |
+| **Async Native (asyncio)**                                                     |          ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
+| [**Context Injection**](context.md){ data-preview }                            |          ✅          |        ✅         |        ❌        |        ❌         |
+| [**FastAPI-style Routing**](router.md){ data-preview }                         |          ✅          |        ❌         |        ❌        |        ❌         |
+| [**Middleware Support**](app_settings.md#middleware){ data-preview }           |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
+| [**Lifespan Support**](app_settings.md#lifespan){ data-preview }               |          ✅          |        ✅         |        ❌        |        ❌         |
+| [**Exception Handlers**](advanced_usage/exception_handlers.md){ data-preview } |  ✅ (Hierarchical)   |        ❌         |        ❌        |        ❌         |
+| [**Job Cancellation**](job.md#await-jobcancel){ data-preview }                 |          ✅          |        ❌         |        ✅        |        ✅         |
+| [**Cron Scheduling**](schedule.md#cron-expressions){ data-preview }            |  ✅ (Seconds level)  |   ✅ (Minutes)    |        ✅        |        ✅         |
+| [**Misfire Policy**](schedule.md#the-cron-object){ data-preview }              |          ✅          |        ❌         |        ✅        |        ❌         |
+| [**Run Modes (Thread/Process)**](task_settings.md#run_mode){ data-preview }    |          ✅          |        ✅         |        ✅        |        ✅         |
+| **Rich Typing Support**                                                        |          ✅          |        ✅         |        ❌        |        ❌         |
+| **Zero-config Persistence**                                                    | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
+| **Broker-backend execution**                                                   |      ❌ (soon)       |        ✅         |        ❌        |        ✅         |
 
 ### Why Jobify?
 
@@ -41,6 +50,9 @@ Jobify uses the low-level asyncio.loop.call_at API.
 1. **Efficiency**: The scheduler does not consume CPU cycles if there are no tasks to process.
 2. **Precision**: Tasks are triggered precisely by the internal timer of the event loop, ensuring sub-millisecond accuracy and avoiding the "jitter" that can be associated with sleep intervals.
 3. **Native**: It works in harmony with OS-level event notification systems (epoll/kqueue).
+
+!!! note "The Precision vs. Polling Trade-off"
+    Jobify consciously avoids polling in order to achieve maximum efficiency and sub-millisecond precision. This architectural decision means that the scheduler is sensitive to significant changes in the operating system's clock. For more information on this trade-off and why it is important, please see [System Time and Scheduling](advanced_usage/system_time.md){ data-preview }.
 
 ## Quick Start
 
@@ -108,4 +120,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 ```

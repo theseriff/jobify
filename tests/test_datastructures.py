@@ -7,8 +7,8 @@ from jobify._internal.common.datastructures import EmptyPlaceholder, State
 
 def test_empty_placeholder() -> None:
     empty = EmptyPlaceholder()
-    assert str(empty) == "EMPTY"
-    assert hash(empty) == hash("EMPTY")
+    assert str(empty) == "__EMPTY__"
+    assert hash(empty) == hash("__EMPTY__")
     assert bool(empty) is False
     assert empty == EmptyPlaceholder()
 

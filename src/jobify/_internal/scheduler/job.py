@@ -138,8 +138,8 @@ class Job(Generic[ReturnT]):
         self.status = status
 
     def update(self, *, exec_at: datetime, status: JobStatus) -> None:
-        self.status = status
         self._event = asyncio.Event()
+        self.status = status
         self.exec_at = exec_at
 
     def is_done(self) -> bool:

@@ -107,11 +107,43 @@ async def my_recovery_handler(exc: Exception, context: JobContext) -> str:
 @app.task(exception_handlers={ValueError: my_recovery_handler})
 async def my_task() -> None:
     raise ValueError("Oops!")
+```
 
-# ... after execution ...
-await job.wait()
-print(job.status) # SUCCESS
-print(job.result()) # "default_value"
+### 3. Aborting Retries with NoResultError
+
+Sometimes, an error can be fatal and retrying a task (even if the `retry` configuration is set) would be a waste of resources.
+In these cases, it is recommended to raise the `jobify.exceptions.NoResultError` exception.
+
+- When this exception is raised, the job's status will be set to FAILED.
+- The `RetryMiddleware` component will catch this exception and stop all further retries.
+- No more retries will be attempted.
+
+```python
+import asyncio
+
+from jobify import JobContext, Jobify
+from jobify.exceptions import NoResultError
+
+app = Jobify()
+
+async def fatal_error_handler(exc: Exception, context: JobContext) -> None:
+    print(f"Fatal error in job {context.job.id}: {exc}")
+    # Signal that we should stop retries and fail the job immediately
+    raise NoResultError
+
+@app.task(retry=3, exception_handlers={ValueError: fatal_error_handler})
+async def my_task() -> None:
+    raise ValueError("Corrupted data!")
+
+async def main() -> None:
+    async with app:
+        job = await my_task.push()
+        await job.wait()
+
+        print(job.status) # FAILED
+        print(job.exception) # NoResultError
+
+asyncio.run(main())
 ```
 
 ## Example: Hierarchical Handling
