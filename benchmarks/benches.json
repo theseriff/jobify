@@ -1,15 +1,38 @@
 {
   "serializers": {
-    "pickle": 0.56331,
-    "json": 3.20315
+    "json_ms": 3.352143,
+    "pickle_ms": 0.591095
   },
-  "latency": {
-    "directly_run": 0.00306,
-    "push_nondb_pickle": 0.60062,
-    "push_nondb_json": 0.59834,
-    "push_nondb_extended_json": 0.59829,
-    "push_sqlite_pickle": 1.74763,
-    "push_sqlite_json": 1.82643,
-    "push_sqlite_extended_json": 1.92759
+  "dummyDB+json+none": {
+    "latency_ms": 0.094239,
+    "throughput_tps": 30012.971666
+  },
+  "dummyDB+json+adaptix": {
+    "latency_ms": 0.091961,
+    "throughput_tps": 29838.840749
+  },
+  "dummyDB+pickle+adaptix": {
+    "latency_ms": 0.094248,
+    "throughput_tps": 29731.533646
+  },
+  "dummyDB+pickle+none": {
+    "latency_ms": 0.066177,
+    "throughput_tps": 29151.139118
+  },
+  "sqlite+pickle+adaptix": {
+    "latency_ms": 0.289974,
+    "throughput_tps": 6725.943247
+  },
+  "sqlite+json+none": {
+    "latency_ms": 0.310519,
+    "throughput_tps": 6674.460349
+  },
+  "sqlite+pickle+none": {
+    "latency_ms": 0.282762,
+    "throughput_tps": 6651.438252
+  },
+  "sqlite+json+adaptix": {
+    "latency_ms": 0.278536,
+    "throughput_tps": 6597.276782
   }
 }
