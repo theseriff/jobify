@@ -1,31 +1,25 @@
-from __future__ import annotations
-
 import multiprocessing
 import sys
+from collections.abc import Collection, Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, TypedDict, final
+from datetime import datetime
+from typing import Any, TypedDict, final
+from zoneinfo import ZoneInfo
 
-from jobify._internal.common.constants import INFINITY
+from jobify._internal.common.constants import INFINITY, RunMode
+from jobify._internal.common.types import (
+    LoopFactory,
+    MappingExceptionHandlers,
+)
+from jobify._internal.cron_parser import CronFactory
 from jobify._internal.scheduler.misfire_policy import (
     GracePolicy,
     MisfirePolicy,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Collection, Mapping
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    from jobify._internal.common.constants import RunMode
-    from jobify._internal.common.types import (
-        LoopFactory,
-        MappingExceptionHandlers,
-    )
-    from jobify._internal.cron_parser import CronFactory
-    from jobify._internal.serializers.base import Serializer
-    from jobify._internal.storage.base import Storage
-    from jobify._internal.typeadapter.base import Dumper, Loader
+from jobify._internal.serializers.base import Serializer
+from jobify._internal.storage.base import Storage
+from jobify._internal.typeadapter.base import Dumper, Loader
 
 
 @final

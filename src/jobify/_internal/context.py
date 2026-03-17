@@ -2,13 +2,7 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import (
-    Any,
-    NamedTuple,
-    final,
-    get_origin,
-    get_type_hints,
-)
+from typing import Any, NamedTuple, final, get_origin, get_type_hints
 
 from jobify._internal.common.datastructures import RequestState, State
 from jobify._internal.common.types import ExceptionHandlers
