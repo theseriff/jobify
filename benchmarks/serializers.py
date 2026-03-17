@@ -186,10 +186,10 @@ def serializers_measure() -> dict[str, dict[str, float]]:
     common_globs = {"serializer_case": serializer_case}
     stmt = "for _ in range(10): serializer_case(serializer)"
     for name, serializer in {
-        "json_ms": ExtendedJSONSerializer(
+        "json": ExtendedJSONSerializer(
             (BenchDataclass, NestedBenchDataclass, BenchNamedTuple)
         ),
-        "pickle_ms": UnsafePickleSerializer(),
+        "pickle": UnsafePickleSerializer(),
     }.items():
         globs = common_globs | {"serializer": serializer}
         results[name] = round(timeit(stmt, globals=globs, number=1000), 6)

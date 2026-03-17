@@ -109,3 +109,8 @@ test-coverage-all +param="tests/":
 
 alias ta := test-all
 alias tca := test-coverage-all
+
+[doc("Run benchmarks")]
+[group("benchmarks")]
+bench:
+  @python -m benchmarks.bench

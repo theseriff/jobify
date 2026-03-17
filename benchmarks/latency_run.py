@@ -6,7 +6,11 @@ from typing import Literal, NamedTuple
 from adaptix import Retort
 
 from jobify import Jobify
-from jobify.serializers import JSONSerializer, UnsafePickleSerializer
+from jobify.serializers import (
+    ExtendedJSONSerializer,
+    JSONSerializer,
+    UnsafePickleSerializer,
+)
 from jobify.storage import SQLiteStorage, Storage
 
 
@@ -44,6 +48,7 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
     serializers = {
         "pickle": UnsafePickleSerializer(),
         "json": JSONSerializer(),
+        "json_extended": ExtendedJSONSerializer(),
     }
     type_adapters = {
         "none": (None, None),
@@ -55,6 +60,9 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
     for db_name, db in databases.items():
         for set_name, serializer in serializers.items():
             for ta_name, (dumper, loader) in type_adapters.items():
+                if set_name == "json_extended" and ta_name == "adaptix":
+                    continue
+
                 config_name = f"{db_name}+{set_name}+{ta_name}"
 
                 app = Jobify(
@@ -65,7 +73,21 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
                 )
                 jobify_task = app.task(task)
 
+                async def push_and_wait() -> None:
+                    job = await jobify_task.push(  # noqa: B023
+                        CreateUser("Dilan", "ex@y.com")
+                    )
+                    await job.wait()
+
                 async with app:
+                    for _ in range(WARMUP_RUNS):
+                        _ = task(CreateUser("Dilan", "ex@y.com"))
+
+                    warmup_coros = (
+                        push_and_wait() for _ in range(WARMUP_RUNS)
+                    )
+                    _ = await asyncio.gather(*warmup_coros)
+
                     # --- 1. Latency ---
                     latencies: list[float] = []
                     for _ in range(ROUNDS):
@@ -83,16 +105,9 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
 
                     avg_latency_ms = min(latencies) * 1000
 
-                    # --- 2. Throughput ---
-                    async def push_and_wait() -> None:
-                        job = await jobify_task.push(  # noqa: B023
-                            CreateUser("Dilan", "ex@y.com")
-                        )
-                        await job.wait()
-
                     tps_results: list[float] = []
                     for _ in range(ROUNDS):
-                        coros = [push_and_wait() for _ in range(AMOUNT_RUN)]
+                        coros = (push_and_wait() for _ in range(AMOUNT_RUN))
                         gc.disable()
                         start = time.perf_counter()
                         _ = await asyncio.gather(*coros)
