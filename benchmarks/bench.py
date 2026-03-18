@@ -1,16 +1,16 @@
 import asyncio
-import json
 import logging
+import platform
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TypeAlias
+
+import psutil
 
 from benchmarks.latency_run import jobify_run_benchmarks
-from .serializers import serializers_measure
-
-Results: TypeAlias = dict[str, "float | dict[str, float]"]
+from benchmarks.serializers import serializers_measure
+from jobify import __version__
 
 
 @contextmanager
@@ -19,22 +19,49 @@ def timer() -> Iterator[None]:
     start = time.perf_counter()
     yield None
     end = time.perf_counter() - start
-    print("Benchmarks completed in: %.2fs.", end)
+    print(f"Benchmarks completed in: {end:.2f}s.")
 
 
-def write_results(results: Results) -> None:
-    benches_file = Path("./benchmarks/benches.json")
+def write_results(results: str) -> None:
+    print(results)
+    benches_file = Path("./benchmarks/results.txt")
     with benches_file.open(mode="w", encoding="utf-8") as fp:
-        json.dump(results, fp, indent=2)
-    print("Results saved to: %s", benches_file)
+        _ = fp.write(results.strip())
+    print(f"Results saved to: {benches_file}")
 
 
 async def main() -> None:
-    results: Results = {}
+    cpu_info = psutil.cpu_freq()
+    results: list[str] = [
+        f"jobify: {__version__}",
+        f"OS: {platform.system()} {platform.release()}",
+        f"Architecture: {platform.machine()}",
+        f"CPU Physical cores: {psutil.cpu_count(logical=False)}",
+        f"CPU Logical cores: {psutil.cpu_count(logical=True)}",
+        f"CPU Max Frequency: {cpu_info.max:.2f}MHz"
+        if cpu_info
+        else "CPU Frequency: N/A",
+        f"CPU Min Frequency: {cpu_info.min:.2f}MHz" if cpu_info else "",
+        f"CPU Current Frequency: {cpu_info.current:.2f}MHz"
+        if cpu_info
+        else "",
+    ]
     with timer():
-        results |= serializers_measure()
-        results |= await jobify_run_benchmarks()
-    write_results(results)
+        results.extend(
+            enrich_results(serializers_measure(), name=" Serializers ")
+        )
+        results.extend(
+            enrich_results(await jobify_run_benchmarks(), name=" Jobify APP ")
+        )
+    write_results("\n".join(results))
+
+
+def enrich_results(results: list[str], name: str) -> list[str]:
+    return [
+        f"\n{name:=^60}",
+        *results,
+        f"{'=' * 60}",
+    ]
 
 
 if __name__ == "__main__":

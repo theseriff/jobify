@@ -80,6 +80,7 @@ docs = [
     "zensical==0.0.19",
 ]
 benchmarks = [
+    "psutil==7.2.2",
     "adaptix==3.0.0b11",
 ]
 dev = [

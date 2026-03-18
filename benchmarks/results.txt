@@ -1,0 +1,32 @@
+jobify: 0.9.0
+OS: Linux 6.18.13-arch1-1
+Architecture: x86_64
+CPU Physical cores: 4
+CPU Logical cores: 8
+CPU Max Frequency: 4700.00MHz
+CPU Min Frequency: 400.00MHz
+CPU Current Frequency: 2198.28MHz
+
+======================= Serializers ========================
+Config Name                         | Total Seconds         
+----------------------------------- | ----------------------
+pickle                              |   0.567 sec
+extended_json                       |   3.236 sec
+============================================================
+
+======================== Jobify APP ========================
+Config Name                         | Latency    | Throughput  
+----------------------------------- | ---------- | ------------
+dummyDB+json+adaptix                |   0.026 ms |  50069.1 TPS
+dummyDB+extended_json+adaptix       |   0.026 ms |  50063.6 TPS
+dummyDB+json+none                   |   0.026 ms |  49967.9 TPS
+dummyDB+extended_json+none          |   0.026 ms |  49936.2 TPS
+dummyDB+pickle+adaptix              |   0.026 ms |  49493.1 TPS
+dummyDB+pickle+none                 |   0.027 ms |  49463.9 TPS
+sqlite+pickle+adaptix               |   0.126 ms |   7506.7 TPS
+sqlite+json+none                    |   0.138 ms |   7473.9 TPS
+sqlite+pickle+none                  |   0.128 ms |   7344.5 TPS
+sqlite+json+adaptix                 |   0.129 ms |   7315.3 TPS
+sqlite+extended_json+adaptix        |   0.143 ms |   7023.9 TPS
+sqlite+extended_json+none           |   0.150 ms |   6814.6 TPS
+============================================================

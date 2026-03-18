@@ -1,11 +1,12 @@
 import asyncio
 import gc
 import time
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from adaptix import Retort
 
 from jobify import Jobify
+from jobify.router import Route
 from jobify.serializers import (
     ExtendedJSONSerializer,
     JSONSerializer,
@@ -25,8 +26,13 @@ class User(NamedTuple):
     email: str
 
 
-def task(_: CreateUser) -> tuple[str, str, str]:
-    return User("some_id", "Bob", "example@yahoo.com")
+async def task(dto: CreateUser) -> tuple[str, str, str]:
+    return User("id", dto.name, dto.email)
+
+
+async def push_and_wait(jobify_task: Route[..., Any]) -> None:
+    job = await jobify_task.push(CreateUser("Dilan", "ex@y.com"))
+    await job.wait()
 
 
 class BenchResult(NamedTuple):
@@ -40,7 +46,7 @@ WARMUP_RUNS = 100
 ROUNDS = 3
 
 
-async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
+async def jobify_run_benchmarks() -> list[str]:
     databases: dict[str, Storage | Literal[False]] = {
         "dummyDB": False,
         "sqlite": SQLiteStorage(database=":memory:"),
@@ -48,7 +54,7 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
     serializers = {
         "pickle": UnsafePickleSerializer(),
         "json": JSONSerializer(),
-        "json_extended": ExtendedJSONSerializer(),
+        "extended_json": ExtendedJSONSerializer(),
     }
     type_adapters = {
         "none": (None, None),
@@ -60,9 +66,6 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
     for db_name, db in databases.items():
         for set_name, serializer in serializers.items():
             for ta_name, (dumper, loader) in type_adapters.items():
-                if set_name == "json_extended" and ta_name == "adaptix":
-                    continue
-
                 config_name = f"{db_name}+{set_name}+{ta_name}"
 
                 app = Jobify(
@@ -73,18 +76,12 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
                 )
                 jobify_task = app.task(task)
 
-                async def push_and_wait() -> None:
-                    job = await jobify_task.push(  # noqa: B023
-                        CreateUser("Dilan", "ex@y.com")
-                    )
-                    await job.wait()
-
                 async with app:
                     for _ in range(WARMUP_RUNS):
-                        _ = task(CreateUser("Dilan", "ex@y.com"))
+                        _ = await task(CreateUser("Dilan", "ex@y.com"))
 
                     warmup_coros = (
-                        push_and_wait() for _ in range(WARMUP_RUNS)
+                        push_and_wait(jobify_task) for _ in range(WARMUP_RUNS)
                     )
                     _ = await asyncio.gather(*warmup_coros)
 
@@ -103,20 +100,24 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
                         )
                         gc.enable()
 
-                    avg_latency_ms = min(latencies) * 1000
-
+                    # --- 2. Throughput ---
                     tps_results: list[float] = []
                     for _ in range(ROUNDS):
-                        coros = (push_and_wait() for _ in range(AMOUNT_RUN))
+                        coros = (
+                            push_and_wait(jobify_task)
+                            for _ in range(AMOUNT_RUN)
+                        )
+
                         gc.disable()
                         start = time.perf_counter()
                         _ = await asyncio.gather(*coros)
                         elapsed = time.perf_counter() - start
                         gc.enable()
+
                         tps_results.append(AMOUNT_RUN / elapsed)
 
+                    avg_latency_ms = min(latencies) * 1000
                     max_tps = max(tps_results)
-
                     final_results.append(
                         BenchResult(config_name, avg_latency_ms, max_tps)
                     )
@@ -124,20 +125,14 @@ async def jobify_run_benchmarks() -> dict[str, dict[str, float]]:
     return prepare_report(final_results)
 
 
-def prepare_report(results: list[BenchResult]) -> dict[str, dict[str, float]]:
-    fmt_results: dict[str, dict[str, float]] = {}
-
-    print(f"\n{' Configuration ':=^60}")
-    print(f"{'Config Name':<35} | {'Latency':<10} | {'Throughput':<12}")
-    print(f"{'-' * 35} | {'-' * 10} | {'-' * 12}")
-    for r in sorted(results, key=lambda x: x.throughput_tps, reverse=True):
-        fmt_results[r.name] = {
-            "latency_ms": round(r.latency_ms, 6),
-            "throughput_tps": round(r.throughput_tps, 6),
-        }
-        print(
-            f"{r.name:<35} | {r.latency_ms:>7.3f} ms | {r.throughput_tps:>8.1f} TPS"  # noqa: E501
-        )
-    print(f"{'=' * 60}\n")
-
+def prepare_report(results: list[BenchResult]) -> list[str]:
+    results.sort(key=lambda x: x.throughput_tps, reverse=True)
+    fmt_results: list[str] = [
+        f"{'Config Name':<35} | {'Latency':<10} | {'Throughput':<12}",
+        f"{'-' * 35} | {'-' * 10} | {'-' * 12}",
+    ]
+    fmt_results.extend(
+        f"{r.name:<35} | {r.latency_ms:>7.3f} ms | {r.throughput_tps:>8.1f} TPS"  # noqa: E501
+        for r in results
+    )
     return fmt_results

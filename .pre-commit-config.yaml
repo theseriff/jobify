@@ -25,10 +25,14 @@ repos:
       - id: end-of-file-fixer
         exclude: |
           (?x)^(
-              benchmarks/benches.json
+              benchmarks/results.txt
           )$
       - id: mixed-line-ending
       - id: trailing-whitespace
+        exclude: |
+          (?x)^(
+              benchmarks/results.txt
+          )$
 
   - repo: https://github.com/crate-ci/typos
     rev: v1.36.3

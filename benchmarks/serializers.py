@@ -181,19 +181,39 @@ def serializer_case(serializer: Serializer) -> None:
     assert decoded == big_serializable_data
 
 
-def serializers_measure() -> dict[str, dict[str, float]]:
-    results: dict[str, float] = {}
-    common_globs = {"serializer_case": serializer_case}
-    stmt = "for _ in range(10): serializer_case(serializer)"
-    for name, serializer in {
-        "json": ExtendedJSONSerializer(
+class BenchResult(NamedTuple):
+    name: str
+    execute_seconds: float
+
+
+def serializers_measure() -> list[str]:
+    serializers = {
+        "pickle": UnsafePickleSerializer(),
+        "extended_json": ExtendedJSONSerializer(
             (BenchDataclass, NestedBenchDataclass, BenchNamedTuple)
         ),
-        "pickle": UnsafePickleSerializer(),
-    }.items():
+    }
+
+    common_globs = {"serializer_case": serializer_case}
+    stmt = "for _ in range(10): serializer_case(serializer)"
+
+    final_results: list[BenchResult] = []
+
+    for name, serializer in serializers.items():
         globs = common_globs | {"serializer": serializer}
-        results[name] = round(timeit(stmt, globals=globs, number=1000), 6)
-    results = dict(
-        sorted(results.items(), key=lambda item: item[1], reverse=True),
+        execute_seconds = round(timeit(stmt, globals=globs, number=1000), 6)
+        final_results.append(BenchResult(name, execute_seconds))
+
+    return prepare_report(final_results)
+
+
+def prepare_report(results: list[BenchResult]) -> list[str]:
+    results.sort(key=lambda x: x.execute_seconds)
+    fmt_results = [
+        f"{'Config Name':<35} | {'Total Seconds':<22}",
+        f"{'-' * 35} | {'-' * 22}",
+    ]
+    fmt_results.extend(
+        f"{r.name:<35} | {r.execute_seconds:>7.3f} sec" for r in results
     )
-    return {"serializers": results}
+    return fmt_results
