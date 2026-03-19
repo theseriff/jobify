@@ -113,4 +113,4 @@ alias tca := test-coverage-all
 [doc("Run benchmarks")]
 [group("benchmarks")]
 bench:
-  @python -m benchmarks.bench
+  @uv run --no-dev --group benchmarks --frozen -m benchmarks.bench

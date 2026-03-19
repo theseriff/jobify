@@ -5,28 +5,28 @@ CPU Physical cores: 4
 CPU Logical cores: 8
 CPU Max Frequency: 4700.00MHz
 CPU Min Frequency: 400.00MHz
-CPU Current Frequency: 2198.28MHz
+CPU Current Frequency: 1861.95MHz
 
 ======================= Serializers ========================
 Config Name                         | Total Seconds         
 ----------------------------------- | ----------------------
-pickle                              |   0.567 sec
-extended_json                       |   3.236 sec
+pickle                              |   0.564 sec
+extended_json                       |   3.225 sec
 ============================================================
 
 ======================== Jobify APP ========================
 Config Name                         | Latency    | Throughput  
 ----------------------------------- | ---------- | ------------
-dummyDB+json+adaptix                |   0.026 ms |  50069.1 TPS
-dummyDB+extended_json+adaptix       |   0.026 ms |  50063.6 TPS
-dummyDB+json+none                   |   0.026 ms |  49967.9 TPS
-dummyDB+extended_json+none          |   0.026 ms |  49936.2 TPS
-dummyDB+pickle+adaptix              |   0.026 ms |  49493.1 TPS
-dummyDB+pickle+none                 |   0.027 ms |  49463.9 TPS
-sqlite+pickle+adaptix               |   0.126 ms |   7506.7 TPS
-sqlite+json+none                    |   0.138 ms |   7473.9 TPS
-sqlite+pickle+none                  |   0.128 ms |   7344.5 TPS
-sqlite+json+adaptix                 |   0.129 ms |   7315.3 TPS
-sqlite+extended_json+adaptix        |   0.143 ms |   7023.9 TPS
-sqlite+extended_json+none           |   0.150 ms |   6814.6 TPS
+dummyDB+extended_json+none          |   0.024 ms |  61688.8 TPS
+dummyDB+extended_json+adaptix       |   0.024 ms |  61375.7 TPS
+dummyDB+json+adaptix                |   0.024 ms |  60827.8 TPS
+dummyDB+json+none                   |   0.029 ms |  60814.8 TPS
+dummyDB+pickle+adaptix              |   0.024 ms |  60488.4 TPS
+dummyDB+pickle+none                 |   0.026 ms |  59461.0 TPS
+sqlite+pickle+adaptix               |   0.135 ms |   7709.6 TPS
+sqlite+json+none                    |   0.133 ms |   7704.6 TPS
+sqlite+pickle+none                  |   0.140 ms |   7637.9 TPS
+sqlite+json+adaptix                 |   0.135 ms |   7447.3 TPS
+sqlite+extended_json+adaptix        |   0.140 ms |   7168.0 TPS
+sqlite+extended_json+none           |   0.147 ms |   7078.2 TPS
 ============================================================

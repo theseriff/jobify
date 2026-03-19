@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import logging
 import platform
 import time
@@ -8,7 +9,7 @@ from pathlib import Path
 
 import psutil
 
-from benchmarks.latency_run import jobify_run_benchmarks
+from benchmarks.jobify_app import jobify_run_benchmarks
 from benchmarks.serializers import serializers_measure
 from jobify import __version__
 
@@ -16,9 +17,13 @@ from jobify import __version__
 @contextmanager
 def timer() -> Iterator[None]:
     print("Running benchmarks...")
+    gc.disable()
     start = time.perf_counter()
+
     yield None
+
     end = time.perf_counter() - start
+    gc.enable()
     print(f"Benchmarks completed in: {end:.2f}s.")
 
 

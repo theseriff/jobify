@@ -1,12 +1,10 @@
 import asyncio
-import gc
 import time
-from typing import Any, Literal, NamedTuple
+from typing import Literal, NamedTuple
 
 from adaptix import Retort
 
 from jobify import Jobify
-from jobify.router import Route
 from jobify.serializers import (
     ExtendedJSONSerializer,
     JSONSerializer,
@@ -30,17 +28,13 @@ async def task(dto: CreateUser) -> tuple[str, str, str]:
     return User("id", dto.name, dto.email)
 
 
-async def push_and_wait(jobify_task: Route[..., Any]) -> None:
-    job = await jobify_task.push(CreateUser("Dilan", "ex@y.com"))
-    await job.wait()
-
-
 class BenchResult(NamedTuple):
     name: str
     latency_ms: float
     throughput_tps: float
 
 
+COOLDAWN_SLEEP = 1.0
 AMOUNT_RUN = 10_000
 WARMUP_RUNS = 100
 ROUNDS = 3
@@ -75,46 +69,46 @@ async def jobify_run_benchmarks() -> list[str]:
                     loader=loader,
                 )
                 jobify_task = app.task(task)
+                create_user_dto = CreateUser("Dilan", "ex@y.com")
 
                 async with app:
                     for _ in range(WARMUP_RUNS):
-                        _ = await task(CreateUser("Dilan", "ex@y.com"))
+                        _ = await task(create_user_dto)
 
                     warmup_coros = (
-                        push_and_wait(jobify_task) for _ in range(WARMUP_RUNS)
+                        jobify_task.push(create_user_dto)
+                        for _ in range(WARMUP_RUNS)
                     )
-                    _ = await asyncio.gather(*warmup_coros)
+                    jobs = await asyncio.gather(*warmup_coros)
+                    _ = await asyncio.gather(*(job.wait() for job in jobs))
 
                     # --- 1. Latency ---
                     latencies: list[float] = []
                     for _ in range(ROUNDS):
-                        gc.disable()
                         start = time.perf_counter()
                         for _ in range(AMOUNT_RUN // 10):
-                            job = await jobify_task.push(
-                                CreateUser("Dilan", "ex@y.com")
-                            )
+                            job = await jobify_task.push(create_user_dto)
                             await job.wait()
+
                         latencies.append(
                             (time.perf_counter() - start) / (AMOUNT_RUN // 10)
                         )
-                        gc.enable()
+                        await asyncio.sleep(COOLDAWN_SLEEP)
 
                     # --- 2. Throughput ---
                     tps_results: list[float] = []
                     for _ in range(ROUNDS):
+                        start = time.perf_counter()
                         coros = (
-                            push_and_wait(jobify_task)
+                            jobify_task.push(create_user_dto)
                             for _ in range(AMOUNT_RUN)
                         )
-
-                        gc.disable()
-                        start = time.perf_counter()
                         _ = await asyncio.gather(*coros)
+                        await app.wait_all()
                         elapsed = time.perf_counter() - start
-                        gc.enable()
-
                         tps_results.append(AMOUNT_RUN / elapsed)
+
+                        await asyncio.sleep(COOLDAWN_SLEEP)
 
                     avg_latency_ms = min(latencies) * 1000
                     max_tps = max(tps_results)
