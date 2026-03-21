@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.9.1 (2026-03-21)
+
+### Build System
+
+- **deps**: Bump the github-actions group with 2 updates
+  ([`07d800a`](https://github.com/theseriff/jobify/commit/07d800a0393f7bafe2b4d853b04bd5f384ee0dca))
+
+### Performance Improvements
+
+- **context**: Cache inject_params in FuncSpec, pass func_spec via Runnable
+  ([`68816b7`](https://github.com/theseriff/jobify/commit/68816b7c5a765b8516bffec605a8940f2635e7e4))
+
+
 ## v0.9.0 (2026-03-16)
 
 ### Documentation
