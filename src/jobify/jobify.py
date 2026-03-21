@@ -140,21 +140,23 @@ class Jobify(RootRouter):
             storage.threadpool = threadpool_executor
             storage.tz = tz
 
+        system_types = (
+            Message,
+            Cron,
+            PushArguments,
+            AtArguments,
+            CronArguments,
+            MisfirePolicy,
+            GracePolicy,
+        )
         if serializer is None:
-            system_types = (
-                Message,
-                Cron,
-                PushArguments,
-                AtArguments,
-                CronArguments,
-                MisfirePolicy,
-                GracePolicy,
-            )
             serializer = (
                 ExtendedJSONSerializer(system_types)
                 if dumper is None and loader is None
                 else JSONSerializer()
             )
+        elif isinstance(serializer, ExtendedJSONSerializer):
+            serializer.add_system_types(system_types)
 
         if dumper is None:
             dumper = DummyDumper()
@@ -330,7 +332,7 @@ class Jobify(RootRouter):
             msg = self.configs.loader.load(raw_msg, Message)
 
             for name, raw_arg in msg.arguments.items():
-                param_type = route.func_spec.params_type[name]
+                param_type = route.func_spec.type_params[name]
                 msg.arguments[name] = self.configs.loader.load(
                     raw_arg,
                     param_type,

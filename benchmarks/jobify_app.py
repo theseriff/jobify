@@ -34,7 +34,7 @@ class BenchResult(NamedTuple):
     throughput_tps: float
 
 
-COOLDAWN_SLEEP = 1.0
+COOLDOWN_SLEEP = 1.0
 AMOUNT_RUN = 10_000
 WARMUP_RUNS = 100
 ROUNDS = 3
@@ -93,7 +93,7 @@ async def jobify_run_benchmarks() -> list[str]:
                         latencies.append(
                             (time.perf_counter() - start) / (AMOUNT_RUN // 10)
                         )
-                        await asyncio.sleep(COOLDAWN_SLEEP)
+                        await asyncio.sleep(COOLDOWN_SLEEP)
 
                     # --- 2. Throughput ---
                     tps_results: list[float] = []
@@ -108,7 +108,7 @@ async def jobify_run_benchmarks() -> list[str]:
                         elapsed = time.perf_counter() - start
                         tps_results.append(AMOUNT_RUN / elapsed)
 
-                        await asyncio.sleep(COOLDAWN_SLEEP)
+                        await asyncio.sleep(COOLDOWN_SLEEP)
 
                     avg_latency_ms = min(latencies) * 1000
                     max_tps = max(tps_results)

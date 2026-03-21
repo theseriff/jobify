@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any, NamedTuple, final, get_origin, get_type_hints
@@ -76,7 +75,6 @@ class JobContext(NamedTuple):
     exception_handlers: ExceptionHandlers
 
 
-INJECT: Any = object()
 CONTEXT_TYPE_MAP = {
     get_origin(field_type) or field_type: field_name
     for field_name, field_type in get_type_hints(JobContext).items()
@@ -84,19 +82,9 @@ CONTEXT_TYPE_MAP = {
 
 
 def inject_context(context: JobContext) -> None:
-    bound = context.runnable.bound
-    arguments = bound.arguments
-
-    for name, param in bound.signature.parameters.items():
-        if param.default is not INJECT:
-            continue
-
-        annotation = param.annotation
-        if annotation is inspect.Parameter.empty:
-            msg = f"Parameter {name} requires a type annotation for INJECT"
-            raise ValueError(msg)
-
-        tp = get_origin(annotation) or annotation
+    runnable = context.runnable
+    arguments = runnable.bound.arguments
+    for name, tp in runnable.func_spec.inject_params.items():
         if tp is JobContext:
             val = context
         elif field_name := CONTEXT_TYPE_MAP.get(tp):
