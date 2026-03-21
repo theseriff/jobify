@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/publish_coverage.yml"
+      - ".github/workflows/pr_tests.yml"
 
 permissions:
   statuses: write

@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "src/**"
+      - "docs/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "zensical.toml"
+      - ".github/workflows/publish_pypi.yml"
 
 jobs:
   release_and_publish:
