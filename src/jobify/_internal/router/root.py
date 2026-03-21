@@ -182,6 +182,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
                 name=self.name,
                 bound=bound,
                 strategy=self._run_strategy,
+                func_spec=self.func_spec,
             ),
         )
 

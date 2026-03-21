@@ -292,7 +292,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         trigger: Triggers,
     ) -> ScheduledJob:
         dumper = self._configs.dumper.dump
-        params_type = self.func_spec.params_type
+        params_type = self.func_spec.type_params
         args_dumped = {
             name: dumper(arg, params_type[name])
             for name, arg in self._runnable.origin_arguments.items()

@@ -10,7 +10,8 @@ from importlib.metadata import version as get_version
 from jobify._internal.common.constants import JobStatus, RunMode
 from jobify._internal.common.datastructures import RequestState, State
 from jobify._internal.configuration import Cron
-from jobify._internal.context import INJECT, JobContext, OuterContext
+from jobify._internal.context import JobContext, OuterContext
+from jobify._internal.inspection import INJECT
 from jobify._internal.router.node import NodeRouter as JobRouter
 from jobify._internal.runners import Runnable
 from jobify._internal.scheduler.job import CronContext, Job

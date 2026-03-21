@@ -1,16 +1,13 @@
-import inspect
 from typing import Any, no_type_check
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 from typing_extensions import override
 
-from jobify import INJECT, Job, JobContext, Jobify, State
-from jobify._internal.common.constants import EMPTY
+from jobify import INJECT, Job, JobContext, Jobify, Runnable, State
 from jobify._internal.common.datastructures import RequestState
-from jobify._internal.context import inject_context
-from jobify._internal.runners import Runnable, create_run_strategy
-from jobify.exceptions import JobFailedError
+from jobify._internal.common.types import ExceptionHandlers
+from jobify._internal.configuration import JobifyConfiguration, RouteOptions
 from jobify.middleware import BaseMiddleware, CallNext
 from tests.conftest import create_app
 
@@ -26,74 +23,86 @@ async def test_injection() -> None:
     app = create_app()
     app.add_middleware(_MyMiddleware())
 
-    job_id: str | None = None
-    request_test_num: int | None = None
-    state: State | None = None
-    ctx: JobContext = EMPTY
+    mock = Mock()
+    contexts: list[JobContext] = []
 
     @app.task
-    async def some_func(
+    async def some_func(  # noqa: PLR0913
         job: Job[None] = INJECT,
-        request_state: RequestState = INJECT,
         app_state: State = INJECT,
+        runnable: Runnable[None] = INJECT,
+        request_state: RequestState = INJECT,
+        route_options: RouteOptions = INJECT,
+        jobify_config: JobifyConfiguration = INJECT,
+        exception_handlers: ExceptionHandlers = INJECT,
         context: JobContext = INJECT,
     ) -> None:
-        nonlocal job_id, request_test_num, state, ctx
-
-        job_id = job.id
-        request_test_num = request_state.test
-        state = app_state
-        ctx = context
+        mock(
+            job,
+            app_state,
+            runnable,
+            request_state,
+            route_options,
+            jobify_config,
+            exception_handlers,
+            context,
+        )
+        contexts.append(context)
 
     async with app:
-        job = await some_func.schedule().delay(0)
+        builder = some_func.schedule()
+        job = await builder.push()
         await job.wait()
 
-        assert ctx.job is job
-        assert ctx.state is app.task.state
-        assert ctx.request_state.test == 1
-        assert state is app.task.state
-        assert job_id == job.id
-        assert request_test_num == 1
+    context = contexts.pop()
+    assert isinstance(context, JobContext)
+    mock.assert_called_once_with(
+        job,
+        {},
+        builder._runnable,
+        {"test": 1},
+        builder.route_options,
+        builder._configs,
+        builder._exception_handlers,
+        context,
+    )
 
 
 async def test_injection_wrong_usage() -> None:
     app = create_app()
 
-    @app.task
-    @no_type_check
-    async def untyped_func(_job=INJECT) -> None:  # noqa: ANN001
-        pass
+    with pytest.raises(
+        ValueError,
+        match="Parameter '_job' requires a type annotation for INJECT",
+    ):
+
+        @app.task
+        @no_type_check
+        async def untyped_func(_job=INJECT) -> None:  # noqa: ANN001
+            pass
 
     @app.task
     async def not_exists_type_in_map(_job: Jobify = INJECT) -> None:
         pass
 
     async with app:
-        job1 = await untyped_func.schedule().delay(0)
-        job2 = await not_exists_type_in_map.schedule().delay(0)
-        await job1.wait()
-        await job2.wait()
+        job = await not_exists_type_in_map.schedule().delay(0)
+        await job.wait()
 
-    with pytest.raises(JobFailedError, match=f"job_id: {job1.id}"):
-        job1.result()
-    assert "Parameter _job requires" in str(job1.exception)
-    assert "Unknown type for injection" in str(job2.exception)
+    assert "Unknown type for injection" in str(job.exception)
 
 
-async def test_inject_context_skips_non_inject_parameters(
-    amock: AsyncMock,
-) -> None:
-    strategy = create_run_strategy(amock, Mock(), mode=Mock())
+async def test_func_without_inject_params_executes_correctly() -> None:
+    app = create_app()
 
-    bound = inspect.signature(amock).bind(normal_param="test")
-    runnable = Runnable(name="func name", bound=bound, strategy=strategy)
+    mock = Mock()
 
-    mock_context = Mock(spec=JobContext)
-    mock_context.runnable = runnable
+    @app.task
+    async def func_without_inject(normal_param: str) -> None:
+        mock(normal_param)
 
-    inject_context(mock_context)
-    result = await runnable()
+    async with app:
+        job = await func_without_inject.schedule("hello").push()
+        await job.wait()
 
-    amock.assert_awaited_once_with(normal_param="test")
-    assert runnable.bound.kwargs.get("normal_param") == "test" == result
+    mock.assert_called_once_with("hello")

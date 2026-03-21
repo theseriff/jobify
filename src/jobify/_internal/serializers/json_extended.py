@@ -164,8 +164,14 @@ class ExtendedJSONSerializer(Serializer):
         self,
         registry: Sequence[Callable[..., SupportedTypes]] = (),
     ) -> None:
-        self.registry: TypeRegistry = {t.__name__: t for t in registry}
+        self.registry: TypeRegistry = {}
+        self.add_system_types(registry)
         self.decoder_hook: JsonDecoderHook = JsonDecoderHook(self.registry)
+
+    def add_system_types(
+        self, tp: Sequence[Callable[..., SupportedTypes]], /
+    ) -> None:
+        self.registry.update({t.__name__: t for t in tp})
 
     @override
     def dumpb(self, data: SupportedTypes) -> bytes:

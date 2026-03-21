@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from jobify._internal.common.types import LoopFactory
     from jobify._internal.configuration import JobifyConfiguration
+    from jobify._internal.inspection import FuncSpec
 
 ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
@@ -83,6 +84,7 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
 class Runnable(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "bound",
+        "func_spec",
         "name",
         "origin_arguments",
         "strategy",
@@ -94,11 +96,13 @@ class Runnable(Generic[ReturnT]):
         name: str,
         bound: inspect.BoundArguments,
         strategy: RunStrategy[ParamsT, ReturnT],
+        func_spec: FuncSpec[ReturnT],
     ) -> None:
         self.name: str = name
         self.strategy: Final = strategy
         self.bound: inspect.BoundArguments = bound
         self.origin_arguments: dict[str, Any] = bound.arguments.copy()
+        self.func_spec: FuncSpec[ReturnT] = func_spec
 
     def __call__(self) -> Awaitable[ReturnT]:
         return self.strategy(*self.bound.args, **self.bound.kwargs)
