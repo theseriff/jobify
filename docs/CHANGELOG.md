@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.9.2 (2026-03-22)
+
+### Performance Improvements
+
+- **storage**: Replace threading lock with asyncio.Queue in SQLiteStorage
+  ([`2b72aba`](https://github.com/theseriff/jobify/commit/2b72aba1defe605ff25e103dcc60e886fd56a00c))
+
+
 ## v0.9.1 (2026-03-21)
 
 ### Build System
