@@ -4,7 +4,11 @@ Jobify is designed to be extensible. Below are the community-supported and offic
 
 ## [Dishka](https://github.com/reagento/dishka)
 
-[dishka-jobify](https://github.com/C3EQUALZz/dishka-jobify) is an integration library that connects Jobify with [Dishka](https://github.com/reagento/dishka), a Python dependency injection framework.
+[dishka-jobify](https://github.com/Jobify-Community/dishka-jobify) is an integration library that connects Jobify with [Dishka](https://github.com/reagento/dishka), a Python dependency injection framework.
+
+## [jobify-db](https://github.com/Jobify-Community/jobify-db)
+
+[jobify-db](https://github.com/Jobify-Community/jobify-db) is an integration library that adds more database storages for Jobify framework. How to use you can see there in `examples/` directory or `README.md`.
 
 ## [FastAPI](https://github.com/fastapi/fastapi)
 
