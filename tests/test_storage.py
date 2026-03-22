@@ -38,8 +38,6 @@ async def test_sqlite(now: datetime) -> None:
     db = Path("test.db")
     storage = SQLiteStorage(database=db, table_name="test_table")
 
-    with pytest.raises(RuntimeError):
-        _ = storage.conn
     await storage.shutdown()
 
     scheduled = ScheduledJob(
@@ -529,3 +527,11 @@ async def test_restore_push(storage: SQLiteStorage) -> None:
         await app.wait_all()
 
     mock.assert_called_once_with("biba")
+
+
+async def test_sqlite_execute_with_raise() -> None:
+    storage = SQLiteStorage(":memory:")
+    await storage.startup()
+    with pytest.raises(TypeError):
+        await storage._execute(Mock(side_effect=TypeError))
+    await storage.shutdown()

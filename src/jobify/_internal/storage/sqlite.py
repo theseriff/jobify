@@ -1,15 +1,14 @@
 import asyncio
 import sqlite3
-import threading
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 from zoneinfo import ZoneInfo
 
 from typing_extensions import override
 
-from jobify._internal.common.constants import JobStatus
+from jobify._internal.common.constants import EMPTY, JobStatus
 from jobify._internal.storage.base import (
     ScheduledJob,
     Storage,
@@ -20,6 +19,7 @@ if TYPE_CHECKING:
     from concurrent.futures import ThreadPoolExecutor
 
     from jobify._internal.common.types import LoopFactory
+
 
 CREATE_SCHEDULED_TABLE_QUERY = """
 CREATE TABLE IF NOT EXISTS {} (
@@ -59,6 +59,12 @@ DELETE FROM {table_name} WHERE job_id IN ({placeholder});
 
 ReturnT = TypeVar("ReturnT")
 
+_Callback = Callable[[sqlite3.Connection], ReturnT]
+_AsyncQueue: TypeAlias = asyncio.Queue[
+    tuple[_Callback[Any], asyncio.Future[Any]],
+]
+_STOP: Any = object()
+
 
 class SQLiteStorage(Storage):
     def __init__(
@@ -67,6 +73,7 @@ class SQLiteStorage(Storage):
         *,
         table_name: str = "jobify_schedules",
         timeout: float = 20.0,
+        max_queue_size: int = 1024,
     ) -> None:
         validate_table_name(table_name)
         self.database: Path = (
@@ -77,8 +84,10 @@ class SQLiteStorage(Storage):
         self.tz: ZoneInfo = ZoneInfo("UTC")
         self.getloop: LoopFactory = asyncio._get_running_loop
         self.threadpool: ThreadPoolExecutor | None = None
-        self._conn: sqlite3.Connection | None = None
-        self._lock: threading.Lock = threading.Lock()
+        self.max_queue_size: int = max_queue_size
+
+        self._queue: _AsyncQueue = EMPTY
+        self._worker_task: asyncio.Task[None] | None = None
 
         self.create_scheduled_table_query: str = (
             CREATE_SCHEDULED_TABLE_QUERY.format(table_name)
@@ -93,20 +102,36 @@ class SQLiteStorage(Storage):
             table_name,
         )
 
-    @property
-    def conn(self) -> sqlite3.Connection:
-        if self._conn is None:
-            msg = "Database not initialized. Call startup() first."
-            raise RuntimeError(msg)
-        return self._conn
-
-    async def _to_thread(self, func: Callable[[], ReturnT]) -> ReturnT:
-        def thread_safe() -> ReturnT:
-            with self._lock:
-                return func()
-
+    async def _worker(self, conn: sqlite3.Connection) -> None:
         loop = self.getloop()
-        return await loop.run_in_executor(self.threadpool, thread_safe)
+        while True:
+            item = await self._queue.get()
+
+            if item is _STOP:
+                self._queue.task_done()
+                break
+
+            callback, future = item
+            try:
+                result = await loop.run_in_executor(
+                    self.threadpool,
+                    callback,
+                    conn,
+                )
+            except Exception as exc:  # noqa: BLE001
+                future.set_exception(exc)
+            else:
+                future.set_result(result)
+            finally:
+                self._queue.task_done()
+
+        conn.close()
+
+    async def _execute(self, callback: _Callback[ReturnT]) -> ReturnT:
+        loop = self.getloop()
+        future: asyncio.Future[ReturnT] = loop.create_future()
+        await self._queue.put((callback, future))
+        return await future
 
     @override
     async def startup(self) -> None:
@@ -119,19 +144,24 @@ class SQLiteStorage(Storage):
         _ = conn.execute("PRAGMA synchronous=NORMAL;")
         _ = conn.execute(self.create_scheduled_table_query)
         conn.commit()
-        self._conn = conn
+        self._queue = asyncio.Queue(self.max_queue_size)
+        self._worker_task = asyncio.create_task(self._worker(conn))
 
     @override
     async def shutdown(self) -> None:
-        if self._conn is not None:
-            with self._lock:
-                self._conn.close()
-                self._conn = None
+        if self._queue is not EMPTY:
+            await self._queue.put(_STOP)
+            await self._queue.join()
+            self._queue = EMPTY
+
+        if self._worker_task is not None:
+            await self._worker_task
+            self._worker_task = None
 
     @override
     async def get_schedules(self) -> list[ScheduledJob]:
-        def get() -> list[ScheduledJob]:
-            cursor = self.conn.execute(self.select_schedules_query)
+        def get(conn: sqlite3.Connection) -> list[ScheduledJob]:
+            cursor = conn.execute(self.select_schedules_query)
             return [
                 ScheduledJob(
                     job_id=row[0],
@@ -145,35 +175,35 @@ class SQLiteStorage(Storage):
                 for row in cursor.fetchall()
             ]
 
-        return await self._to_thread(get)
+        return await self._execute(get)
 
     @override
     async def add_schedule(self, *scheduled: ScheduledJob) -> None:
-        def insert_many() -> None:
-            with self.conn as conn:
-                _ = conn.executemany(
-                    self.insert_schedule_query,
-                    [
-                        (
-                            sch.job_id,
-                            sch.name,
-                            sch.message,
-                            sch.status,
-                            sch.next_run_at.isoformat(),
-                        )
-                        for sch in scheduled
-                    ],
-                )
+        def insert_many(conn: sqlite3.Connection) -> None:
+            _ = conn.executemany(
+                self.insert_schedule_query,
+                [
+                    (
+                        sch.job_id,
+                        sch.name,
+                        sch.message,
+                        sch.status,
+                        sch.next_run_at.isoformat(),
+                    )
+                    for sch in scheduled
+                ],
+            )
+            conn.commit()
 
-        return await self._to_thread(insert_many)
+        return await self._execute(insert_many)
 
     @override
     async def delete_schedule(self, job_id: str) -> None:
-        def delete() -> None:
-            with self.conn as conn:
-                _ = conn.execute(self.delete_schedule_query, (job_id,))
+        def delete(conn: sqlite3.Connection) -> None:
+            _ = conn.execute(self.delete_schedule_query, (job_id,))
+            conn.commit()
 
-        return await self._to_thread(delete)
+        return await self._execute(delete)
 
     @override
     async def delete_schedule_many(self, job_ids: Sequence[str]) -> None:
@@ -182,17 +212,17 @@ class SQLiteStorage(Storage):
 
         job_ids = sorted(job_ids)
 
-        def delete_many() -> None:
+        def delete_many(conn: sqlite3.Connection) -> None:
             batch_size = 500
-            with self.conn as conn:
-                for i in range(0, len(job_ids), batch_size):
-                    batch = job_ids[i : i + batch_size]
-                    query = DELETE_SCHEDULE_MANY_QUERY.format_map(
-                        {
-                            "table_name": self.table_name,
-                            "placeholder": ",".join("?" * len(batch)),
-                        }
-                    )
-                    _ = conn.execute(query, batch)
+            for i in range(0, len(job_ids), batch_size):
+                batch = job_ids[i : i + batch_size]
+                query = DELETE_SCHEDULE_MANY_QUERY.format_map(
+                    {
+                        "table_name": self.table_name,
+                        "placeholder": ",".join("?" * len(batch)),
+                    }
+                )
+                _ = conn.execute(query, batch)
+            conn.commit()
 
-        return await self._to_thread(delete_many)
+        return await self._execute(delete_many)
