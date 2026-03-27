@@ -15,7 +15,7 @@
 
 ---
 
-**Documentation**: [https://theseriff.github.io/jobify/](https://theseriff.github.io/jobify/)
+[**Documentation**](https://theseriff.github.io/jobify/) | [**Community Extensions**](https://github.com/Jobify-Community)
 
 **Jobify** is a powerful framework for scheduling and managing background jobs in Python.
 It allows you to easily define and schedule jobs using an intuitive decorator-based API, similar to that of modern web frameworks such as FastAPI.
