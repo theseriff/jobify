@@ -20,9 +20,11 @@ async def test_job() -> None:
         job1 = await t.schedule(1).delay(0)
         job2 = await t.schedule(1).delay(1)
         job3 = await t.schedule(1).cron("* * * * *", job_id="test_cron")
+        job4 = await t.push(1)
         await job2.cancel()
         await job3.cancel()
         await job1.wait()
+        await job4
 
     expected_return = 2
     assert job1.cron_expression is None
@@ -36,6 +38,7 @@ async def test_job() -> None:
     assert job2._handle
     assert job2._handle.cancelled()
     assert job3.is_cron()
+    assert job4._result == expected_return
 
 
 async def test_all_jobs_completed(amock: AsyncMock) -> None:

@@ -1,15 +1,23 @@
-import asyncio
-from collections.abc import Awaitable, Callable
-from datetime import datetime
-from typing import Any, NamedTuple, final, get_origin, get_type_hints
+# pyright: reportImportCycles=false
+from __future__ import annotations
 
-from jobify._internal.common.datastructures import RequestState, State
-from jobify._internal.common.types import ExceptionHandlers
-from jobify._internal.configuration import JobifyConfiguration, RouteOptions
-from jobify._internal.inspection import FuncSpec
-from jobify._internal.message import Triggers
-from jobify._internal.runners import Runnable
-from jobify._internal.scheduler.job import Job
+from typing import TYPE_CHECKING, Any, NamedTuple, final
+
+if TYPE_CHECKING:
+    import asyncio
+    from collections.abc import Awaitable, Callable
+    from datetime import datetime
+
+    from jobify._internal.common.datastructures import RequestState, State
+    from jobify._internal.configuration import (
+        JobifyConfiguration,
+        RouteOptions,
+    )
+    from jobify._internal.inspection import FuncSpec
+    from jobify._internal.message import Triggers
+    from jobify._internal.runners import Runnable
+    from jobify._internal.scheduler.job import Job
+    from jobify._internal.scheduler.scheduler import ScheduleBuilder
 
 
 @final
@@ -26,6 +34,7 @@ class OuterContext:
         "request_state",
         "route_options",
         "runnable",
+        "schedule_builder",
         "schedule_hook",
         "state",
         "trigger",
@@ -48,6 +57,7 @@ class OuterContext:
         request_state: RequestState,
         persist_job_hook: Callable[[str, datetime, Triggers], Awaitable[None]],
         schedule_hook: Callable[[], asyncio.Handle],
+        schedule_builder: ScheduleBuilder[Any],
     ) -> None:
         self.job = job
         self.state = state
@@ -63,6 +73,7 @@ class OuterContext:
         self.request_state = request_state
         self.persist_job_hook = persist_job_hook
         self.schedule_hook = schedule_hook
+        self.schedule_builder = schedule_builder
 
 
 class JobContext(NamedTuple):
@@ -72,13 +83,37 @@ class JobContext(NamedTuple):
     request_state: RequestState
     route_options: RouteOptions
     jobify_config: JobifyConfiguration
-    exception_handlers: ExceptionHandlers
+    schedule_builder: ScheduleBuilder[Any]
 
 
-CONTEXT_TYPE_MAP = {
-    get_origin(field_type) or field_type: field_name
-    for field_name, field_type in get_type_hints(JobContext).items()
-}
+def _resolve_type_key(field_type: Any) -> str:  # noqa: ANN401
+    """Extract a string key from a type annotation for matching.
+
+    Handles both resolved types and forward references without triggering
+    circular imports.
+    """
+    # Check if it's a ForwardRef (unresolved string annotation)
+    if hasattr(field_type, "__forward_arg__"):
+        # Extract base type name from forward ref
+        forward_arg: str = field_type.__forward_arg__
+        return forward_arg.split("[", 1)[0]
+    # For resolved types, use __name__ or __qualname__
+    return getattr(
+        field_type,
+        "__qualname__",
+        getattr(field_type, "__name__", str(field_type)),
+    )
+
+
+def _make_type_map(tp: type[Any]) -> dict[str, str]:
+    """Build a mapping from type name to field name for injection lookups."""
+    return {
+        _resolve_type_key(field_type): field_name
+        for field_name, field_type in tp.__annotations__.items()
+    }
+
+
+CONTEXT_TYPE_MAP = _make_type_map(JobContext)
 
 
 def inject_context(context: JobContext) -> None:
@@ -87,7 +122,9 @@ def inject_context(context: JobContext) -> None:
     for name, tp in runnable.func_spec.inject_params.items():
         if tp is JobContext:
             val = context
-        elif field_name := CONTEXT_TYPE_MAP.get(tp):
+        elif (
+            field_name := CONTEXT_TYPE_MAP.get(_resolve_type_key(tp))
+        ) is not None:
             val = getattr(context, field_name)
         else:
             msg = (

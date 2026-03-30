@@ -9,7 +9,7 @@ from jobify._internal.common.constants import EMPTY, INFINITY, JobStatus
 from jobify._internal.exceptions import JobFailedError, JobNotCompletedError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from datetime import datetime
 
     from jobify._internal.configuration import Cron
@@ -112,6 +112,13 @@ class Job(Generic[ReturnT]):
             f"exec_at={self.exec_at.isoformat()!r}"
             f"{cron_info}>"
         )
+
+    def __await__(self) -> Generator[object, None, ReturnT]:
+        async def _await() -> ReturnT:
+            await self.wait()
+            return self.result()
+
+        return _await().__await__()
 
     def bind_handle(self, handle: asyncio.Handle) -> None:
         self._handle = handle
