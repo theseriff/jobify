@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.10.9,<0.11.0"]
+requires = ["uv_build>=0.10.9,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -255,6 +255,7 @@ exclude_commit_patterns = [
     '''ci(?:\([^)]*?\))?: .+''',
     '''Merged? .*''',
 ]
+
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "docs/CHANGELOG.md"
 mask_initial_release = true

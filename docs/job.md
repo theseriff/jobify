@@ -1,8 +1,7 @@
 # The Job Object
 
-When you schedule a task using the `.at()` or `.delay()` methods, or the `.cron()` function, you receive a Job object.
-This object serves as a handle for that particular scheduled task, allowing you to monitor its progress,
-wait for it to complete, or cancel it if necessary.
+When you schedule a task using the `.at()` or `.delay()` methods or the `.push()` function or the `.cron()` method, you will receive a Job object.
+This object acts as a handle for the scheduled task, allowing you to track its progress, wait for it to finish, or cancel it if needed.
 
 You do not create `Job` objects directly.
 
@@ -35,7 +34,7 @@ if __name__ == "__main__":
 
 ## Job Details
 
-You can inspect a `Job` object to get information about its status.
+You can inspect a `Job` object to get information about its current status.
 
 ### `job.id`
 
@@ -74,29 +73,14 @@ If it is a one-time job scheduled using `.at()` or `.delay()` methods, it is set
 
 The `Job` object provides several methods for controlling and interacting with scheduled tasks.
 
-### `await job` (Awaitable)
+### Waiting for Completion
 
-The `Job` object is awaitable. You can directly `await` a job to wait for its completion, which is equivalent to calling `await job.wait()`.
+There are two ways to wait for a job to complete:
 
-```python
-job = await my_task.schedule(1, 2).delay(5)
-# ... do other things ...
-await job  # Wait for the job to complete
-print(f"Job finished with result: {job.result()}")
-```
+#### `await job.wait()`
 
-This also works with `asyncio.gather()` for waiting on multiple jobs concurrently:
-
-```python
-job1 = await my_task.schedule(1).delay(1)
-job2 = await my_task.schedule(2).delay(2)
-await asyncio.gather(job1, job2)  # Wait for both jobs
-```
-
-### `await job.wait()`
-
-The job waits for completion. If the job is already finished, it immediately returns.
-This is useful to ensure that a specific task has been completed before moving on to the next step.
+This method waits for the job to complete its execution. If the job has already completed, it immediately returns.
+The method does not raise any exceptions if the job fails.
 
 ```python
 job = await my_task.schedule(...).delay(5)
@@ -106,13 +90,7 @@ await job.wait()
 print("Job finished!")
 ```
 
-### `job.result()`
-
-This method retrieves the result of the task. It should only be used after the task has been completed successfully.
-
-- If the job's status is `SUCCESS`, it returns the result.
-- If the job's status is `FAILED` or `TIMEOUT`, it raises a `JobFailedError` which wraps the original exception.
-- If the job is not completed, it will raise a `JobNotCompletedError`.
+After calling `wait()`, you can check the status of the job and retrieve the result.
 
 ```python
 await job.wait()
@@ -121,7 +99,57 @@ if job.status == JobStatus.SUCCESS:
     print(f"The task returned: {result}")
 ```
 
-### `await job.cancel()`
+#### `job.result()`
+
+Retrieves the result of the task. This method should only be called when the job is complete.
+
+- If the job's status is `SUCCESS`, it returns the result.
+- If the job's status is `FAILED` or `TIMEOUT`, it raises a `JobFailedError` wrapping the original exception.
+- If the job is not yet completed, it raises a `JobNotCompletedError`.
+
+```python
+await job.wait()
+result = job.result()  # May raise if job failed
+```
+
+#### `await job` (Awaitable)
+
+The `Job` object can be directly awaited. Using `await job` provides a convenient shorthand for combining `await job.wait()` and `job.result()`,
+as it waits for completion and returns the result in a single operation.
+
+```python
+job = await my_task.schedule(1, 2).delay(5)
+# ... do other things ...
+result = await job  # Wait and get result in one step
+print(f"Job finished with result: {result}")
+```
+
+This is particularly useful when using `asyncio.gather()`, which allows you to wait for multiple tasks to complete concurrently.
+
+```python
+job1 = await my_task.schedule(1).delay(1)
+job2 = await my_task.schedule(2).delay(2)
+results: list = await asyncio.gather(job1, job2)  # Wait for both jobs
+```
+
+> **Note**: If the job function raises an exception, `await job` will propagate that exception.
+> Use a `try`/`except` block to handle potential errors:
+>
+> ```python
+> try:
+>     result = await job
+> except Exception as exc:
+>     print(f"Job failed with: {exc}")
+> ```
+>
+> **Which should you use?**
+
+- If you want to manually handle success/failure based on the status, use `await job.wait() + job.result()`.
+- If you prefer a more concise way to wait for and get the result, while being prepared to handle exceptions, use `await job`.
+
+### Cancelling a Job
+
+#### `await job.cancel()`
 
 Cancels a scheduled job before it starts running. If the job is already running or has completed, this action has no effect.
 This also removes the job from any persistent storage.
@@ -133,7 +161,9 @@ await job_to_cancel.cancel()
 print(f"Job {job_to_cancel.id} has been cancelled.")
 ```
 
-### `job.is_done()`
+### Checking Job Status
+
+#### `job.is_done()`
 
 Returns `True` if the job has completed execution (regardless of whether it was successful, failed, or cancelled), and `False` otherwise.
 This method is non-blocking and can be used to quickly check the status of a job.
