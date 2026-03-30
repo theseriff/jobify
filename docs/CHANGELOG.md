@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.10.0 (2026-03-30)
+
+### Documentation
+
+- **job**: `await job` info added
+  ([`22a32f9`](https://github.com/theseriff/jobify/commit/22a32f9cbb21eb1fe38891a7e6b62ca10c957af0))
+
+- **update**: Fixed links
+  ([`0d596a0`](https://github.com/theseriff/jobify/commit/0d596a06a62a1ab8db052f91949aedc22dd955fa))
+
+### Features
+
+- **job**: Make Job awaitable and inject schedule_builder
+  ([`07e32e7`](https://github.com/theseriff/jobify/commit/07e32e7113eea77e56c7e7601a2d7f4e40190cb0))
+
+
 ## v0.9.2 (2026-03-22)
 
 ### Performance Improvements
