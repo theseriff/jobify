@@ -21,7 +21,7 @@ from jobify._internal.common.constants import (
     JobStatus,
 )
 from jobify._internal.configuration import Cron
-from jobify._internal.context import OuterContext, inject_context
+from jobify._internal.context import inject_context
 from jobify._internal.exceptions import (
     raise_app_already_started_error,
     raise_app_not_started_error,
@@ -57,7 +57,7 @@ if TYPE_CHECKING:
         JobifyConfiguration,
         RouteOptions,
     )
-    from jobify._internal.context import JobContext
+    from jobify._internal.context import JobContext, OuterContext
     from jobify._internal.middleware.base import BaseMiddleware, CallNext
     from jobify._internal.router.node import NodeRouter
     from jobify._internal.runners import RunStrategy

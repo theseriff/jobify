@@ -4,9 +4,16 @@ from unittest.mock import Mock
 import pytest
 from typing_extensions import override
 
-from jobify import INJECT, Job, JobContext, Jobify, Runnable, State
+from jobify import (
+    INJECT,
+    Job,
+    JobContext,
+    Jobify,
+    Runnable,
+    ScheduleBuilder,
+    State,
+)
 from jobify._internal.common.datastructures import RequestState
-from jobify._internal.common.types import ExceptionHandlers
 from jobify._internal.configuration import JobifyConfiguration, RouteOptions
 from jobify.middleware import BaseMiddleware, CallNext
 from tests.conftest import create_app
@@ -34,8 +41,8 @@ async def test_injection() -> None:
         request_state: RequestState = INJECT,
         route_options: RouteOptions = INJECT,
         jobify_config: JobifyConfiguration = INJECT,
-        exception_handlers: ExceptionHandlers = INJECT,
         context: JobContext = INJECT,
+        builder: ScheduleBuilder[None] = INJECT,
     ) -> None:
         mock(
             job,
@@ -44,8 +51,8 @@ async def test_injection() -> None:
             request_state,
             route_options,
             jobify_config,
-            exception_handlers,
             context,
+            builder,
         )
         contexts.append(context)
 
@@ -63,8 +70,8 @@ async def test_injection() -> None:
         {"test": 1},
         builder.route_options,
         builder._configs,
-        builder._exception_handlers,
         context,
+        builder,
     )
 
 

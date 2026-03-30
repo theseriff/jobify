@@ -23,6 +23,7 @@ Using `JobContext` allows for:
 - `request_state: RequestState`: A temporary state object that exists _only_ for the duration of a single job execution. Middleware can use it to dynamically add attributes and pass data to subsequent middleware or even to the final job function.
 - `route_options: RouteOptions`: The configuration options passed to the task decorator itself, e.g., `timeout`, `retry`, and other settings from `@app.task(**options)`.
 - `jobify_config: JobifyConfiguration`: The main `Jobify` application configuration object, containing all global settings passed to the `Jobify(...)` constructor.
+- `schedule_builder: ScheduleBuilder[Any]`: Provides access to the scheduler's internal state and methods, which can be useful for advanced users who need to interact directly with the scheduling system.
 
 ## Context Injection
 
@@ -80,3 +81,4 @@ It provides information about a job before it is registered with the scheduler o
 - `route_options: RouteOptions`: Configuration options for the route.
 - `jobify_config: JobifyConfiguration`: Global application configuration.
 - `request_state: RequestState`: A temporary object used during the scheduling process.
+- `schedule_builder: ScheduleBuilder[Any]`: Provides access to the internal state and methods of the scheduler during the scheduling process.

@@ -74,6 +74,25 @@ If it is a one-time job scheduled using `.at()` or `.delay()` methods, it is set
 
 The `Job` object provides several methods for controlling and interacting with scheduled tasks.
 
+### `await job` (Awaitable)
+
+The `Job` object is awaitable. You can directly `await` a job to wait for its completion, which is equivalent to calling `await job.wait()`.
+
+```python
+job = await my_task.schedule(1, 2).delay(5)
+# ... do other things ...
+await job  # Wait for the job to complete
+print(f"Job finished with result: {job.result()}")
+```
+
+This also works with `asyncio.gather()` for waiting on multiple jobs concurrently:
+
+```python
+job1 = await my_task.schedule(1).delay(1)
+job2 = await my_task.schedule(2).delay(2)
+await asyncio.gather(job1, job2)  # Wait for both jobs
+```
+
 ### `await job.wait()`
 
 The job waits for completion. If the job is already finished, it immediately returns.

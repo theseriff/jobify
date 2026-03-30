@@ -25,7 +25,8 @@ class ExceptionMiddleware(BaseMiddleware):
             return await call_next(context)
         except Exception as exc:
             for cls_exc in type(exc).__mro__:
-                if handler := context.exception_handlers.get(cls_exc):
+                exc_handlers = context.schedule_builder._exception_handlers
+                if handler := exc_handlers.get(cls_exc):
                     break
             else:
                 raise

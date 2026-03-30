@@ -255,7 +255,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             runnable=self._runnable,
             route_options=self.route_options,
             jobify_config=self._configs,
-            exception_handlers=self._exception_handlers,
+            schedule_builder=self,
         )
         try:
             result = await self._chain_middleware(job_context)
@@ -352,6 +352,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             request_state=RequestState(),
             persist_job_hook=self._persist_job,
             schedule_hook=schedule_hook,
+            schedule_builder=self,
         )
 
     def _calculate_schedule_cron(
