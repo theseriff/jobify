@@ -59,7 +59,7 @@ DELETE FROM {table_name} WHERE job_id IN ({placeholder});
 
 ReturnT = TypeVar("ReturnT")
 
-_Callback = Callable[[sqlite3.Connection], ReturnT]
+_Callback = Callable[[], ReturnT]
 _AsyncQueue: TypeAlias = asyncio.Queue[
     tuple[_Callback[Any], asyncio.Future[Any]],
 ]
@@ -82,12 +82,14 @@ class SQLiteStorage(Storage):
         self.table_name: str = table_name
         self.timeout: float = timeout
         self.tz: ZoneInfo = ZoneInfo("UTC")
-        self.getloop: LoopFactory = asyncio._get_running_loop
-        self.threadpool: ThreadPoolExecutor | None = None
+        self.getloop: LoopFactory = asyncio.get_running_loop
         self.max_queue_size: int = max_queue_size
+        self.threadpool: ThreadPoolExecutor | None = None
 
+        self._conn: sqlite3.Connection = EMPTY
+        self._loop: asyncio.AbstractEventLoop = EMPTY
         self._queue: _AsyncQueue = EMPTY
-        self._worker_task: asyncio.Task[None] | None = None
+        self._worker_task: asyncio.Task[None] = EMPTY
 
         self.create_scheduled_table_query: str = (
             CREATE_SCHEDULED_TABLE_QUERY.format(table_name)
@@ -102,37 +104,6 @@ class SQLiteStorage(Storage):
             table_name,
         )
 
-    async def _worker(self, conn: sqlite3.Connection) -> None:
-        loop = self.getloop()
-        while True:
-            item = await self._queue.get()
-
-            if item is _STOP:
-                self._queue.task_done()
-                break
-
-            callback, future = item
-            try:
-                result = await loop.run_in_executor(
-                    self.threadpool,
-                    callback,
-                    conn,
-                )
-            except Exception as exc:  # noqa: BLE001
-                future.set_exception(exc)
-            else:
-                future.set_result(result)
-            finally:
-                self._queue.task_done()
-
-        conn.close()
-
-    async def _execute(self, callback: _Callback[ReturnT]) -> ReturnT:
-        loop = self.getloop()
-        future: asyncio.Future[ReturnT] = loop.create_future()
-        await self._queue.put((callback, future))
-        return await future
-
     @override
     async def startup(self) -> None:
         conn = sqlite3.connect(
@@ -144,8 +115,11 @@ class SQLiteStorage(Storage):
         _ = conn.execute("PRAGMA synchronous=NORMAL;")
         _ = conn.execute(self.create_scheduled_table_query)
         conn.commit()
+
+        self._conn = conn
+        self._loop = self.getloop()
         self._queue = asyncio.Queue(self.max_queue_size)
-        self._worker_task = asyncio.create_task(self._worker(conn))
+        self._worker_task = asyncio.create_task(self._worker())
 
     @override
     async def shutdown(self) -> None:
@@ -154,14 +128,26 @@ class SQLiteStorage(Storage):
             await self._queue.join()
             self._queue = EMPTY
 
-        if self._worker_task is not None:
+        if self._worker_task is not EMPTY:
             await self._worker_task
-            self._worker_task = None
+            self._worker_task = EMPTY
+
+        if self._conn is not EMPTY:
+            self._conn.close()
+            self._conn = EMPTY
+
+        self._loop = EMPTY
+
+    async def _execute(self, callback: _Callback[ReturnT]) -> ReturnT:
+        loop = self.getloop()
+        future: asyncio.Future[ReturnT] = loop.create_future()
+        await self._queue.put((callback, future))
+        return await future
 
     @override
     async def get_schedules(self) -> list[ScheduledJob]:
-        def get(conn: sqlite3.Connection) -> list[ScheduledJob]:
-            cursor = conn.execute(self.select_schedules_query)
+        def get() -> list[ScheduledJob]:
+            cursor = self._conn.execute(self.select_schedules_query)
             return [
                 ScheduledJob(
                     job_id=row[0],
@@ -179,8 +165,8 @@ class SQLiteStorage(Storage):
 
     @override
     async def add_schedule(self, *scheduled: ScheduledJob) -> None:
-        def insert_many(conn: sqlite3.Connection) -> None:
-            _ = conn.executemany(
+        def insert_many() -> None:
+            _ = self._conn.executemany(
                 self.insert_schedule_query,
                 [
                     (
@@ -193,15 +179,15 @@ class SQLiteStorage(Storage):
                     for sch in scheduled
                 ],
             )
-            conn.commit()
+            self._conn.commit()
 
         return await self._execute(insert_many)
 
     @override
     async def delete_schedule(self, job_id: str) -> None:
-        def delete(conn: sqlite3.Connection) -> None:
-            _ = conn.execute(self.delete_schedule_query, (job_id,))
-            conn.commit()
+        def delete() -> None:
+            _ = self._conn.execute(self.delete_schedule_query, (job_id,))
+            self._conn.commit()
 
         return await self._execute(delete)
 
@@ -212,7 +198,7 @@ class SQLiteStorage(Storage):
 
         job_ids = sorted(job_ids)
 
-        def delete_many(conn: sqlite3.Connection) -> None:
+        def delete_many() -> None:
             batch_size = 500
             for i in range(0, len(job_ids), batch_size):
                 batch = job_ids[i : i + batch_size]
@@ -222,7 +208,28 @@ class SQLiteStorage(Storage):
                         "placeholder": ",".join("?" * len(batch)),
                     }
                 )
-                _ = conn.execute(query, batch)
-            conn.commit()
+                _ = self._conn.execute(query, batch)
+            self._conn.commit()
 
         return await self._execute(delete_many)
+
+    async def _worker(self) -> None:
+        while True:
+            item = await self._queue.get()
+
+            if item is _STOP:
+                self._queue.task_done()
+                break
+
+            callback, future = item
+            try:
+                result = await self._loop.run_in_executor(
+                    self.threadpool,
+                    callback,
+                )
+            except Exception as exc:  # noqa: BLE001
+                future.set_exception(exc)
+            else:
+                future.set_result(result)
+            finally:
+                self._queue.task_done()

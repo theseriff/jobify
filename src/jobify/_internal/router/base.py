@@ -238,7 +238,7 @@ async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
 
 class Router(ABC):
     def __init__(self, *, prefix: str | None) -> None:
-        self.prefix: str = prefix if prefix else ""
+        self.prefix: str = prefix or ""
         self._parent: Router | None = None
         self._sub_routers: list[Router] = []
 

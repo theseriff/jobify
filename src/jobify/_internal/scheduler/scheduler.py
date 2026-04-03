@@ -21,7 +21,6 @@ from jobify._internal.message import (
 from jobify._internal.scheduler.job import CronContext, Job
 from jobify._internal.scheduler.misfire_policy import handle_misfire_policy
 from jobify._internal.storage.base import ScheduledJob
-from jobify._internal.storage.dummy import DummyStorage
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -51,6 +50,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         "_chain_outer_middleware",
         "_configs",
         "_exception_handlers",
+        "_is_persist",
         "_runnable",
         "_state",
         "_task_tracker",
@@ -72,6 +72,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         func_spec: FuncSpec[ReturnT],
         exception_handlers: ExceptionHandlers,
         options: RouteOptions,
+        is_persist: bool,
     ) -> None:
         self._state: State = state
         self._task_tracker: TaskTracker = task_tracker
@@ -80,6 +81,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         self._chain_middleware: CallNext = chain_middleware
         self._chain_outer_middleware: CallNextOuter = chain_outer_middleware
         self._exception_handlers: ExceptionHandlers = exception_handlers
+        self._is_persist: bool = is_persist
         self.func_spec: FuncSpec[ReturnT] = func_spec
         self.route_options: RouteOptions = options
         self.name: str = name
@@ -270,11 +272,6 @@ class ScheduleBuilder(Generic[ReturnT]):
     def _calculate_delay_seconds(self, target_at: datetime) -> float:
         return target_at.timestamp() - self.now().timestamp()
 
-    def _is_persist(self) -> bool:
-        is_dummy = isinstance(self._configs.storage, DummyStorage)
-        is_durable = self.route_options.get("durable", True)
-        return not is_dummy and is_durable
-
     async def _persist_job(
         self,
         job_id: str,
@@ -345,7 +342,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             arguments=self._runnable.bound.arguments,
             func_spec=self.func_spec,
             is_force=is_force,
-            is_persist=self._is_persist(),
+            is_persist=self._is_persist,
             is_replace=is_replace,
             route_options=self.route_options,
             jobify_config=self._configs,
@@ -387,7 +384,7 @@ class ScheduleBuilder(Generic[ReturnT]):
 
     async def _exec_at(self, job: Job[ReturnT]) -> None:
         await self._exec_job(job)
-        if self._is_persist():
+        if self._is_persist:
             await self._configs.storage.delete_schedule(job.id)
         self._task_tracker.unregister_job(job.id)
 
@@ -406,14 +403,14 @@ class ScheduleBuilder(Generic[ReturnT]):
         ctx.run_count += 1
 
         if ctx.is_run_exceeded_by_limit():
-            if self._is_persist():
+            if self._is_persist:
                 await self._configs.storage.delete_schedule(job.id)
         elif job.is_reschedulable() and self._configs.app_started:
             if ctx.is_failure_allowed_by_limit():
                 offset = ctx.offset = job.exec_at
                 next_run_at = ctx.cron_parser.next_run(now=offset)
 
-                if self._is_persist():
+                if self._is_persist:
                     trigger = CronArguments(
                         job_id=job.id,
                         cron=ctx.cron,

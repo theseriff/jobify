@@ -58,12 +58,12 @@ dependencies = [
 [dependency-groups]
 lint = [
     "mypy==1.19.1",
-    "ruff==0.14.14",
-    "bandit==1.9.3",
-    "zizmor==1.22.0",
-    "semgrep==1.149.0",
-    "codespell==2.4.1",
-    "basedpyright==1.37.2",
+    "ruff==0.15.7",
+    "bandit==1.9.4",
+    "zizmor==1.23.1",
+    "semgrep==1.156.0",
+    "codespell==2.4.2",
+    "basedpyright==1.38.4",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-setuptools",
@@ -74,10 +74,10 @@ test = [
     "pytest-timeout>=2.4.0",
     "pytest-cov>=6.2.1",
     "covdefaults>=2.3.0",
-    "coverage[toml]==7.13.2",
+    "coverage[toml]==7.13.5",
 ]
 docs = [
-    "zensical==0.0.19",
+    "zensical==0.0.29",
 ]
 benchmarks = [
     "psutil==7.2.2",

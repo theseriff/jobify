@@ -16,8 +16,8 @@ similar to modern web frameworks like FastAPI.
 - [**Lifespan Support**](app_settings.md#lifespan){ data-preview }: Manage startup and shutdown events, just like in FastAPI.
 - [**Job Control**](job.md){ data-preview }: Full control over jobs — wait for completion, cancel tasks, or check results with ease.
 - [**Concurrency**](task_settings.md#run_mode){ data-preview }: Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
+- [**Many different adapters to the database**](https://github.com/Jobify-Community/jobify-db).
 - **Distributed task queue**: Soon.
-- **Many different adapters to the database**: Soon.
 - **Many different serializers**: Soon.
 
 ## Comparison
