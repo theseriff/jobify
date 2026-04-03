@@ -36,8 +36,8 @@ Jobify uses the native timer mechanisms of asyncio for efficient and precise tas
 - [x] [**Lifespan Support**](https://theseriff.github.io/jobify/app_settings/#lifespan): Manage startup and shutdown events, just like in FastAPI.
 - [x] [**Job Control**](https://theseriff.github.io/jobify/job/): Full control over jobs — wait for completion, cancel tasks, or check results with ease.
 - [x] [**Concurrency**:](https://theseriff.github.io/jobify/task_settings/#run_mode) Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
+- [x] [**Many different adapters to the database**](https://github.com/Jobify-Community/jobify-db).
 - [ ] Distributed task queue. Soon.
-- [ ] Many different adapters to the database. Soon.
 - [ ] Many different serializers. Soon.
 
 ## Installation
