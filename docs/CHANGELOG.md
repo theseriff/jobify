@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v0.10.1 (2026-04-03)
+
+### Build System
+
+- **deps**: Bump the github-actions group with 5 updates
+  ([`fdb5b6a`](https://github.com/theseriff/jobify/commit/fdb5b6a69c5b7a58322e4623c8f75c7a14b1955b))
+
+### Documentation
+
+- Many adapters to database
+  ([`dd2fd59`](https://github.com/theseriff/jobify/commit/dd2fd59d5841af33caac4f7ba5a8c67bed17ec27))
+
+### Performance Improvements
+
+- Cache is_persist flag
+  ([`ca9683e`](https://github.com/theseriff/jobify/commit/ca9683ebd687ce49c5876608426b17eb890a161d))
+
+
 ## v0.10.0 (2026-03-30)
 
 ### Documentation
