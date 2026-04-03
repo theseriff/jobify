@@ -58,7 +58,7 @@ async def test_sqlite(now: datetime) -> None:
         assert storage.database.exists()
     finally:
         await storage.shutdown()
-        db.unlink()
+        db.unlink()  # noqa: ASYNC240
 
 
 async def test_delete_schedule_many(now: datetime) -> None:

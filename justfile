@@ -14,7 +14,7 @@ default:
 [group("Common")]
 init:
   uv sync --group dev
-  pre-commit install
+  just _pre-commit install
 
 
 # Pre-commit
