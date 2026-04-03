@@ -1,10 +1,11 @@
 import asyncio
 import time
-from typing import Literal, NamedTuple
+from typing import Literal, NamedTuple, cast
 
 from adaptix import Retort
 
 from jobify import Jobify
+from jobify._internal.common.constants import EMPTY
 from jobify.serializers import (
     ExtendedJSONSerializer,
     JSONSerializer,
@@ -34,87 +35,83 @@ class BenchResult(NamedTuple):
     throughput_tps: float
 
 
-COOLDOWN_SLEEP = 1.0
+COOLDOWN_SLEEP = 3.0
 AMOUNT_RUN = 10_000
 WARMUP_RUNS = 100
 ROUNDS = 3
 
 
 async def jobify_run_benchmarks() -> list[str]:
-    databases: dict[str, Storage | Literal[False]] = {
-        "dummyDB": False,
-        "sqlite": SQLiteStorage(database=":memory:"),
-    }
     serializers = {
-        "pickle": UnsafePickleSerializer(),
         "json": JSONSerializer(),
+        "pickle": UnsafePickleSerializer(),
         "extended_json": ExtendedJSONSerializer(),
     }
     type_adapters = {
         "none": (None, None),
         "adaptix": (Retort(), Retort()),
     }
-
+    bench_case = {
+        "DummyDB+None+None": (False, EMPTY, (EMPTY, EMPTY)),
+        **{
+            f"Sqlite+{name_s}+{name_ta}": (SQLiteStorage(":memory:"), s, ta)
+            for name_s, s in serializers.items()
+            for name_ta, ta in type_adapters.items()
+        },
+    }
     final_results: list[BenchResult] = []
 
-    for db_name, db in databases.items():
-        for set_name, serializer in serializers.items():
-            for ta_name, (dumper, loader) in type_adapters.items():
-                config_name = f"{db_name}+{set_name}+{ta_name}"
+    for bench_name, (db, serializer, (dumper, loader)) in bench_case.items():
+        app = Jobify(
+            storage=cast("Storage | Literal[False]", db),
+            serializer=serializer,
+            dumper=dumper,
+            loader=loader,
+        )
+        jobify_task = app.task(task)
+        create_user_dto = CreateUser("Dilan", "ex@y.com")
 
-                app = Jobify(
-                    storage=db,
-                    serializer=serializer,
-                    dumper=dumper,
-                    loader=loader,
+        async with app:
+            for _ in range(WARMUP_RUNS):
+                _ = await task(create_user_dto)
+
+            warmup_coros = (
+                jobify_task.push(create_user_dto) for _ in range(WARMUP_RUNS)
+            )
+            jobs = await asyncio.gather(*warmup_coros)
+            _ = await asyncio.gather(*(job.wait() for job in jobs))
+
+            # --- 1. Latency ---
+            latencies: list[float] = []
+            for _ in range(ROUNDS):
+                start = time.perf_counter()
+                for _ in range(AMOUNT_RUN // 10):
+                    job = await jobify_task.push(create_user_dto)
+                    await job.wait()
+
+                latencies.append(
+                    (time.perf_counter() - start) / (AMOUNT_RUN // 10)
                 )
-                jobify_task = app.task(task)
-                create_user_dto = CreateUser("Dilan", "ex@y.com")
 
-                async with app:
-                    for _ in range(WARMUP_RUNS):
-                        _ = await task(create_user_dto)
+            # --- 2. Throughput ---
+            tps_results: list[float] = []
+            for _ in range(ROUNDS):
+                start = time.perf_counter()
+                coros = (
+                    jobify_task.push(create_user_dto)
+                    for _ in range(AMOUNT_RUN)
+                )
+                _ = await asyncio.gather(*coros)
+                await app.wait_all()
+                elapsed = time.perf_counter() - start
+                tps_results.append(AMOUNT_RUN / elapsed)
 
-                    warmup_coros = (
-                        jobify_task.push(create_user_dto)
-                        for _ in range(WARMUP_RUNS)
-                    )
-                    jobs = await asyncio.gather(*warmup_coros)
-                    _ = await asyncio.gather(*(job.wait() for job in jobs))
-
-                    # --- 1. Latency ---
-                    latencies: list[float] = []
-                    for _ in range(ROUNDS):
-                        start = time.perf_counter()
-                        for _ in range(AMOUNT_RUN // 10):
-                            job = await jobify_task.push(create_user_dto)
-                            await job.wait()
-
-                        latencies.append(
-                            (time.perf_counter() - start) / (AMOUNT_RUN // 10)
-                        )
-                        await asyncio.sleep(COOLDOWN_SLEEP)
-
-                    # --- 2. Throughput ---
-                    tps_results: list[float] = []
-                    for _ in range(ROUNDS):
-                        start = time.perf_counter()
-                        coros = (
-                            jobify_task.push(create_user_dto)
-                            for _ in range(AMOUNT_RUN)
-                        )
-                        _ = await asyncio.gather(*coros)
-                        await app.wait_all()
-                        elapsed = time.perf_counter() - start
-                        tps_results.append(AMOUNT_RUN / elapsed)
-
-                        await asyncio.sleep(COOLDOWN_SLEEP)
-
-                    avg_latency_ms = min(latencies) * 1000
-                    max_tps = max(tps_results)
-                    final_results.append(
-                        BenchResult(config_name, avg_latency_ms, max_tps)
-                    )
+            avg_latency_ms = min(latencies) * 1000
+            max_tps = max(tps_results)
+            final_results.append(
+                BenchResult(bench_name, avg_latency_ms, max_tps)
+            )
+            await asyncio.sleep(COOLDOWN_SLEEP)
 
     return prepare_report(final_results)
 

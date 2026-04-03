@@ -15,15 +15,20 @@ from jobify import __version__
 
 
 @contextmanager
+def gc_control() -> Iterator[None]:
+    gc.disable()
+    yield None
+    gc.enable()
+
+
+@contextmanager
 def timer() -> Iterator[None]:
     print("Running benchmarks...")
-    gc.disable()
     start = time.perf_counter()
 
     yield None
 
     end = time.perf_counter() - start
-    gc.enable()
     print(f"Benchmarks completed in: {end:.2f}s.")
 
 
@@ -51,17 +56,18 @@ async def main() -> None:
         if cpu_info
         else "",
     ]
-    with timer():
+    with timer(), gc_control():
         results.extend(
-            enrich_results(serializers_measure(), name=" Serializers ")
+            enrich_results(serializers_measure(), name="Serializers")
         )
         results.extend(
-            enrich_results(await jobify_run_benchmarks(), name=" Jobify APP ")
+            enrich_results(await jobify_run_benchmarks(), name="Jobify APP")
         )
     write_results("\n".join(results))
 
 
 def enrich_results(results: list[str], name: str) -> list[str]:
+    name = f" {name} "
     return [
         f"\n{name:=^60}",
         *results,
