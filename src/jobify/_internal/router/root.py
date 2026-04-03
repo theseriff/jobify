@@ -40,6 +40,7 @@ from jobify._internal.router.base import Registrator, Route, Router
 from jobify._internal.runners import Runnable, create_run_strategy
 from jobify._internal.scheduler.scheduler import ScheduleBuilder
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
+from jobify._internal.storage.dummy import DummyStorage
 
 if TYPE_CHECKING:
     import asyncio
@@ -75,6 +76,12 @@ CRONS_DEF_KEY = "__crons_definition__"
 CronsDefinition: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
 
 
+def _is_persist(cfg: JobifyConfiguration, opts: RouteOptions) -> bool:
+    is_dummy = isinstance(cfg.storage, DummyStorage)
+    is_durable = opts.get("durable", True)
+    return not is_dummy and is_durable
+
+
 class RootRoute(Route[ParamsT, ReturnT]):
     def __init__(  # noqa: PLR0913
         self,
@@ -95,6 +102,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
         self._chain_middleware: CallNext | None = None
         self._chain_outer_middleware: CallNextOuter | None = None
         self._exception_handlers: ExceptionHandlers = exception_handlers
+        self._is_persist: bool = _is_persist(jobify_config, options)
         self.state: State = state
         self.func_spec: FuncSpec[ReturnT] = func_spec
         self.jobify_config: JobifyConfiguration = jobify_config
@@ -173,6 +181,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
             state=self.state,
             options=self.options,
             func_spec=self.func_spec,
+            is_persist=self._is_persist,
             task_tracker=self._task_state,
             jobify_config=self.jobify_config,
             chain_middleware=self._chain_middleware,
