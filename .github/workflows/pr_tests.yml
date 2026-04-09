@@ -28,52 +28,57 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
           version: "latest"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.10"
-      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
-      - name: Load cached Pre-Commit Dependencies
-        id: cached-pre-commit-dependencies
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      - name: Install the project
+        run: uv sync --locked --no-dev --group lint
+
+      - uses: j178/prek-action@53276d8b0d10f8b6672aa85b4588c6921d0370cc # v2.0.1
         with:
-          path: ~/.cache/pre-commit/
-          key: pre-commit-4|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+          install-only: true
+
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
       - name: Execute Pre-Commit
         run: just pre-commit-all
 
   test-basic:
     if: github.event.pull_request.draft == false
+    runs-on: "${{ matrix.os }}"
+    timeout-minutes: 10
+
     strategy:
       matrix:
         py_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: "${{ matrix.os }}"
-    timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
-          version: "latest"
+          python-version: ${{ matrix.py_version }}
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "${{ matrix.py_version }}"
+
+      - name: Install the project
+        run: uv sync --locked --no-dev --group test
+
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
       - name: Run all tests
         run: just test-coverage-all
-      - name: Rename coverage file
-        run: mkdir coverage && mv .coverage coverage/.coverage.${{ runner.os }}-py${{ matrix.py_version }}
+
+      - name: Prepare coverage file for combining
+        run: |
+          mkdir -p coverage
+          mv .coverage "coverage/.coverage.${{ runner.os }}-py${{ matrix.py_version }}.${{ github.run_id }}"
+
       - name: Store coverage files
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -106,13 +111,12 @@ jobs:
           path: coverage
           merge-multiple: true
 
-      - run: |
+      - name: Combine coverage and generate reports
+        run: |
           uv pip install --system coverage[toml] covdefaults
-
-      - run: ls -la coverage
-      - run: coverage combine coverage
-      - run: coverage report
-      - run: coverage html --show-contexts --title "Jobber coverage for ${{ github.sha }}"
+          coverage combine coverage
+          coverage report
+          coverage html --show-contexts --title "Coverage for ${{ github.sha }}"
 
       - name: Store coverage html
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

@@ -88,8 +88,8 @@ dev = [
     { include-group = "test" },
     { include-group = "docs" },
     { include-group = "benchmarks" },
-    "pre-commit==4.5.1",
     "detect-secrets==1.5.0",
+    "prek==0.3.8",
 ]
 
 [project.urls]
@@ -114,6 +114,7 @@ markers = []
 
 [tool.coverage.run]
 plugins = ["covdefaults"]
+relative_files = true
 parallel = true
 branch = true
 concurrency = ["thread", "multiprocessing"]
@@ -123,15 +124,11 @@ omit = ["**/__init__.py"]
 [tool.coverage.paths]
 source = [
     "src",
-    "/home/runner/work/jobify/jobify/src",
-    "/Users/runner/work/jobify/jobify/src",
-    "D:\\a\\jobify\\jobify\\src",
+    "*/userbot/src",
 ]
 tests = [
     "tests",
-    "/home/runner/work/jobify/jobify/tests",
-    "/Users/runner/work/jobify/jobify/tests",
-    "D:\\a\\jobify\\jobify\\tests",
+    "*/userbot/tests",
 ]
 
 [tool.coverage.report]

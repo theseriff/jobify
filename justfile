@@ -21,7 +21,7 @@ init:
 [doc("Install pre-commit hooks")]
 [group("pre-commit")]
 _pre-commit *params:
-  uv run --frozen pre-commit {{params}}
+  uv run --frozen --no-dev --group lint prek {{params}}
 
 pre-commit-install:
   just _pre-commit install
