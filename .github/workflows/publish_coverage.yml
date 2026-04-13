@@ -37,7 +37,7 @@ jobs:
           workflow_conclusion: success
           if_no_artifact_found: fail
 
-      - run: smokeshow upload coverage-html
+      - run: uvx --from smokeshow smokeshow upload coverage-html
         env:
           SMOKESHOW_GITHUB_STATUS_DESCRIPTION: Coverage {coverage-percentage}
           SMOKESHOW_GITHUB_COVERAGE_THRESHOLD: 90
