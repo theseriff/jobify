@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from jobify._internal.runners import Runnable
     from jobify._internal.task_tracker import TaskTracker
 
-WARN_FORCE = (
+JOB_ALREADY_EXISTS = (
     "Job {job_id} already scheduled for {schedule}. If you need to "
     "reschedule, cancel the existing job first or use force=True."
 )
@@ -108,7 +108,9 @@ class ScheduleBuilder(Generic[ReturnT]):
             ctx = cast("CronContext[ReturnT]", exists_job._cron_context)
 
             if not force and cron == ctx.cron:
-                logger.warning(WARN_FORCE.format(job_id=job_id, schedule=cron))
+                logger.warning(
+                    JOB_ALREADY_EXISTS.format(job_id=job_id, schedule=cron)
+                )
                 return exists_job
 
             old_cron = ctx.cron
@@ -181,7 +183,9 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
         if exists_job is not None:
             if not force and exists_job.exec_at == at:
-                logger.warning(WARN_FORCE.format(job_id=job_id, schedule=at))
+                logger.info(
+                    JOB_ALREADY_EXISTS.format(job_id=job_id, schedule=at)
+                )
                 return exists_job
             exists_job.exec_at = at
             job = exists_job
@@ -423,7 +427,7 @@ class ScheduleBuilder(Generic[ReturnT]):
                 return
 
             job.status = JobStatus.PERMANENTLY_FAILED
-            logger.warning(
+            logger.info(
                 "Job %s stopped due to max failures policy (%s/%s)",
                 job.id,
                 ctx.failure_count,
