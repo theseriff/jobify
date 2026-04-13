@@ -21,15 +21,9 @@ jobs:
     environment: coverage
 
     steps:
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.9"
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
           version: "latest"
-
-      - run: |
-          uv pip install --system smokeshow
 
       - uses: dawidd6/action-download-artifact@8a338493df3d275e4a7a63bcff3b8fe97e51a927 # v19
         with:
@@ -37,7 +31,7 @@ jobs:
           workflow_conclusion: success
           if_no_artifact_found: fail
 
-      - run: smokeshow upload coverage-html
+      - run: uvx --from smokeshow smokeshow upload coverage-html
         env:
           SMOKESHOW_GITHUB_STATUS_DESCRIPTION: Coverage {coverage-percentage}
           SMOKESHOW_GITHUB_COVERAGE_THRESHOLD: 90
