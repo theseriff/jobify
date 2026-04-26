@@ -36,7 +36,6 @@ classifiers = [
     "Framework :: Pytest",
     "Framework :: AsyncIO",
     "Natural Language :: English",
-    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
