@@ -2,15 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import functools
-from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
-from typing import (
-    Any,
-    Protocol,
-    TypeAlias,
-    TypeVar,
-    runtime_checkable,
-)
+from typing import Any, Protocol, TypeAlias, TypeVar
 
 from jobify._internal.context import JobContext, OuterContext
 
@@ -19,9 +12,7 @@ CallNext: TypeAlias = Callable[[JobContext], Awaitable[Any]]
 CallNextOuter: TypeAlias = Callable[[OuterContext], Awaitable[asyncio.Handle]]
 
 
-@runtime_checkable
-class BaseMiddleware(Protocol, metaclass=ABCMeta):
-    @abstractmethod
+class BaseMiddleware(Protocol):
     async def __call__(self, call_next: CallNext, context: JobContext) -> Any:  # noqa: ANN401
         pass
 
@@ -38,14 +29,8 @@ def build_middleware(
     return chain_of_middlewares
 
 
-@runtime_checkable
-class BaseOuterMiddleware(Protocol, metaclass=ABCMeta):
-    @abstractmethod
-    async def __call__(
-        self,
-        call_next: CallNextOuter,
-        context: OuterContext,
-    ) -> Any:  # noqa: ANN401
+class BaseOuterMiddleware(Protocol):
+    async def __call__(self, call_next: CallNextOuter, context: OuterContext) -> Any:  # noqa: ANN401
         pass
 
 

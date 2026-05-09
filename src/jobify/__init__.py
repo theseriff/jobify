@@ -20,7 +20,7 @@ from jobify._internal.scheduler.misfire_policy import (
     MisfirePolicy,
 )
 from jobify._internal.scheduler.scheduler import ScheduleBuilder
-from jobify.jobify import Jobify
+from jobify.jobify import Jobify, Plugin
 
 __version__ = get_version("jobify")
 __all__ = (
@@ -35,6 +35,7 @@ __all__ = (
     "Jobify",
     "MisfirePolicy",
     "OuterContext",
+    "Plugin",
     "RequestState",
     "RunMode",
     "Runnable",

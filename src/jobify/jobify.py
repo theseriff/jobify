@@ -9,17 +9,21 @@ import signal
 import sys
 import threading
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    ParamSpec,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
 from jobify._internal.common.constants import EMPTY, PATCH_CRON_DEF_ID
-from jobify._internal.configuration import (
-    Cron,
-    JobifyConfiguration,
-    WorkerPools,
-)
+from jobify._internal.configuration import Cron, JobifyConfiguration, WorkerPools
 from jobify._internal.message import (
     AtArguments,
     CronArguments,
@@ -48,7 +52,7 @@ from jobify.crontab import create_crontab
 
 if TYPE_CHECKING:
     import inspect
-    from collections.abc import Callable, Generator, Sequence
+    from collections.abc import Callable, Generator, Iterator, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from datetime import datetime
     from types import FrameType, TracebackType
@@ -60,11 +64,7 @@ if TYPE_CHECKING:
         MappingExceptionHandlers,
     )
     from jobify._internal.cron_parser import CronFactory
-    from jobify._internal.middleware.base import (
-        BaseMiddleware,
-        BaseOuterMiddleware,
-    )
-    from jobify._internal.plugins import Plugin
+    from jobify._internal.middleware.base import BaseMiddleware, BaseOuterMiddleware
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
@@ -93,6 +93,19 @@ def cache_result(f: Callable[ParamsT, ReturnT]) -> Callable[ParamsT, ReturnT]:
     return wrapper
 
 
+@runtime_checkable
+class Plugin(Protocol):
+    """Lifecycle hooks for integrating extensions into a `Jobify` app."""
+
+    async def startup(self, app: Jobify) -> None:
+        """Run plugin initialization when the application starts."""
+        ...
+
+    async def shutdown(self) -> None:
+        """Run plugin cleanup before the application shuts down."""
+        ...
+
+
 class Jobify(RootRouter):
     """Jobify is the main app for scheduling and managing background jobs.
 
@@ -119,7 +132,7 @@ class Jobify(RootRouter):
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
         route_class: type[RootRoute[..., Any]] = RootRoute,
-        plugins: Sequence[Plugin[AppT]] = (),
+        plugins: Sequence[Plugin] = (),
     ) -> None:
         """Initialize a `Jobify` instance."""
         getloop = cache_result(loop_factory)
@@ -188,9 +201,9 @@ class Jobify(RootRouter):
             route_class=route_class,
         )
         self._captured_signals: list[int] = []
-        self.plugins: set[Plugin[Any]] = set(plugins)
+        self.plugins: set[Plugin] = set(plugins)
 
-    def add_plugin(self, plug: Plugin[AppT], /) -> None:
+    def add_plugin(self, plug: Plugin, /) -> None:
         """Register a plugin instance for application lifecycle hooks."""
         self.plugins.add(plug)
 
@@ -237,6 +250,15 @@ class Jobify(RootRouter):
             issues or router initialization errors.
 
         """
+
+        def chain_middlewares() -> Iterator[BaseMiddleware]:
+            for router in self.chain_tail:
+                yield from router.task._middleware
+
+        for mid in chain_middlewares():
+            if isinstance(mid, Plugin):
+                self.add_plugin(mid)
+
         for plug in self.plugins:
             await plug.startup(self)
 
