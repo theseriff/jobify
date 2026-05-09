@@ -108,9 +108,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             ctx = cast("CronContext[ReturnT]", exists_job._cron_context)
 
             if not force and cron == ctx.cron:
-                logger.warning(
-                    JOB_ALREADY_EXISTS.format(job_id=job_id, schedule=cron)
-                )
+                logger.warning(JOB_ALREADY_EXISTS.format(job_id=job_id, schedule=cron))
                 return exists_job
 
             old_cron = ctx.cron
@@ -183,9 +181,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
         if exists_job is not None:
             if not force and exists_job.exec_at == at:
-                logger.info(
-                    JOB_ALREADY_EXISTS.format(job_id=job_id, schedule=at)
-                )
+                logger.info(JOB_ALREADY_EXISTS.format(job_id=job_id, schedule=at))
                 return exists_job
             exists_job.exec_at = at
             job = exists_job

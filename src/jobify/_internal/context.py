@@ -121,9 +121,7 @@ def inject_context(context: JobContext) -> None:
     for name, tp in runnable.func_spec.inject_params.items():
         if tp is JobContext:
             val = context
-        elif (
-            field_name := CONTEXT_TYPE_MAP.get(_resolve_type_key(tp))
-        ) is not None:
+        elif (field_name := CONTEXT_TYPE_MAP.get(_resolve_type_key(tp))) is not None:
             val = getattr(context, field_name)
         else:
             msg = (

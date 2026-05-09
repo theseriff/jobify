@@ -143,15 +143,9 @@ class Registrator(ABC, Generic[Route_co]):
     ) -> None:
         self._routes: dict[str, Route_co] = {}
         self._middleware: list[BaseMiddleware] = list(middleware or [])
-        self._outer_middleware: list[BaseOuterMiddleware] = list(
-            outer_middleware or []
-        )
-        self._state_lifespan: Final = self._iter_lifespan(
-            lifespan or dummy_lifespan
-        )
-        self._exception_handlers: ExceptionHandlers = dict(
-            exception_handlers or {}
-        )
+        self._outer_middleware: list[BaseOuterMiddleware] = list(outer_middleware or [])
+        self._state_lifespan: Final = self._iter_lifespan(lifespan or dummy_lifespan)
+        self._exception_handlers: ExceptionHandlers = dict(exception_handlers or {})
         self.state: State = state or State()
         self.route_class: type[Route_co] = route_class
 
@@ -165,9 +159,7 @@ class Registrator(ABC, Generic[Route_co]):
     def __call__(
         self,
         **options: Unpack[RouteOptions],
-    ) -> Callable[
-        [Callable[ParamsT, Return_co]], Route[ParamsT, Return_co]
-    ]: ...
+    ) -> Callable[[Callable[ParamsT, Return_co]], Route[ParamsT, Return_co]]: ...
 
     @overload
     def __call__(

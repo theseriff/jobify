@@ -374,8 +374,7 @@ class RootRouter(Router):
         for sub_router in router.sub_routers:
             sub_router.task.state = router.task.state | sub_router.task.state
             sub_router.task._exception_handlers = (
-                router.task._exception_handlers
-                | sub_router.task._exception_handlers
+                router.task._exception_handlers | sub_router.task._exception_handlers
             )
             sub_router.task._middleware = [
                 *router.task._middleware,

@@ -46,9 +46,7 @@ class State(UserDict[str, Any]):
         try:
             return self.data[key]
         except KeyError as exc:
-            message = (
-                f"{self.__class__.__name__!r} object has no attribute {key!r}"
-            )
+            message = f"{self.__class__.__name__!r} object has no attribute {key!r}"
             raise AttributeError(message) from exc
 
     @override

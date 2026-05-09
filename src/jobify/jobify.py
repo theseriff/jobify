@@ -64,6 +64,7 @@ if TYPE_CHECKING:
         BaseMiddleware,
         BaseOuterMiddleware,
     )
+    from jobify._internal.plugins import Plugin
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
@@ -118,6 +119,7 @@ class Jobify(RootRouter):
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
         route_class: type[RootRoute[..., Any]] = RootRoute,
+        plugins: Sequence[Plugin[AppT]] = (),
     ) -> None:
         """Initialize a `Jobify` instance."""
         getloop = cache_result(loop_factory)
@@ -186,6 +188,11 @@ class Jobify(RootRouter):
             route_class=route_class,
         )
         self._captured_signals: list[int] = []
+        self.plugins: set[Plugin[Any]] = set(plugins)
+
+    def add_plugin(self, plug: Plugin[AppT], /) -> None:
+        """Register a plugin instance for application lifecycle hooks."""
+        self.plugins.add(plug)
 
     def find_job(self, id_: str, /) -> Job[ReturnT] | None:
         """Find an active job by its ID.
@@ -230,7 +237,11 @@ class Jobify(RootRouter):
             issues or router initialization errors.
 
         """
+        for plug in self.plugins:
+            await plug.startup(self)
+
         self.propagate_real_routes()
+
         self.configs.app_started = True
 
         await self.configs.storage.startup()
@@ -276,12 +287,7 @@ class Jobify(RootRouter):
                     if msg.trigger.cron == cron_def:
                         continue
 
-            await builder.cron(
-                cron_def,
-                job_id=job_id,
-                replace=True,
-                force=True,
-            )
+            await builder.cron(cron_def, job_id=job_id, replace=True, force=True)
 
         # --- PHASE 2: Dynamic/Imperative Jobs & Cleanup ---
         for job_id, sch in db_map.items():
@@ -411,15 +417,16 @@ class Jobify(RootRouter):
             tasks to prevent shutdown from being interrupted by task exception.
 
         """
+        for plug in self.plugins:
+            await plug.shutdown()
+
         self.configs.app_started = False
 
         if jobs := tuple(self.task._task_tracker.pending_jobs.values()):
             for job in jobs:
                 job._cancel()
 
-        if (
-            tasks := self.task._task_tracker.pending_tasks.values()
-        ):  # pragma: no cover
+        if tasks := self.task._task_tracker.pending_tasks.values():  # pragma: no cover
             for task in tuple(tasks):
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -477,8 +484,7 @@ class Jobify(RootRouter):
         # always use signal.signal, even if loop.add_signal_handler is
         # available this allows to restore previous signal handlers later on
         original_handlers = {
-            sig: signal.signal(sig, self._handle_exit)
-            for sig in handled_signals
+            sig: signal.signal(sig, self._handle_exit) for sig in handled_signals
         }
         try:
             yield

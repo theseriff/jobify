@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from typing_extensions import override
 
 from jobify._internal.common.constants import EMPTY, JobStatus
+from jobify._internal.common.types import STOP
 from jobify._internal.storage.base import (
     ScheduledJob,
     Storage,
@@ -60,10 +61,7 @@ DELETE FROM {table_name} WHERE job_id IN ({placeholder});
 ReturnT = TypeVar("ReturnT")
 
 _Callback = Callable[[], ReturnT]
-_AsyncQueue: TypeAlias = asyncio.Queue[
-    tuple[_Callback[Any], asyncio.Future[Any]],
-]
-_STOP: Any = object()
+_AsyncQueue: TypeAlias = asyncio.Queue[tuple[_Callback[Any], asyncio.Future[Any]],]
 
 
 class SQLiteStorage(Storage):
@@ -76,9 +74,7 @@ class SQLiteStorage(Storage):
         max_queue_size: int = 1024,
     ) -> None:
         validate_table_name(table_name)
-        self.database: Path = (
-            Path(database) if isinstance(database, str) else database
-        )
+        self.database: Path = Path(database) if isinstance(database, str) else database
         self.table_name: str = table_name
         self.timeout: float = timeout
         self.tz: ZoneInfo = ZoneInfo("UTC")
@@ -91,8 +87,8 @@ class SQLiteStorage(Storage):
         self._queue: _AsyncQueue = EMPTY
         self._worker_task: asyncio.Task[None] = EMPTY
 
-        self.create_scheduled_table_query: str = (
-            CREATE_SCHEDULED_TABLE_QUERY.format(table_name)
+        self.create_scheduled_table_query: str = CREATE_SCHEDULED_TABLE_QUERY.format(
+            table_name
         )
         self.select_schedules_query: str = SELECT_SCHEDULES_QUERY.format(
             table_name,
@@ -111,9 +107,9 @@ class SQLiteStorage(Storage):
             timeout=self.timeout,
             check_same_thread=False,
         )
-        _ = conn.execute("PRAGMA journal_mode=WAL;")
-        _ = conn.execute("PRAGMA synchronous=NORMAL;")
-        _ = conn.execute(self.create_scheduled_table_query)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute(self.create_scheduled_table_query)
         conn.commit()
 
         self._conn = conn
@@ -124,7 +120,7 @@ class SQLiteStorage(Storage):
     @override
     async def shutdown(self) -> None:
         if self._queue is not EMPTY:
-            await self._queue.put(_STOP)
+            await self._queue.put(STOP)
             await self._queue.join()
             self._queue = EMPTY
 
@@ -154,9 +150,7 @@ class SQLiteStorage(Storage):
                     name=row[1],
                     message=row[2],
                     status=JobStatus(row[3]),
-                    next_run_at=(
-                        datetime.fromisoformat(row[4]).astimezone(self.tz)
-                    ),
+                    next_run_at=(datetime.fromisoformat(row[4]).astimezone(self.tz)),
                 )
                 for row in cursor.fetchall()
             ]
@@ -166,7 +160,7 @@ class SQLiteStorage(Storage):
     @override
     async def add_schedule(self, *scheduled: ScheduledJob) -> None:
         def insert_many() -> None:
-            _ = self._conn.executemany(
+            self._conn.executemany(
                 self.insert_schedule_query,
                 [
                     (
@@ -186,7 +180,7 @@ class SQLiteStorage(Storage):
     @override
     async def delete_schedule(self, job_id: str) -> None:
         def delete() -> None:
-            _ = self._conn.execute(self.delete_schedule_query, (job_id,))
+            self._conn.execute(self.delete_schedule_query, (job_id,))
             self._conn.commit()
 
         return await self._execute(delete)
@@ -208,7 +202,7 @@ class SQLiteStorage(Storage):
                         "placeholder": ",".join("?" * len(batch)),
                     }
                 )
-                _ = self._conn.execute(query, batch)
+                self._conn.execute(query, batch)
             self._conn.commit()
 
         return await self._execute(delete_many)
@@ -217,7 +211,7 @@ class SQLiteStorage(Storage):
         while True:
             item = await self._queue.get()
 
-            if item is _STOP:
+            if item is STOP:
                 self._queue.task_done()
                 break
 

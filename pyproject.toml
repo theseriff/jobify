@@ -192,7 +192,7 @@ targets = "src"
 src = ["src"]
 include = ["src/**.py", "tests/**.py"]
 target-version = "py310"
-line-length = 79
+line-length = 88
 fix = true
 
 [tool.ruff.lint]

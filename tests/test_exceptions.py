@@ -23,9 +23,7 @@ async def test_app_runtime_error() -> None:
         _ = await f.schedule().delay(0)
 
     async with app:
-        reason = (
-            "The Jobify app's already running and configuration is frozen."
-        )
+        reason = "The Jobify app's already running and configuration is frozen."
 
         with pytest.raises(ApplicationStateError, match=reason):
             _ = app.task(f, name="test1")

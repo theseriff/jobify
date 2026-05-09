@@ -103,9 +103,7 @@ async def test_retry(sleep_mock: AsyncMock, *, amock: AsyncMock) -> None:
         await job.wait()
 
     amock.assert_has_awaits([call()] * (retry + 1))
-    sleep_mock.assert_has_awaits(
-        call(min(2**attempt, 60)) for attempt in range(retry)
-    )
+    sleep_mock.assert_has_awaits(call(min(2**attempt, 60)) for attempt in range(retry))
 
 
 async def test_outer_middlewares(amock: AsyncMock) -> None:

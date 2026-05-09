@@ -102,10 +102,7 @@ class Cron:
 
     def __post_init__(self) -> None:
         if self.max_failures < 1:
-            msg = (
-                "max_cron_failures must be >= 1."
-                " Use 1 for 'stop on first error'."
-            )
+            msg = "max_cron_failures must be >= 1. Use 1 for 'stop on first error'."
             raise ValueError(msg)
 
 
