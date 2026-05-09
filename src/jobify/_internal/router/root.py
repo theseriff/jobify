@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
 import sys
 from typing import (
@@ -44,7 +45,6 @@ from jobify._internal.storage.dummy import DummyStorage
 
 if TYPE_CHECKING:
     import asyncio
-    import inspect
     from collections.abc import Callable, Iterator, Sequence
 
     from jobify._internal.common.datastructures import State
@@ -243,6 +243,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             func,
             self._jobify_config,
             mode=options.get("run_mode"),
+            is_async=inspect.iscoroutinefunction(func),
         )
         route = self.route_class(
             name=name,

@@ -1,7 +1,7 @@
 # pyright: reportImportCycles=false
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NamedTuple, final
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
     import asyncio
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
 
 
-@final
 class OuterContext:
     __slots__: tuple[str, ...] = (
         "arguments",

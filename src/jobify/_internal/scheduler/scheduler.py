@@ -149,7 +149,7 @@ class ScheduleBuilder(Generic[ReturnT]):
                 cron_parser=parser,
             )
             job.bind_cron_context(ctx)
-        _ = await self._chain_outer_middleware(
+        await self._chain_outer_middleware(
             self._create_outer_context(
                 job=job,
                 trigger=CronArguments(cron=cron, job_id=job_id, offset=offset),
@@ -196,7 +196,7 @@ class ScheduleBuilder(Generic[ReturnT]):
                 storage=self._configs.storage,
                 unregister_hook=self._task_tracker.unregister_job,
             )
-        _ = await self._chain_outer_middleware(
+        await self._chain_outer_middleware(
             self._create_outer_context(
                 job=job,
                 trigger=AtArguments(job_id=job_id, at=at),
@@ -214,7 +214,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             storage=self._configs.storage,
             unregister_hook=self._task_tracker.unregister_job,
         )
-        _ = await self._chain_outer_middleware(
+        await self._chain_outer_middleware(
             self._create_outer_context(
                 job=job,
                 trigger=PushArguments(job_id=job.id),
@@ -423,7 +423,7 @@ class ScheduleBuilder(Generic[ReturnT]):
                     )
                     await self._persist_job(job.id, next_run_at, trigger)
                 job.update(exec_at=next_run_at, status=JobStatus.SCHEDULED)
-                _ = self._schedule_execution_cron(ctx)
+                self._schedule_execution_cron(ctx)
                 return
 
             job.status = JobStatus.PERMANENTLY_FAILED
@@ -460,7 +460,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         job.bind_cron_context(ctx)
         self._task_tracker.register_job(job)
-        _ = self._schedule_execution_cron(ctx)
+        self._schedule_execution_cron(ctx)
 
     def _at(self, at: datetime, job_id: str) -> None:
         job = Job[ReturnT](
@@ -470,7 +470,7 @@ class ScheduleBuilder(Generic[ReturnT]):
             storage=self._configs.storage,
         )
         self._task_tracker.register_job(job)
-        _ = self._schedule_execution_at(job)
+        self._schedule_execution_at(job)
 
     def _push(self, job_id: str, exec_at: datetime) -> None:
         job = Job[ReturnT](

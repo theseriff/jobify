@@ -4,7 +4,7 @@ from collections.abc import Collection, Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, TypedDict, final
+from typing import Any, TypedDict
 from zoneinfo import ZoneInfo
 
 from jobify._internal.common.constants import INFINITY, RunMode
@@ -22,7 +22,6 @@ from jobify._internal.storage.base import Storage
 from jobify._internal.typeadapter.base import Dumper, Loader
 
 
-@final
 class WorkerPools:
     __slots__: tuple[str, ...] = ("_processpool", "threadpool")
 
@@ -54,7 +53,6 @@ class WorkerPools:
             self._processpool = None
 
 
-@final
 class JobifyConfiguration:
     __slots__: tuple[str, ...] = (
         "app_started",

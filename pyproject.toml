@@ -56,13 +56,13 @@ dependencies = [
 
 [dependency-groups]
 lint = [
-    "mypy==1.20.2",
+    "mypy==2.0.0",
     "ruff==0.15.12",
     "bandit==1.9.4",
     "zizmor==1.24.1",
     "semgrep==1.161.0",
     "codespell==2.4.2",
-    "basedpyright==1.39.3",
+    "pyrefly==0.64.1",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-setuptools",
@@ -148,13 +148,14 @@ omit = [
 ]
 
 # Static Analysis
-[tool.basedpyright]
-include = ["src", "tests"]
-ignore = ["**/__pycache__"]
-pythonVersion = "3.10"
-reportAny = false
-reportExplicitAny = false
-reportPrivateUsage = false
+[tool.pyrefly]
+python-version = "3.10"
+project-includes = ["src", "tests"]
+search-path = ["src", "."]
+min-severity = "warn"
+preset = "strict"
+skip-lsp-config-indexing = false
+infer-with-first-use = false
 
 [tool.mypy]
 mypy_path = "src"

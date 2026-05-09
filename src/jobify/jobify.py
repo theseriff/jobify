@@ -48,7 +48,7 @@ from jobify.crontab import create_crontab
 
 if TYPE_CHECKING:
     import inspect
-    from collections.abc import Callable, Iterator, Sequence
+    from collections.abc import Callable, Generator, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from datetime import datetime
     from types import FrameType, TracebackType
@@ -70,13 +70,6 @@ if TYPE_CHECKING:
     from jobify._internal.storage.base import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
-HANDLED_SIGNALS = (
-    signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
-    signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
-)
-if sys.platform == "win32":  # pragma: no cover
-    # Windows signal 21. Sent by Ctrl+Break.
-    HANDLED_SIGNALS += (signal.SIGBREAK,)  # pyright: ignore[reportConstantRedefinition]
 
 logger = logging.getLogger("Jobify")
 
@@ -283,7 +276,7 @@ class Jobify(RootRouter):
                     if msg.trigger.cron == cron_def:
                         continue
 
-            _ = await builder.cron(
+            await builder.cron(
                 cron_def,
                 job_id=job_id,
                 replace=True,
@@ -386,9 +379,9 @@ class Jobify(RootRouter):
 
     async def __aexit__(
         self,
-        exc_type: type[BaseException] | None = None,
-        exc_val: BaseException | None = None,
-        exc_tb: TracebackType | None = None,
+        _exc_type: type[BaseException] | None = None,
+        _exc_val: BaseException | None = None,
+        _exc_tb: TracebackType | None = None,
     ) -> None:
         """Exit the Jobify context manager.
 
@@ -428,8 +421,8 @@ class Jobify(RootRouter):
             tasks := self.task._task_tracker.pending_tasks.values()
         ):  # pragma: no cover
             for task in tuple(tasks):
-                _ = task.cancel()
-            _ = await asyncio.gather(*tasks, return_exceptions=True)
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         self.configs.worker_pools.close()
         await self._propagate_shutdown()
@@ -464,10 +457,19 @@ class Jobify(RootRouter):
         """
         idle_event = self.task._task_tracker.idle_event
         with self._capture_signals():
-            _ = await asyncio.wait_for(idle_event.wait(), timeout=timeout)
+            await asyncio.wait_for(idle_event.wait(), timeout=timeout)
 
     @contextmanager
-    def _capture_signals(self) -> Iterator[None]:
+    def _capture_signals(self) -> Generator[None]:
+        handled_signals = [
+            signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
+            signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
+        ]
+        if sys.platform == "win32":  # pragma: no cover
+            handled_signals.append(
+                signal.SIGBREAK  # Windows signal 21. Sent by Ctrl+Break.
+            )
+
         # Signals can only be listened to from the main thread.
         if threading.current_thread() is not threading.main_thread():
             yield
@@ -476,13 +478,13 @@ class Jobify(RootRouter):
         # available this allows to restore previous signal handlers later on
         original_handlers = {
             sig: signal.signal(sig, self._handle_exit)
-            for sig in HANDLED_SIGNALS
+            for sig in handled_signals
         }
         try:
             yield
         finally:
             for sig, handler in original_handlers.items():
-                _ = signal.signal(sig, handler)
+                signal.signal(sig, handler)
 
     def _handle_exit(self, sig: int, _: FrameType | None) -> None:
         self._captured_signals.append(sig)

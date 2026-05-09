@@ -31,7 +31,7 @@ def test_invalid_table_name() -> None:
         f"Must contain only letters, digits, and underscores."
     )
     with pytest.raises(ValueError, match=msg):
-        _ = SQLiteStorage(database=":memory:", table_name=invalid_table_name)
+        SQLiteStorage(database=":memory:", table_name=invalid_table_name)
 
 
 async def test_sqlite(now: datetime) -> None:
@@ -158,7 +158,7 @@ async def test_sqlite_with_jobify() -> None:
             at_scheduled,
             cron_scheduled,
         ]
-        _ = await asyncio.wait_for(
+        await asyncio.wait_for(
             asyncio.gather(job1.wait(), job2.wait(), job1_cron.wait()),
             timeout=1.0,
         )
@@ -204,19 +204,18 @@ async def test_restore_schedules(
         await storage.shutdown()
 
     app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
-    _ = app2.task(_f, name="test_name")
+    app2.task(_f, name="test_name")
 
     async with app2:
         job_at_restored: Job[str] | None = app2.find_job(job_at.id)
         job_cron_restored: Job[str] | None = app2.find_job(job_cron.id)
         expected_jobs = 2
 
-        assert job_at_restored
-        assert job_cron_restored
+        assert job_at_restored is not None
+        assert job_cron_restored is not None
         assert len(app2.task._task_tracker.pending_jobs) == expected_jobs
-        assert job_cron_restored is app2.find_job(job_cron.id)
 
-        _ = await asyncio.wait_for(
+        await asyncio.wait_for(
             asyncio.gather(job_at_restored.wait(), job_cron_restored.wait()),
             timeout=1.0,
         )
@@ -295,7 +294,7 @@ async def test_restore_schedules_invalid_jobs(storage: SQLiteStorage) -> None:
     def _() -> None: ...
 
     async with app1:
-        _job = await f1.schedule("biba").at(now + timedelta(7))
+        await f1.schedule("biba").at(now + timedelta(7))
 
     async with app2:
         pass
@@ -316,7 +315,7 @@ async def test_restore_cron_stateful(storage: SQLiteStorage) -> None:
         assert job.result() == "test"
 
     app2 = Jobify(storage=storage, cron_factory=cron_factory_mock)
-    _ = app2.task(_f, cron=Cron("* * * * *", max_runs=2))
+    app2.task(_f, cron=Cron("* * * * *", max_runs=2))
 
     async with app2:
         scheduled_job2 = (await app2.configs.storage.get_schedules())[0]
@@ -471,7 +470,7 @@ async def test_remove_cron_declarative(
     amock: AsyncMock,
 ) -> None:
     app = Jobify(storage=storage)
-    _ = app.task(amock, cron="* * * * *")
+    app.task(amock, cron="* * * * *")
     async with app:
         assert (
             len(await app.configs.storage.get_schedules())

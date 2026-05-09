@@ -25,6 +25,7 @@ from jobify._internal.exceptions import RouteAlreadyRegisteredError
 
 if TYPE_CHECKING:
     from collections.abc import (
+        AsyncGenerator,
         AsyncIterator,
         Callable,
         Coroutine,
@@ -196,6 +197,7 @@ class Registrator(ABC, Generic[Route_co]):
             func: Callable[ParamsT, Return_co],
         ) -> Route[ParamsT, Return_co]:
             if isinstance(func, Route):
+                # pyrefly: ignore [redundant-cast]
                 func = cast("Callable[ParamsT, Return_co]", func.func)
 
             name = options.get("name") or resolve_name(func)
@@ -232,7 +234,7 @@ class Registrator(ABC, Generic[Route_co]):
 
 
 @asynccontextmanager
-async def dummy_lifespan(_: Router) -> AsyncIterator[None]:
+async def dummy_lifespan(_: Router) -> AsyncGenerator[None]:
     yield None
 
 

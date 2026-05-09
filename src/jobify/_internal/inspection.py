@@ -6,7 +6,6 @@ from typing import (
     ParamSpec,
     TypeAlias,
     TypeVar,
-    final,
     get_origin,
     get_type_hints,
 )
@@ -19,7 +18,6 @@ ParamName: TypeAlias = str
 TypeHint: TypeAlias = Any
 
 
-@final
 class FuncSpec(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "inject_params",
