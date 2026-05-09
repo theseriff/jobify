@@ -9,7 +9,7 @@ module-root = "src"
 name = "jobify"
 version = "0.10.1"
 description = "A modern, lightweight and robust task manager with a user-friendly interface and a wide range of features, using the low-level asyncio API and more."
-requires-python = ">=3.10,<5"
+requires-python = ">=3.10,<3.15"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
@@ -60,7 +60,7 @@ lint = [
     "ruff==0.15.12",
     "bandit==1.9.4",
     "zizmor==1.24.1",
-    "semgrep==1.161.0",
+    "semgrep==1.162.0",
     "codespell==2.4.2",
     "pyrefly==0.64.1",
     # mypy extensions
@@ -76,7 +76,7 @@ test = [
     "coverage[toml]==7.13.5",
 ]
 docs = [
-    "zensical==0.0.29",
+    "zensical==0.0.41",
 ]
 benchmarks = [
     "psutil==7.2.2",

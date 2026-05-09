@@ -1,52 +1,65 @@
-# Exceptions
+# Exceptions Reference
 
-This page describes the common errors you might encounter while using Jobify.
+This page provides a reference for all common exceptions raised by Jobify.
 
-## Job Execution Errors
+<div class="grid cards" markdown>
 
-These errors are related to the execution of individual jobs and are typically raised when you call `job.result()`.
+- :material-run-fast:{ .lg .middle } **Execution Errors**
 
-### `JobFailedError`
+    ***
 
-Raised when a job fails due to an exception within the task function. It wraps the original exception.
+    Raised during task execution or when retrieving job results.
 
-- **Attributes**:
-    - `job_id`: The ID of the failed job.
-    - `reason`: A string representation of the original exception.
+- :material-calendar-plus:{ .lg .middle } **Scheduling Errors**
 
-### `JobTimeoutError`
+    ***
 
-Raised when a job's execution exceeds the configured `timeout`.
+    Raised when a job cannot be registered or updated.
 
-- **Attributes**:
-    - `job_id`: The ID of the timed-out job.
-    - `timeout`: The timeout value in seconds.
+- :material-database-alert-outline:{ .lg .middle } **State Errors**
 
-### `JobNotCompletedError`
+    ***
 
-Raised when you attempt to call `job.result()` before the job has finished executing (i.e., its status is not `SUCCESS`, `FAILED`, or `TIMEOUT`).
+    Raised when operations are performed in an invalid application state.
+
+- :material-map-marker-path:{ .lg .middle } **Routing Errors**
+
+    ***
+
+    Raised during task registration and router inclusion.
+
+</div>
+
+## Execution Exceptions
+
+These are raised when interacting with a `Job` object, typically via `job.result()` or `job.wait()`.
+
+| Exception | Description | Attributes |
+| :--- | :--- | :--- |
+| :material-alert-circle: **`JobFailedError`** | Wrapped exception from a failed task. | `job_id`, `reason` |
+| :material-timer-off: **`JobTimeoutError`** | Raised when execution exceeds `timeout`. | `job_id`, `timeout` |
+| :material-progress-clock: **`JobNotCompletedError`** | `result()` called while job is still active. | `job_id` |
 
 ## Scheduling Exceptions
 
-### `DuplicateJobError`
+Raised by `.push()`, `.at()`, `.delay()`, or `.cron()` methods.
 
-Raised when you attempt to schedule a job with an ID that is already in use by another active job.
-
-- **Solution**: Use `replace=True` when scheduling if you want to update the existing job.
+| Exception | Description | Solution |
+| :--- | :--- | :--- |
+| :material-content-copy: **`DuplicateJobError`** | Job ID already exists in storage. | Use `replace=True` to update. |
 
 ## Application State Exceptions
 
-### `ApplicationStateError`
+Raised when calling methods at the wrong point in the application lifecycle.
 
-Raised when an operation is performed while the application is in an invalid state (e.g., trying to configure the app after it has already started).
-
-#### Common Scenarios:
-
-- **Registering a task after startup**: All tasks must be registered (via `@app.task` or `app.include_router()`) before calling `async with app:` or `await app.startup()`.
-- **Scheduling a task before startup**: You cannot schedule a task (using `.at()`, `.delay()`, or `.cron()`) before the application has started.
+| Exception | Description | Common Scenarios |
+| :--- | :--- | :--- |
+| :material-state-machine: **`ApplicationStateError`** | Invalid operation for current state. | Registering tasks after startup; Scheduling before startup. |
 
 ## Routing Exceptions
 
-### `RouteAlreadyRegisteredError`
+Raised during the definition phase of your application.
 
-Raised when you try to register a task with a name that has already been taken within the same router or application.
+| Exception | Description |
+| :--- | :--- |
+| :material-source-branch: **`RouteAlreadyRegisteredError`** | Task name conflict within a router or app. |

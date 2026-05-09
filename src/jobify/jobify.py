@@ -518,4 +518,4 @@ class Jobify(RootRouter):
         self._captured_signals.append(sig)
         loop = self.configs.getloop()
         idle_event = self.task._task_tracker.idle_event
-        _handle = loop.call_soon_threadsafe(idle_event.set)
+        loop.call_soon_threadsafe(idle_event.set)

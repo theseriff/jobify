@@ -1,6 +1,36 @@
 # Task Configuration
 
-You can also configure individual tasks by passing arguments to the `@app.task` decorator.
+Use `@app.task(...)` (or `@router.task(...)`) to configure per-task behavior: schedule policy, retries, timeout, durability, execution mode, metadata, and handlers.
+
+<div class="grid cards" markdown>
+
+- :material-calendar-sync-outline:{ .lg .middle } **Scheduling**
+
+    ***
+
+    `cron`, `durable`, and task `name` for stable schedule identity.
+
+- :material-restart-alert:{ .lg .middle } **Reliability**
+
+    ***
+
+    `retry`, `timeout`, and task-level `exception_handlers`.
+
+- :material-cog-transfer-outline:{ .lg .middle } **Execution Control**
+
+    ***
+
+    `run_mode` and `metadata` for middleware-driven policies.
+
+- :material-shield-alert-outline:{ .lg .middle } **Error Handling**
+
+    ***
+
+    Task-specific `exception_handlers` for localized recovery logic.
+
+</div>
+
+## Example
 
 ```python
 from jobify import Cron, Jobify, MisfirePolicy, RunMode
@@ -9,33 +39,51 @@ app = Jobify()
 
 
 @app.task(
-    name="my_daily_report",
+    name="reports:daily",
     cron=Cron(
-        "* * * * *",
-        max_runs=30,
-        max_failures=4,
+        "0 8 * * 1-5",
+        max_runs=100,
+        max_failures=5,
         misfire_policy=MisfirePolicy.SKIP,
     ),
     retry=3,
-    timeout=300,  # in seconds
+    timeout=300,
     durable=True,
     run_mode=RunMode.PROCESS,
-    metadata={"key1": "somekey_for_metadata"},
+    metadata={"priority": 100, "team": "finance"},
+    exception_handlers={TimeoutError: lambda exc, ctx: "timed_out"},
 )
-def my_daily_report() -> None:
-    pass
+def daily_report() -> None:
+    ...
+```
+
+## name
+
+- **Type**: `str`
+- **Default**: auto-generated from function (`module:qualname`)
+
+Defines the unique task/route name.
+Set it explicitly when you need stable naming across refactors, imports, or deployments.
+
+```python
+@app.task(name="billing:close_invoices")
+def close_invoices() -> None:
+    ...
 ```
 
 ## cron
 
 - **Type**: `str | Cron`
-- **Default**: `None`
+- **Default**: not set
 
-A cron expression is used to schedule a task to be executed repeatedly.
-You can pass either a simple cron expression or an instance of the `Cron` class to have more control over the scheduling of the job.
+Registers a declarative recurring schedule on app startup.
+Use `Cron(...)` when you need advanced options (`max_runs`, `misfire_policy`, `start_date`, args/kwargs).
 
 ```python
+from datetime import datetime
+
 from jobify import Cron, MisfirePolicy
+
 
 @app.task(
     cron=Cron(
@@ -43,84 +91,130 @@ from jobify import Cron, MisfirePolicy
         max_runs=100,
         max_failures=5,
         misfire_policy=MisfirePolicy.ALL,
-        start_date=datetime(2027, 1, 1), # The task will start on January 1, 2027.
+        start_date=datetime(2027, 1, 1),
         args=("financial",),
         kwargs={"recipient": "admin@example.com"},
     )
 )
-def my_daily_report(report_type: str, recipient: str) -> None:
+def daily_report(report_type: str, recipient: str) -> None:
     ...
 ```
 
-For detailed information on the `Cron` object and its properties (such as `max_runs`, `misfire_policy`, etc.), please refer to the [The Cron Object](./schedule.md#the-cron-object){ data-preview } section in the scheduling documentation.
+See [The Cron Object](schedule.md#the-cron-object){ data-preview } for full details.
 
 ## retry
 
 - **Type**: `int`
-- **Default**: `None` (no retries)
+- **Default**: not set (no retries)
 
-The number of times the task should be automatically retried if it fails.
+Number of retry attempts after failure.
+
+```python
+@app.task(retry=3)
+def fragile_io() -> None:
+    ...
+```
 
 ## timeout
 
 - **Type**: `float`
-- **Default**: `None` (no timeout)
+- **Default**: not set (no timeout)
 
-The maximum time allowed for the task to complete before it is stopped and considered a timeout, is in seconds.
+Execution timeout in seconds. If exceeded, task is marked as timeout/failure path.
+
+```python
+@app.task(timeout=30.0)
+async def slow_task() -> None:
+    ...
+```
 
 ## durable
 
 - **Type**: `bool`
 - **Default**: `True`
 
-If `True`, the job will be stored in a persistent location and will survive a restart of the application. `Durable` jobs are restored when the Jobify app starts up.
+Controls whether scheduled jobs are persisted and restored after restart.
 
-!!! note
-    If you use a high-frequency cron job (for example, every second `* * * * * * *`), it is recommended to set "durable=False".
-    This will help to prevent excessive load on the database when updating the task's status and improve overall performance.
-    For such frequent tasks, it is usually not necessary to save the state between restarts.
+!!! tip "High-frequency cron optimization"
+    For very high-frequency cron jobs (for example every second), consider `durable=False`
+    to reduce storage churn and write load.
+
+```python
+@app.task(cron="* * * * * * *", durable=False)
+async def heartbeat() -> None:
+    ...
+```
 
 ## run_mode
 
-- **Type**: `'RunMode.MAIN' | 'RunMode.THREAD' | 'RunMode.PROCESS'`
-- **Default**: `'RunMode.MAIN'` for `async` functions, `'RunMode.THREAD'` for `sync` functions.
+- **Type**: `RunMode.MAIN | RunMode.THREAD | RunMode.PROCESS`
+- **Default**:
+    - async functions: `RunMode.MAIN`
+    - sync functions: `RunMode.THREAD`
 
-Specifies the mode of execution for the task.
+Execution model for the task function.
 
-- `'RunMode.MAIN'`: For `#!python async def`. Runs on the main asyncio event loop. This is the default mode for async functions.
-- `'RunMode.THREAD'`: For `#!python def` functions. This runs in the `ThreadPoolExecutor`, which is the default for synchronous functions.
-- `'RunMode.PROCESS'`: This mode is used for `#!python def` definitions. It runs in the `ProcessPoolExecutor`.
-
-example:
+- `RunMode.MAIN`: run on event loop (`async def`).
+- `RunMode.THREAD`: run sync function in `ThreadPoolExecutor`.
+- `RunMode.PROCESS`: run sync function in `ProcessPoolExecutor`.
 
 ```python
-from jobify import Jobify, RunMode
+from jobify import RunMode
 
-app = Jobify()
 
-@app.task(run_mode=RunMode.MAIN)  # default for async func
-async def f1() -> None: ...
+@app.task(run_mode=RunMode.MAIN)
+async def async_job() -> None:
+    ...
 
-@app.task(run_mode=RunMode.THREAD)  # default for sync func
-def f2() -> None: ...
 
-@app.task(run_mode=RunMode.PROCESS)  # run in ProcessPoolExecutor
-def f3() -> None: ...
+@app.task(run_mode=RunMode.THREAD)
+def sync_io_job() -> None:
+    ...
+
+
+@app.task(run_mode=RunMode.PROCESS)
+def cpu_heavy_job() -> None:
+    ...
 ```
+
+!!! note "Async + THREAD/PROCESS"
+    If function is `async def`, Jobify keeps execution in `MAIN` loop.
+    Setting `THREAD`/`PROCESS` for async function is ignored with runtime warning semantics.
 
 ## exception_handlers
 
 - **Type**: `MappingExceptionHandlers | None`
-- **Default**: `None`
+- **Default**: not set
 
-A dictionary that maps exception types to custom error handling functions, specifically for this task. Task-level handlers take precedence over router-level and global handlers.
+Task-local exception map. Takes precedence over router-level and global handlers.
 
-[**Read more here**](./advanced_usage/exception_handlers.md){ data-preview }
+```python
+from jobify import JobContext
+
+
+def on_value_error(exc: Exception, context: JobContext) -> str:
+    return "fallback"
+
+
+@app.task(exception_handlers={ValueError: on_value_error})
+def task_with_recovery() -> None:
+    ...
+```
+
+[Read detailed guide](advanced_usage/exception_handlers.md){ data-preview }
 
 ## metadata
 
 - **Type**: `Mapping[str, Any] | None`
-- **Default**: `None`
+- **Default**: not set
 
-A dictionary of key-value pairs that can be used to attach custom metadata to a job.
-This data is not used directly by Jobify, but it can be useful for other parts of your application, such as middleware or debugging tools.
+Custom task attributes used by middleware/policies.
+Common patterns: priority, tenant routing, feature flags, skip/debug markers.
+
+```python
+@app.task(metadata={"priority": 100, "tenant": "acme"})
+async def critical_pipeline() -> None:
+    ...
+```
+
+With `QueueMiddleware`, larger `metadata.priority` values run earlier in `PriorityQueue` mode.
