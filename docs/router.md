@@ -1,218 +1,111 @@
 # Routers
 
-Routers are a useful tool for organizing tasks into logical groups in your application.
-If you have a large number of tasks, you can divide them into different Python modules using routers.
-This is similar to how web frameworks such as FastAPI and aiogram handle routing.
+`JobRouter` allows you to organize tasks into logical groups, much like FastAPI's `APIRouter`. This modular approach is essential for scaling applications, enabling better separation of concerns and easier maintenance.
 
-This approach leads to a more organized code structure, better separation of responsibilities, and easier maintenance.
+<div class="grid cards" markdown>
 
-## JobRouter Configuration
+- :material-file-tree:{ .lg .middle } **Modularization**
 
-A `JobRouter` can be configured with several parameters, similar to the main `Jobify` application. These parameters apply to all tasks and sub-routers within the router.
+    ***
 
-```python
-from jobify import JobRouter, NodeRoute
+    Split your application into domain-specific modules (e.g., `email`, `billing`, `analytics`).
 
-router = JobRouter(
-    prefix="my_router",
-    state={"some": "data"},
-    lifespan=my_lifespan,
-    middleware=[MyMiddleware()],
-    outer_middleware=[MyOuterMiddleware()],
-    exception_handlers={ValueError: my_handler},
-    route_class=NodeRoute,
-)
-```
+- :material-label-outline:{ .lg .middle } **Hierarchical Naming**
 
-### Parameters
+    ***
 
-- **`prefix`**: A prefix string added to the names of all tasks in this router.
-- **`state`**: The initial state dictionary for this router.
-- **`lifespan`**: An asynchronous context manager for routing startup/shutdown events.
-- **`middleware`**: A sequence of middlewares applied to all tasks in this router.
-- **`outer_middleware`**: A sequence of outer middlewares applied to all tasks in the router.
-- **`exception_handlers`**: A dictionary mapping exception types to custom handlers.
-- **`route_class`**: The custom class used for handling tasks within the router (default: `NodeRoute`).
+    Automatic prefixing ensures task names are unique and easily searchable.
+
+- :material-cog-box:{ .lg .middle } **Scoped Config**
+
+    ***
+
+    Apply middleware, exception handlers, and lifespans to specific groups of tasks.
+
+- :material-package-variant-closed:{ .lg .middle } **Encapsulation**
+
+    ***
+
+    Keep related tasks and their dependencies together in a single, reusable unit.
+
+</div>
 
 ## Basic Usage
 
-First, create a `JobRouter` instance. A router is a mini-application that can define its own tasks, middleware, and lifecycle events.
+To use routers, define tasks on a `JobRouter` and then include it in your main `Jobify` application.
 
-```python
-# in tasks/email.py
-from jobify import JobRouter
+=== "1. Define tasks (`tasks/email.py`)"
 
-router = JobRouter()
+    ```python
+    from jobify import JobRouter
 
+    router = JobRouter(prefix="email")
 
-@router.task
-async def send_welcome_email(user_id: int) -> None:
-    print(f"Sending welcome email to user {user_id}")
-```
+    @router.task
+    async def send_welcome(user_id: int) -> None:
+        print(f"Sending welcome to {user_id}")
+    ```
 
-This task is currently registered with the `router`, but it is not yet active.
-In order to make it available for scheduling, you will need to include the router in your main `jobify` application.
+=== "2. Register router (`main.py`)"
 
-```python
-# in main.py
-from tasks.email import router as email_router
-from tasks.email import send_welcome_email
+    ```python
+    from jobify import Jobify
+    from tasks.email import router as email_router
+    from tasks.email import send_welcome
 
-from jobify import Jobify
-
-
-async def main() -> None:
     app = Jobify()
-    # Include the router in the main app
     app.include_router(email_router)
-    async with app:
-        # Now you can schedule tasks defined on the router
-        job = await send_welcome_email.schedule(user_id=123).delay(0)
-        await job.wait()
-# ...
-```
 
-## Organizing with Prefixes and Nesting
+    async def main():
+        async with app:
+            # Tasks are now active and schedulable
+            await send_welcome.schedule(user_id=42).delay(0)
+    ```
 
-Routers can be nested within each other, and each router can have a `prefix`.
-Prefixes automatically combine to create a unique hierarchical name for each route,
-which helps avoid naming conflicts as your application grows.
+## Configuration
 
-### Prefixes
+`JobRouter` accepts several parameters that apply to all contained tasks and nested sub-routers.
 
-You can specify a `prefix` when creating a router.
-This prefix will be added to the names of all tasks and subrouters that are registered under it.
+| Parameter            | Type                        | Description                                          |
+| -------------------- | --------------------------- | ---------------------------------------------------- |
+| `prefix`             | `str`                       | String prepended to all task names in this router.   |
+| `state`              | `dict`                      | Initial local state for the router.                  |
+| `lifespan`           | `AsyncContextManager`       | Async generator for startup/shutdown events.         |
+| `middleware`         | `Sequence`                  | Execution-phase middlewares.                         |
+| `outer_middleware`   | `Sequence`                  | Scheduling-phase middlewares.                        |
+| `exception_handlers` | `dict`                      | Mapping of exception types to handlers.              |
+| `route_class`        | `type[NodeRoute]`           | Custom class for task handling (default: `NodeRoute`). |
 
-```python
-# in tasks/reports.py
-from jobify import JobRouter
+## Nesting & Prefixes
 
-# This prefix will apply to all tasks in this router
-router = JobRouter(prefix="reports")
-
-
-@router.task
-def generate_daily_report() -> None: ...
-
-
-@router.task(name="weekly")  # You can also specify a custom name
-def generate_weekly_report() -> None: ...
-```
-
-If you include this router in your app, the tasks will have the following names:
-
-- `reports:generate_daily_report`
-- `reports:weekly`
-
-### Nested Routers
-
-You can build complex task hierarchies by including routers within other routers using `include_router()` or `include_routers()`.
+Routers can be nested to create complex hierarchies. Prefixes are joined by dots (`.`), while the final task name is separated by a colon (`:`).
 
 ```python
-# in services/analytics.py
-from jobify import JobRouter
+# reports/router.py (prefix="reports")
+# reports/daily.py  (prefix="daily", nested in reports)
 
-# Sub-router for user-related analytics
-users_router = JobRouter(prefix="users")
+@daily_router.task(name="generate")
+def gen(): ...
 
-@users_router.task
-def track_logins() -> None: ...
-
-
-# Main router for the analytics service
-analytics_router = JobRouter(prefix="analytics")
-analytics_router.include_router(users_router)
-
-# in main.py
-from jobify import Jobify
-from services.analytics import analytics_router
-
-app = Jobify()
-app.include_router(analytics_router)
+# Resulting name: "reports.daily:generate"
 ```
 
-In the example above, the `track_logins` task will have the final resolved name `analytics.users:track_logins`.
-The prefixes are separated by a dot (`.`) for sub-routers, and the final path is separated from the function name by a colon (":").
+!!! info "Naming Logic"
+    The final task ID follows the pattern: `[parent_prefix].[sub_prefix]:[task_name]`. This hierarchy makes it clear where a task originates during debugging or monitoring.
 
-## Scheduling Tasks from Routers
+## Router-level Lifespan
 
-As shown in the first example, you can only schedule a task on a router after that router has been added to the main `jobify` application.
-
-Attempting to schedule a task from a detached router will result in a `RuntimeError`.
+Use router lifespans to manage resources specific to a module, such as a specialized database connection.
 
 ```python
-import pytest
-from jobify import Jobify, JobRouter
-
-router = JobRouter()
-
-@router.task
-async def my_task() -> None: ...
-
-# This will fail!
-# The router is not attached to any app yet.
-with pytest.raises(RuntimeError):
-    _ = my_task.schedule()
-
-# Correct way:
-app = Jobify()
-app.include_router(router)
-
-# Now, this will work:
-async with app:
-    job = await my_task.schedule().delay(0)
-```
-
-## Router-level Lifespan, Middleware, and Outer Middleware
-
-- **Middleware** and **Outer Middleware** applied to a parent router will also be applied to all of its sub-routers, in addition to any middleware they have defined.
-- **Lifespan** events on a router can be useful for managing resources related to a specific group of tasks, such as connecting to a particular service.
-
-```python
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from jobify import Jobify, JobRouter
-
 @asynccontextmanager
 async def reports_lifespan(router: JobRouter) -> AsyncIterator[None]:
-    print(f"'{router.prefix}' router is starting up!")
-    # e.g., initialize a database connection and store it in the router's state
-    router.state["db_conn"] = "..."
+    router.state["db"] = await connect_to_reports_db()
     yield
-    print(f"'{router.prefix}' router is shutting down!")
-
+    await router.state["db"].close()
 
 reports_router = JobRouter(prefix="reports", lifespan=reports_lifespan)
-# ... define tasks on reports_router ...
-
-app = Jobify()
-app.include_router(reports_router)
 ```
 
-When the application starts, you will see a `starting up` message. All tasks within `reports_router` will have access to `router.state`.
-
-### Exception Handlers
-
-You can define exception handlers specifically for a router. These handlers will catch exceptions raised by any task within the router (unless overridden by a task-level handler).
-
-```python
-router = JobRouter(
-    exception_handlers={
-        ValueError: lambda exc, context: print(f"Handled ValueError: {exc}")
-    }
-)
-```
-
-For more details, see the [Exception Handlers](advanced_usage/exception_handlers.md) guide.
-
-### Custom Route Class
-
-The `route_class` parameter in `JobRouter` allows you to specify a custom class for handling tasks within that router.
-This is similar to the `route_class` parameter used in the `Jobify` application, but it only applies to the routes defined in the `JobRouter`.
-
-- **Type**: `type[NodeRoute] | None`
-- **Default**: `jobify.router.NodeRoute`
-
-By using a custom `route_class`, you can customize how tasks are handled within the router.
-For example, you can integrate with dependency injection frameworks or add custom logic to the task execution process.
-The `route_class` should be a subclass of the `jobify.router.NodeRoute` class.
+!!! warning "Detached Routers"
+    Attempting to schedule a task from a router that has not been included in a `Jobify` application will raise a `RuntimeError`. A router must be attached to an app instance to access the scheduling engine.

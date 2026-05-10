@@ -4,13 +4,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Any, Protocol, TypeAlias
 
 JSONCompat: TypeAlias = (
-    dict[str, "JSONCompat"]
-    | list["JSONCompat"]
-    | str
-    | int
-    | float
-    | bool
-    | None
+    dict[str, "JSONCompat"] | list["JSONCompat"] | str | int | float | bool | None
 )
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
 import sys
 from typing import (
@@ -45,7 +46,6 @@ from jobify._internal.storage.dummy import DummyStorage
 
 if TYPE_CHECKING:
     import asyncio
-    import inspect
     from collections.abc import Callable, Iterator, Sequence
 
     from jobify._internal.common.datastructures import State
@@ -244,6 +244,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             func,
             self._jobify_config,
             mode=options.get("run_mode"),
+            is_async=inspect.iscoroutinefunction(func),
         )
         route = self.route_class(
             name=name,
@@ -374,8 +375,7 @@ class RootRouter(Router):
         for sub_router in router.sub_routers:
             sub_router.task.state = router.task.state | sub_router.task.state
             sub_router.task._exception_handlers = (
-                router.task._exception_handlers
-                | sub_router.task._exception_handlers
+                router.task._exception_handlers | sub_router.task._exception_handlers
             )
             sub_router.task._middleware = [
                 *router.task._middleware,

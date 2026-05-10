@@ -6,7 +6,6 @@ from typing import (
     ParamSpec,
     TypeAlias,
     TypeVar,
-    final,
     get_origin,
     get_type_hints,
 )
@@ -19,7 +18,6 @@ ParamName: TypeAlias = str
 TypeHint: TypeAlias = Any
 
 
-@final
 class FuncSpec(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "inject_params",
@@ -49,9 +47,7 @@ def get_type_params(
     sig: inspect.Signature,
     hints: dict[str, Any],
 ) -> dict[ParamName, TypeHint]:
-    return {
-        arg.name: hints.get(arg.name, Any) for arg in sig.parameters.values()
-    }
+    return {arg.name: hints.get(arg.name, Any) for arg in sig.parameters.values()}
 
 
 def get_inject_params(

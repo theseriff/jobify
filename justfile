@@ -68,10 +68,10 @@ _setup_static *params:
 mypy *params:
   just _setup_static mypy {{params}}
 
-[doc("Basedpyright check")]
+[doc("Pyrefly check")]
 [group("static analysis")]
-basedpyright *params:
-  just _setup_static basedpyright --warnings --project pyproject.toml {{params}}
+pyrefly *params:
+  just _setup_static pyrefly check {{params}}
 
 [doc("Bandit check")]
 [group("static analysis")]
@@ -90,7 +90,7 @@ zizmor:
 
 [doc("Static analysis check")]
 [group("static analysis")]
-static-analysis: mypy basedpyright bandit semgrep
+static-analysis: mypy pyrefly bandit semgrep
 
 
 # Tests

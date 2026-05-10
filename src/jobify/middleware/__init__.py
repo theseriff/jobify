@@ -18,10 +18,14 @@ from jobify._internal.middleware.base import (
     CallNext,
     CallNextOuter,
 )
+from jobify._internal.middleware.queue import Item, JobifyQueue, QueueMiddleware
 
 __all__ = (
     "BaseMiddleware",
     "BaseOuterMiddleware",
     "CallNext",
     "CallNextOuter",
+    "Item",
+    "JobifyQueue",
+    "QueueMiddleware",
 )

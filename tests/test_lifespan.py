@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TypedDict
 from unittest.mock import AsyncMock
@@ -14,7 +14,7 @@ async def test_lifespan_with_state() -> None:
         client: AsyncMock
 
     @asynccontextmanager
-    async def lifespan(_: Jobify) -> AsyncIterator[State]:
+    async def lifespan(_: Jobify) -> AsyncGenerator[State]:
         async with client:
             yield {"client": client}
 

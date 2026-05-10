@@ -9,17 +9,21 @@ import signal
 import sys
 import threading
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    ParamSpec,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
 from jobify._internal.common.constants import EMPTY, PATCH_CRON_DEF_ID
-from jobify._internal.configuration import (
-    Cron,
-    JobifyConfiguration,
-    WorkerPools,
-)
+from jobify._internal.configuration import Cron, JobifyConfiguration, WorkerPools
 from jobify._internal.message import (
     AtArguments,
     CronArguments,
@@ -48,7 +52,7 @@ from jobify.crontab import create_crontab
 
 if TYPE_CHECKING:
     import inspect
-    from collections.abc import Callable, Iterator, Sequence
+    from collections.abc import Callable, Generator, Iterator, Sequence
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     from datetime import datetime
     from types import FrameType, TracebackType
@@ -60,23 +64,13 @@ if TYPE_CHECKING:
         MappingExceptionHandlers,
     )
     from jobify._internal.cron_parser import CronFactory
-    from jobify._internal.middleware.base import (
-        BaseMiddleware,
-        BaseOuterMiddleware,
-    )
+    from jobify._internal.middleware.base import BaseMiddleware, BaseOuterMiddleware
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
     from jobify._internal.serializers.base import Serializer
     from jobify._internal.storage.base import ScheduledJob, Storage
     from jobify._internal.typeadapter.base import Dumper, Loader
 
-HANDLED_SIGNALS = (
-    signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
-    signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
-)
-if sys.platform == "win32":  # pragma: no cover
-    # Windows signal 21. Sent by Ctrl+Break.
-    HANDLED_SIGNALS += (signal.SIGBREAK,)  # pyright: ignore[reportConstantRedefinition]
 
 logger = logging.getLogger("Jobify")
 
@@ -97,6 +91,19 @@ def cache_result(f: Callable[ParamsT, ReturnT]) -> Callable[ParamsT, ReturnT]:
         return result
 
     return wrapper
+
+
+@runtime_checkable
+class Plugin(Protocol):
+    """Lifecycle hooks for integrating extensions into a `Jobify` app."""
+
+    async def startup(self, app: Jobify) -> None:
+        """Run plugin initialization when the application starts."""
+        ...
+
+    async def shutdown(self) -> None:
+        """Run plugin cleanup before the application shuts down."""
+        ...
 
 
 class Jobify(RootRouter):
@@ -125,6 +132,7 @@ class Jobify(RootRouter):
         threadpool_executor: ThreadPoolExecutor | None = None,
         processpool_executor: ProcessPoolExecutor | None = None,
         route_class: type[RootRoute[..., Any]] = RootRoute,
+        plugins: Sequence[Plugin] = (),
     ) -> None:
         """Initialize a `Jobify` instance."""
         getloop = cache_result(loop_factory)
@@ -193,6 +201,11 @@ class Jobify(RootRouter):
             route_class=route_class,
         )
         self._captured_signals: list[int] = []
+        self.plugins: set[Plugin] = set(plugins)
+
+    def add_plugin(self, plug: Plugin, /) -> None:
+        """Register a plugin instance for application lifecycle hooks."""
+        self.plugins.add(plug)
 
     def find_job(self, id_: str, /) -> Job[ReturnT] | None:
         """Find an active job by its ID.
@@ -237,7 +250,20 @@ class Jobify(RootRouter):
             issues or router initialization errors.
 
         """
+
+        def chain_middlewares() -> Iterator[BaseMiddleware]:
+            for router in self.chain_tail:
+                yield from router.task._middleware
+
+        for mid in chain_middlewares():
+            if isinstance(mid, Plugin):
+                self.add_plugin(mid)
+
+        for plug in self.plugins:
+            await plug.startup(self)
+
         self.propagate_real_routes()
+
         self.configs.app_started = True
 
         await self.configs.storage.startup()
@@ -283,12 +309,7 @@ class Jobify(RootRouter):
                     if msg.trigger.cron == cron_def:
                         continue
 
-            _ = await builder.cron(
-                cron_def,
-                job_id=job_id,
-                replace=True,
-                force=True,
-            )
+            await builder.cron(cron_def, job_id=job_id, replace=True, force=True)
 
         # --- PHASE 2: Dynamic/Imperative Jobs & Cleanup ---
         for job_id, sch in db_map.items():
@@ -386,9 +407,9 @@ class Jobify(RootRouter):
 
     async def __aexit__(
         self,
-        exc_type: type[BaseException] | None = None,
-        exc_val: BaseException | None = None,
-        exc_tb: TracebackType | None = None,
+        _exc_type: type[BaseException] | None = None,
+        _exc_val: BaseException | None = None,
+        _exc_tb: TracebackType | None = None,
     ) -> None:
         """Exit the Jobify context manager.
 
@@ -418,18 +439,19 @@ class Jobify(RootRouter):
             tasks to prevent shutdown from being interrupted by task exception.
 
         """
+        for plug in self.plugins:
+            await plug.shutdown()
+
         self.configs.app_started = False
 
         if jobs := tuple(self.task._task_tracker.pending_jobs.values()):
             for job in jobs:
                 job._cancel()
 
-        if (
-            tasks := self.task._task_tracker.pending_tasks.values()
-        ):  # pragma: no cover
+        if tasks := self.task._task_tracker.pending_tasks.values():  # pragma: no cover
             for task in tuple(tasks):
-                _ = task.cancel()
-            _ = await asyncio.gather(*tasks, return_exceptions=True)
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         self.configs.worker_pools.close()
         await self._propagate_shutdown()
@@ -464,10 +486,19 @@ class Jobify(RootRouter):
         """
         idle_event = self.task._task_tracker.idle_event
         with self._capture_signals():
-            _ = await asyncio.wait_for(idle_event.wait(), timeout=timeout)
+            await asyncio.wait_for(idle_event.wait(), timeout=timeout)
 
     @contextmanager
-    def _capture_signals(self) -> Iterator[None]:
+    def _capture_signals(self) -> Generator[None]:
+        handled_signals = [
+            signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
+            signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
+        ]
+        if sys.platform == "win32":  # pragma: no cover
+            handled_signals.append(
+                signal.SIGBREAK  # Windows signal 21. Sent by Ctrl+Break.
+            )
+
         # Signals can only be listened to from the main thread.
         if threading.current_thread() is not threading.main_thread():
             yield
@@ -475,17 +506,16 @@ class Jobify(RootRouter):
         # always use signal.signal, even if loop.add_signal_handler is
         # available this allows to restore previous signal handlers later on
         original_handlers = {
-            sig: signal.signal(sig, self._handle_exit)
-            for sig in HANDLED_SIGNALS
+            sig: signal.signal(sig, self._handle_exit) for sig in handled_signals
         }
         try:
             yield
         finally:
             for sig, handler in original_handlers.items():
-                _ = signal.signal(sig, handler)
+                signal.signal(sig, handler)
 
     def _handle_exit(self, sig: int, _: FrameType | None) -> None:
         self._captured_signals.append(sig)
         loop = self.configs.getloop()
         idle_event = self.task._task_tracker.idle_event
-        _handle = loop.call_soon_threadsafe(idle_event.set)
+        loop.call_soon_threadsafe(idle_event.set)

@@ -1,48 +1,47 @@
 <div align="center">
 
-<h1>Jobify<br>Robust task scheduler for Python.</h1>
+<a href="https://theseriff.github.io/jobify/">
+  <img src="https://raw.githubusercontent.com/theseriff/jobify/main/docs/images/logo.svg" alt="Jobify logo" width="140">
+</a>
+
+<h1>Jobify</h1>
+<p><strong>Robust async task scheduler for Python.</strong></p>
+<p>Event-driven timing, typed APIs, persistence, routing, and queue-based backpressure.</p>
 
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/jobify.svg)](https://pypi.org/project/jobify)
+[![PyPI version](https://badge.fury.io/py/jobify.svg)](https://pypi.python.org/pypi/jobify)
 [![Tests](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_tests.yml)
 [![Coverage](https://coverage-badge.samuelcolvin.workers.dev/theseriff/jobify.svg)](https://coverage-badge.samuelcolvin.workers.dev/redirect/theseriff/jobify)
-[![CodeQL](https://github.com/theseriff/jobify/actions/workflows/pr_codeql.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_codeql.yml)
-[![Dependency Review](https://github.com/theseriff/jobify/actions/workflows/pr_dependency_review.yml/badge.svg)](https://github.com/theseriff/jobify/actions/workflows/pr_dependency_review.yml)
-[![PyPI version](https://badge.fury.io/py/jobify.svg)](https://pypi.python.org/pypi/jobify)
-[![Downloads](https://static.pepy.tech/personalized-badge/jobify?period=month&units=international_system&left_color=grey&right_color=green&left_text=downloads/month)](https://www.pepy.tech/projects/jobify)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Telegram](https://img.shields.io/badge/-telegram-black?color=blue&logo=telegram&label=RU)](https://t.me/jobify_community)
+
+[**Documentation**](https://theseriff.github.io/jobify/) •
+[**Quick Start**](#quick-start) •
+[**Community Extensions**](https://github.com/Jobify-Community) •
+[**Telegram**](https://t.me/jobify_community)
 
 </div>
 
----
+## Contents
 
-[**Documentation**](https://theseriff.github.io/jobify/) | [**Community Extensions**](https://github.com/Jobify-Community)
+- [Why Jobify](#why-jobify)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Key Features](#key-features)
+- [When to Choose Jobify](#when-to-choose-jobify)
+- [Roadmap](#roadmap)
+- [License](#license)
 
-**Jobify** is a powerful framework for scheduling and managing background jobs in Python.
-It allows you to easily define and schedule jobs using an intuitive decorator-based API, similar to that of modern web frameworks such as FastAPI.
+## Why Jobify
 
-Unlike many other frameworks that use polling (continuous loops) to schedule tasks,
-Jobify uses the native timer mechanisms of asyncio for efficient and precise task scheduling.
+Most Python schedulers rely on polling loops. Jobify uses low-level `asyncio` timers (`call_at`) to schedule jobs directly.
 
-## Key Features
+- **No idle polling CPU cost**
+- **Sub-millisecond trigger precision**
+- **Native async-first execution model**
 
-- [x] [**Precision**](https://theseriff.github.io/jobify/#why-jobify): No polling! Uses native `asyncio` timers for sub-millisecond accuracy and zero idle CPU usage.
-- [x] [**Scheduling**](https://theseriff.github.io/jobify/schedule/): Run jobs immediately, with a delay, at a specified time, or using Cron expressions (second-level precision supported).
-- [x] [**Storage**](https://theseriff.github.io/jobify/app_settings/#storage): Built-in SQLite ensures scheduled jobs persist through application restarts.
-- [x] [**Routing**](https://theseriff.github.io/jobify/router/): Organize tasks with `JobRouter`, similar to FastAPI or Aiogram.
-- [x] [**Inject Context**](https://theseriff.github.io/jobify/context/): Inject application state or custom dependencies directly into your tasks.
-- [x] [**Middlewares**](https://theseriff.github.io/jobify/app_settings/#middleware): Powerful interceptors for both job execution and the scheduling process.
-- [x] [**Exception Handlers**](https://theseriff.github.io/jobify/advanced_usage/exception_handlers/): Hierarchical error management at the task, router, or global level.
-- [x] [**Lifespan Support**](https://theseriff.github.io/jobify/app_settings/#lifespan): Manage startup and shutdown events, just like in FastAPI.
-- [x] [**Job Control**](https://theseriff.github.io/jobify/job/): Full control over jobs — wait for completion, cancel tasks, or check results with ease.
-- [x] [**Concurrency**:](https://theseriff.github.io/jobify/task_settings/#run_mode) Supports `asyncio`, `ThreadPoolExecutor`, and `ProcessPoolExecutor` for efficient task handling.
-- [x] [**Many different adapters to the database**](https://github.com/Jobify-Community/jobify-db).
-- [ ] Distributed task queue. Soon.
-- [ ] Many different serializers. Soon.
+If your workload is bursty or downstream services are sensitive, use [Queue Middleware](https://theseriff.github.io/jobify/advanced_usage/queue/) to add bounded buffering, backpressure, and priority routing.
 
 ## Installation
-
-Install Jobify from PyPI:
 
 ```bash
 pip install jobify
@@ -50,7 +49,31 @@ pip install jobify
 
 ## Quick Start
 
-Here is an example of how to define and schedule a task:
+```python
+import asyncio
+
+from jobify import Jobify
+
+app = Jobify()
+
+
+@app.task
+async def hello(name: str) -> None:
+    print(f"Hello, {name}")
+
+
+async def main() -> None:
+    async with app:
+        job = await hello.push("Alex")
+        await job.wait()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+<details>
+<summary>Extended example (cron, delay, absolute time)</summary>
 
 ```python
 import asyncio
@@ -60,53 +83,82 @@ from zoneinfo import ZoneInfo
 from jobify import Jobify
 
 UTC = ZoneInfo("UTC")
-
-# 1. Initialize Jobify
 app = Jobify(tz=UTC)
 
 
-@app.task(cron="* * * * * * *")  # Runs every second
+@app.task(cron="* * * * * * *")  # every second
 async def my_cron() -> None:
-    print("Hello! cron running every second")
+    print("cron tick")
 
 
 @app.task
 def my_job(name: str) -> None:
     now = datetime.now(tz=UTC)
-    print(f"Hello, {name}! job running at: {now!r}")
+    print(f"Hello, {name}! at {now!r}")
 
 
 async def main() -> None:
-    # 2. Run the Jobify application context
     async with app:
-        # Run immediately in the background.
-        job = await my_job.push("Alex")
+        await my_job.push("Alex")
 
-        # Schedule a one-time job at a specific time.
         run_next_day = datetime.now(tz=UTC) + timedelta(days=1)
         job_at = await my_job.schedule("Connor").at(run_next_day)
-
-        # Schedule a one-time job after a delay.
         job_delay = await my_job.schedule("Sara").delay(seconds=20)
+        job_cron = await my_cron.schedule().cron("* * * * *", job_id="dynamic_cron_id")
 
-        # Start a dynamic cron job.
-        job_cron = await my_cron.schedule().cron(
-            "* * * * *",
-            job_id="dynamic_cron_id",
-        )
-
-        # Wait for specific jobs to complete
+        await job_at.wait()
         await job_delay.wait()
-
-        # You can also use `await app.wait_all()` to wait for all currently
-        # running jobs. Note that infinite cron jobs will block this indefinitely.
-        # await app.wait_all()
+        await job_cron.wait()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+</details>
+
+## Key Features
+
+- [**Precision scheduling**](https://theseriff.github.io/jobify/#why-jobify): event-driven timers, no polling loop.
+- [**Flexible triggers**](https://theseriff.github.io/jobify/schedule/): now, delay, timestamp, cron.
+- [**Persistence**](https://theseriff.github.io/jobify/app_settings/#storage): built-in SQLite storage for scheduled jobs.
+- [**Routing**](https://theseriff.github.io/jobify/router/): organize tasks with `JobRouter`.
+- [**Context injection**](https://theseriff.github.io/jobify/context/): inject state and dependencies into tasks.
+- [**Middleware pipeline**](https://theseriff.github.io/jobify/app_settings/#middleware): execution and scheduling interceptors.
+- [**Queue middleware**](https://theseriff.github.io/jobify/advanced_usage/queue/): FIFO/LIFO/PriorityQueue with backpressure.
+- [**Exception handlers**](https://theseriff.github.io/jobify/advanced_usage/exception_handlers/): hierarchical error handling.
+- [**Run modes**](https://theseriff.github.io/jobify/task_settings/#run_mode): `asyncio`, thread pool, process pool.
+- [**Community DB adapters**](https://github.com/Jobify-Community/jobify-db).
+
+<details>
+<summary>Feature comparison (Jobify vs Taskiq/APScheduler/Celery)</summary>
+
+| Feature name                                                                                    |        Jobify        |      Taskiq       | APScheduler (v3) |      Celery       |
+| :---------------------------------------------------------------------------------------------- | :------------------: | :---------------: | :--------------: | :---------------: |
+| **Event-driven Scheduling**                                                                     | ✅ (Low-level timer) | ❌ (Polling/Loop) |  ❌ (Interval)   | ❌ (Polling/Loop) |
+| **Async Native (asyncio)**                                                                      |          ✅          |        ✅         | ❌ (Sync mostly) |        ❌         |
+| [**Context Injection**](https://theseriff.github.io/jobify/context/)                            |          ✅          |        ✅         |        ❌        |        ❌         |
+| [**FastAPI-style Routing**](https://theseriff.github.io/jobify/router/)                         |          ✅          |        ❌         |        ❌        |        ❌         |
+| [**Middleware Support**](https://theseriff.github.io/jobify/app_settings/#middleware)           |          ✅          |        ✅         | ❌ (Events only) |   ❌ (Signals)    |
+| [**Lifespan Support**](https://theseriff.github.io/jobify/app_settings/#lifespan)               |          ✅          |        ✅         |        ❌        |        ❌         |
+| [**Exception Handlers**](https://theseriff.github.io/jobify/advanced_usage/exception_handlers/) |  ✅ (Hierarchical)   |        ❌         |        ❌        |        ❌         |
+| [**Job Cancellation**](https://theseriff.github.io/jobify/job/#await-jobcancel)                 |          ✅          |        ❌         |        ✅        |        ✅         |
+| [**Cron Scheduling**](https://theseriff.github.io/jobify/schedule/#cron-expressions)            |  ✅ (Seconds level)  |   ✅ (Minutes)    |        ✅        |        ✅         |
+| [**Misfire Policy**](https://theseriff.github.io/jobify/schedule/#the-cron-object)              |          ✅          |        ❌         |        ✅        |        ❌         |
+| [**Run Modes (Thread/Process)**](https://theseriff.github.io/jobify/task_settings/#run_mode)    |          ✅          |        ✅         |        ✅        |        ✅         |
+| **Zero-config Persistence**                                                                     | ✅ (SQLite default)  | ❌ (Needs Broker) |        ✅        | ❌ (Needs Broker) |
+| **Broker-backend execution**                                                                    |     ❌ (roadmap)     |        ✅         |        ❌        |        ✅         |
+
+</details>
+
+## When to Choose Jobify
+
+Use Jobify when:
+
+- you need precise in-process scheduling without polling overhead
+- you want typed, framework-like APIs for task registration and routing
+- you need queue-based backpressure and priority controls in a single process
+
 ## License
 
-This project is licensed under the terms of the [MIT license](https://github.com/theseriff/jobify/blob/main/LICENSE).
+This project is licensed under the [MIT license](https://github.com/theseriff/jobify/blob/main/LICENSE).

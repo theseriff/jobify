@@ -94,6 +94,4 @@ async def test_shutdown_re_raises_signals_integration() -> None:
 
     with patch("signal.raise_signal") as mock_raise:
         await app.shutdown()
-        mock_raise.assert_has_calls(
-            [call(signal.SIGTERM), call(signal.SIGINT)]
-        )
+        mock_raise.assert_has_calls([call(signal.SIGTERM), call(signal.SIGINT)])

@@ -85,7 +85,7 @@ async def test_injection_wrong_usage() -> None:
 
         @app.task
         @no_type_check
-        async def untyped_func(_job=INJECT) -> None:  # noqa: ANN001
+        async def untyped_func(_job=INJECT) -> None:  # noqa: ANN001 # pyrefly: ignore[implicit-any-parameter]
             pass
 
     @app.task

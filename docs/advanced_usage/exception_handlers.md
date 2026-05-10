@@ -1,199 +1,141 @@
 # Exception Handlers
 
-Exception handlers allow you to define custom logic for dealing with errors that occur during the execution of a task. This can be useful for logging errors, sending notifications about them, or performing additional cleanup steps when a task fails.
+Exception handlers provide custom logic for dealing with errors during task execution. They are essential for logging, monitoring, and implementing custom recovery strategies.
 
-## How it Works
+<div class="grid cards" markdown>
 
-You can define exception handlers at three different levels:
+- :material-layers-outline:{ .lg .middle } **Hierarchical Priority**
 
-1. **Global Level (Jobify):** This is applied to all tasks in the application.
-2. **Router Level (JobRouter):** This is used for all tasks within a specific router.
-3. **Task Level (@app.task):** This is specific to a single task.
+    ***
 
-### Handler Priority
+    Handlers follow a "most-specific-first" rule:
+    **Task** > **Router** > **Global**.
 
-Jobify uses a hierarchical approach to handle exceptions. If an exception occurs, it looks for the most specific exception handler to handle it:
+- :material-refresh:{ .lg .middle } **Retry Control**
 
-**Task Level** > **Router Level** > **Global Level**
+    ***
 
-If a handler for a specific exception type (or its parent class) is found at the task level, it will be executed, and handlers at the router or global levels will be ignored for that specific exception.
+    Reraise to trigger retries, or return a value to recover and mark the job as `SUCCESS`.
 
-## Defining Handlers
+- :material-alert-octagon-outline:{ .lg .middle } **Fatal Failures**
 
-An exception handler is a callable (sync or async) that takes two arguments:
-- `exc`: The exception instance that was raised.
-- `context`: The `JobContext` of the current job.
+    ***
 
-```python
-from jobify import JobContext
+    Raise `NoResultError` to abort all future retries and fail the job immediately.
 
-async def my_handler(exc: Exception, context: JobContext) -> None:
-    print(f"Job {context.job.id} failed with error: {exc}")
-```
+- :material-vector-arrange-below:{ .lg .middle } **Scoped Logic**
 
-### 1. Global Level
+    ***
 
-Pass a dictionary to the `Jobify` constructor:
+    Define handlers at Task, Router, or Global levels for fine-grained control.
 
-```python
-from jobify import Jobify
+</div>
 
-app = Jobify(
-    exception_handlers={
-        TypeError: lambda exc, context: print("A TypeError occurred!")
-    }
-)
-```
+## How It Works
 
-### 2. Router Level
+Jobify looks for the most specific exception handler based on the exception type (or its parent class). If a handler is found at the task level, it executes, and parent levels are ignored.
 
-Pass a dictionary to the `JobRouter` constructor:
+### Handler Signature
 
-```python
-from jobify import JobRouter
+A handler is a sync or async callable taking exactly two arguments:
 
-router = JobRouter(
-    exception_handlers={
-        ValueError: lambda exc, context: print("A ValueError occurred in this router!")
-    }
-)
-```
-
-### 3. Task Level
-
-Pass a dictionary to the `@app.task` decorator:
-
-```python
-@app.task(
-    exception_handlers={
-        TimeoutError: lambda exc, context: print("This specific task timed out!")
-    }
-)
-async def my_task() -> None:
-    ...
-```
-
-## Return Values and Re-raising
-
-An important aspect of exception handlers is how they impact the final status of a job and its interaction with the `RetryMiddleware`.
-
-### 1. Re-raising for Retries
-
-If you want the job to be retried (assuming `retry` is configured in `@app.task`), your exception handler must re-raise the exception.
+- :material-alert-circle-outline: **`exc`**: The exception instance raised by the task.
+- :material-briefcase-variant-outline: **`context`**: The `JobContext` of the current execution.
 
 ```python
 async def my_handler(exc: Exception, context: JobContext) -> None:
-    print(f"Logging error for job {context.job.id}")
-    # Re-raise the exception so RetryMiddleware can catch it and retry the task
-    raise exc
+    print(f"Job {context.job.id} failed: {exc}")
 ```
 
-When an exception is re-raised, Jobify's internal `RetryMiddleware` will see it and, if there are remaining retry attempts, it will schedule the task for another run.
+## Configuration Levels
 
-### 2. Handling without Re-raising (Recovery)
+=== "Global Level"
 
-If your exception handler handles the exception and returns a value (or simply completes without raising an error), Jobify will consider the error "handled".
+    Applied to every task in the `Jobify` application.
 
-- The job status will be set to `SUCCESS`.
-- The return value of the handler will be stored as the `job.result()`.
-- No retries will be attempted by `RetryMiddleware`.
+    ```python
+    app = Jobify(
+        exception_handlers={
+            TypeError: global_type_error_handler
+        }
+    )
+    ```
+
+=== "Router Level"
+
+    Applied to all tasks within a specific `JobRouter`.
+
+    ```python
+    router = JobRouter(
+        exception_handlers={
+            ValueError: router_value_error_handler
+        }
+    )
+    ```
+
+=== "Task Level"
+
+    Specific to a single `@app.task`. Overrides both Router and Global levels.
+
+    ```python
+    @app.task(
+        exception_handlers={
+            TimeoutError: task_timeout_handler
+        }
+    )
+    async def my_task(): ...
+    ```
+
+## Execution Behavior
+
+How your handler exits determines the final state of the job and whether retries occur.
+
+=== "1. Trigger Retries"
+
+    To allow `RetryMiddleware` to catch the error and retry the task, you **must** re-raise the exception.
+
+    ```python
+    async def my_handler(exc: Exception, context: JobContext):
+        log.error("Retrying...")
+        raise exc  # Re-raise to trigger retry logic
+    ```
+
+=== "2. Recovery (Success)"
+
+    If you return a value (or simply exit), the job is marked as `SUCCESS`. The returned value becomes the `job.result()`.
+
+    ```python
+    async def recovery_handler(exc, ctx) -> str:
+        return "fallback_value"  # Job status: SUCCESS
+    ```
+
+=== "3. Abort (No Retries)"
+
+    To stop all retries and fail immediately, raise `NoResultError`.
+
+    ```python
+    from jobify.exceptions import NoResultError
+
+    async def fatal_handler(exc, ctx):
+        raise NoResultError  # Job status: FAILED, no retries
+    ```
+
+## Hierarchical Example
+
+!!! info "Evaluation Order"
+    When `TypeError` is raised in `process_report`:
+    1. Check `process_report` task handlers (Found! -> Run it).
+    2. Ignore Router and Global levels.
 
 ```python
-async def my_recovery_handler(exc: Exception, context: JobContext) -> str:
-    print(f"Recovering from error: {exc}")
-    # This return value will be stored as the job's result
-    return "default_value"
+# Global
+app = Jobify(exception_handlers={TypeError: handle_global})
 
-@app.task(exception_handlers={ValueError: my_recovery_handler})
-async def my_task() -> None:
-    raise ValueError("Oops!")
+# Router
+router = JobRouter(prefix="reports", exception_handlers={TypeError: handle_router})
+
+# Task
+@router.task(exception_handlers={TypeError: handle_task})
+async def process_report():
+    raise TypeError("Specific error")
 ```
-
-### 3. Aborting Retries with NoResultError
-
-Sometimes, an error can be fatal and retrying a task (even if the `retry` configuration is set) would be a waste of resources.
-In these cases, it is recommended to raise the `jobify.exceptions.NoResultError` exception.
-
-- When this exception is raised, the job's status will be set to FAILED.
-- The `RetryMiddleware` component will catch this exception and stop all further retries.
-- No more retries will be attempted.
-
-```python
-import asyncio
-
-from jobify import JobContext, Jobify
-from jobify.exceptions import NoResultError
-
-app = Jobify()
-
-async def fatal_error_handler(exc: Exception, context: JobContext) -> None:
-    print(f"Fatal error in job {context.job.id}: {exc}")
-    # Signal that we should stop retries and fail the job immediately
-    raise NoResultError
-
-@app.task(retry=3, exception_handlers={ValueError: fatal_error_handler})
-async def my_task() -> None:
-    raise ValueError("Corrupted data!")
-
-async def main() -> None:
-    async with app:
-        job = await my_task.push()
-        await job.wait()
-
-        print(job.status) # FAILED
-        print(job.exception) # NoResultError
-
-asyncio.run(main())
-```
-
-## Example: Hierarchical Handling
-
-The following example demonstrates how handlers at different levels interact:
-
-```python
-import asyncio
-from jobify import INJECT, JobContext, Jobify, JobRouter
-
-# Global handler for TypeError
-app = Jobify(
-    exception_handlers={
-        TypeError: lambda exc, ctx: print(f"Global handler: {exc}")
-    }
-)
-
-# Router with its own TypeError handler
-router = JobRouter(
-    prefix="reports",
-    exception_handlers={
-        TypeError: lambda exc, ctx: print(f"Router handler: {exc}")
-    }
-)
-
-# Task with its own TypeError and TimeoutError handlers
-@router.task(
-    exception_handlers={
-        TypeError: lambda exc, ctx: print(f"Task handler: {exc}"),
-        TimeoutError: lambda exc, ctx: print(f"Task timeout handler: {exc}"),
-    }
-)
-async def process_report(context: JobContext = INJECT) -> None:
-    # This will trigger the Task-level TypeError handler
-    raise TypeError("Something went wrong in the task")
-
-app.include_router(router)
-
-async def main() -> None:
-    async with app:
-        job = await process_report.push()
-        await job.wait()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-In this example:
-
-- If `process_report` raises a `TypeError`, the **Task-level** handler will run.
-- If it raises a `ValueError`, no custom handler will run (unless one is defined globally).
-- If another task in the same router raises a `TypeError` (and doesn't have its own task-level handler), the **Router-level** handler will run.
-- If a task outside this router raises a `TypeError`, the **Global-level** handler will run.

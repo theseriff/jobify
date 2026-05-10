@@ -29,12 +29,15 @@ nav = [
         "advanced_usage/exceptions.md",
         "advanced_usage/exception_handlers.md",
         "advanced_usage/system_time.md",
+        "advanced_usage/queue.md",
     ] },
 ]
 # ----------------------------------------------------------------------------
 [project.theme]
 variant = "modern"
 language = "en"
+logo = "images/logo.svg"
+favicon = "images/favicon.svg"
 features = [
     "announce.dismiss",
     "content.code.annotate",
@@ -49,10 +52,14 @@ features = [
     "navigation.indexes",
     "navigation.instant",
     "navigation.instant.prefetch",
+    "navigation.instant.progress",
+    "navigation.tabs.sticky",
+    "navigation.prune",
     "navigation.path",
     "navigation.sections",
     "navigation.top",
     "navigation.tracking",
+    "toc.follow",
     "search.highlight",
 ]
 # ----------------------------------------------------------------------------
@@ -71,7 +78,6 @@ text = "Inter"
 code = "Jetbrains Mono"
 # ----------------------------------------------------------------------------
 [project.theme.icon]
-logo = "lucide/smile"
 repo = "fontawesome/brands/github"
 edit = "material/pencil"
 view = "material/eye"
@@ -79,7 +85,13 @@ view = "material/eye"
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
-#[[project.extra.social]]
-#icon = "fontawesome/brands/github"
-#link = "https://github.com/user/repo"
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/theseriff/jobify"
+name = "Jobify on GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/telegram"
+link = "https://t.me/jobify_community"
+name = "Jobify Telegram Community"
 # ----------------------------------------------------------------------------

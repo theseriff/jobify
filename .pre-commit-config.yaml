@@ -38,6 +38,7 @@ repos:
     rev: v1.45.0
     hooks:
       - id: typos
+        exclude: ^docs/CHANGELOG\.md$
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
@@ -64,9 +65,9 @@ repos:
         verbose: true
         pass_filenames: false
 
-      - id: basedpyright
-        name: Basedpyright
-        entry: just basedpyright
+      - id: pyrefly
+        name: Pyrefly
+        entry: just pyrefly
         language: python
         types: [python]
         require_serial: true

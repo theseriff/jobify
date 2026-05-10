@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, final
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from jobify._internal.context import JobContext
 
 
-@final
 class ExceptionMiddleware(BaseMiddleware):
     __slots__: tuple[str, ...] = ("jobify_config",)
 
