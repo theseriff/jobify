@@ -6,6 +6,7 @@ import sys
 from typing import (
     TYPE_CHECKING,
     Any,
+    Final,
     ParamSpec,
     TypeAlias,
     TypeVar,
@@ -72,7 +73,7 @@ ReturnT = TypeVar("ReturnT")
 ParamsT = ParamSpec("ParamsT")
 RootRouter_co = TypeVar("RootRouter_co", bound="RootRouter", covariant=True)
 
-CRONS_DEF_KEY = "__crons_definition__"
+CRONS_DEF_KEY: Final[str] = "__crons_definition__"
 CronsDefinition: TypeAlias = dict[str, tuple["RootRoute[..., Any]", Cron]]
 
 
