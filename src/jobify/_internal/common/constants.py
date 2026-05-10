@@ -1,12 +1,12 @@
 from enum import Enum, unique
-from typing import Any
+from typing import Any, Final
 
 from jobify._internal.common.datastructures import EmptyPlaceholder
 
-EMPTY: Any = EmptyPlaceholder()
-INFINITY = -1
-PATCH_FUNC_NAME = "__jobify_original"
-PATCH_CRON_DEF_ID = "__jobify_cron_definition"
+EMPTY: Final[Any] = EmptyPlaceholder()
+INFINITY: Final[int] = -1
+PATCH_FUNC_NAME: Final[str] = "__jobify_original"
+PATCH_CRON_DEF_ID: Final[str] = "__jobify_cron_definition"
 
 
 @unique
