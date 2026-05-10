@@ -38,6 +38,7 @@ repos:
     rev: v1.45.0
     hooks:
       - id: typos
+        exclude: ^docs/CHANGELOG\.md$
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
