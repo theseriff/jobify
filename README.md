@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://theseriff.github.io/jobify/">
-  <img src="docs/images/logo.svg" alt="Jobify logo" width="140">
+  <img src="https://raw.githubusercontent.com/theseriff/jobify/main/docs/images/logo.svg" alt="Jobify logo" width="140">
 </a>
 
 <h1>Jobify</h1>
