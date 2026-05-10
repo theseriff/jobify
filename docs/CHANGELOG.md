@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.11.0 (2026-05-10)
+
+### Build System
+
+- **deps**: Bump the github-actions group with 8 updates
+  ([`c231068`](https://github.com/theseriff/jobify/commit/c23106874a52ba70952c4f358cc9ced110d4835c))
+
+- **deps**: Bump the pip group with 10 updates
+  ([`2ad1ba1`](https://github.com/theseriff/jobify/commit/2ad1ba198e17f1c94dfe7abcbe1394e89e5d5754))
+
+### Documentation
+
+- Re-design style
+  ([`b9d00e3`](https://github.com/theseriff/jobify/commit/b9d00e37b82ad9849c6b3276e11628e9229a8479))
+
+- Update README.md
+  ([`3344151`](https://github.com/theseriff/jobify/commit/3344151a98ab239e46ef85e0276ca573461778dc))
+
+### Features
+
+- **plugins**: Add Plugin lifecycle system with QueueMiddleware, unify STOP/UNSET sentinels
+  ([`0c3bdaf`](https://github.com/theseriff/jobify/commit/0c3bdaf47c9fb0ed18bf6d3294875de165b659ac))
+
+
 ## v0.10.1 (2026-04-03)
 
 ### Build System
