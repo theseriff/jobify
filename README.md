@@ -159,11 +159,6 @@ Use Jobify when:
 - you want typed, framework-like APIs for task registration and routing
 - you need queue-based backpressure and priority controls in a single process
 
-Consider broker-based systems if:
-
-- you need distributed worker pools across many hosts today
-- your architecture requires external broker-first task execution
-
 ## License
 
 This project is licensed under the [MIT license](https://github.com/theseriff/jobify/blob/main/LICENSE).
