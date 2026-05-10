@@ -1,313 +1,231 @@
 # Scheduling Jobs
 
-You can schedule tasks in two main ways: using recurring cron expressions or dynamically at runtime.
+Jobify supports two scheduling models:
 
-!!! info "Precision & System Time"
-    Jobify uses high-precision timers instead of polling, which makes the scheduler very efficient. However, this also means that it is sensitive to changes in the system time. For details, see [System Time and Scheduling Trade-offs](advanced_usage/system_time.md).
+- **Declarative**: define recurring schedules in `@app.task(cron=...)`
+- **Dynamic**: schedule jobs at runtime via `.push()`, `.schedule().delay()`, `.schedule().at()`, `.schedule().cron()`
+
+!!! info "Precision and System Time"
+    Jobify uses event-loop timers instead of polling. It is efficient and precise, but sensitive to significant system time shifts.
+    See [System Time and Scheduling Trade-offs](advanced_usage/system_time.md){ data-preview }.
+
+<div class="grid cards" markdown>
+
+-   :material-clock-outline:{ .lg .middle } __Declarative Cron__
+
+    ---
+
+    Stable recurring jobs defined in code and restored on startup.
+
+-   :material-lightning-bolt-outline:{ .lg .middle } __Dynamic Scheduling__
+
+    ---
+
+    Runtime scheduling for immediate, delayed, absolute-time, or dynamic cron jobs.
+
+-   :material-swap-horizontal-circle-outline:{ .lg .middle } __Idempotent Updates__
+
+    ---
+
+    `replace` and `force` control rescheduling behavior and outer middleware execution.
+
+-   :material-history:{ .lg .middle } __Misfire Policies__
+
+    ---
+
+    Handle missed schedules with `ALL`, `SKIP`, `ONCE`, or `GRACE` windows.
+
+</div>
+
+## Scheduling API Quick Map
+
+| Method | Use case | Key options |
+| --- | --- | --- |
+| `await task.push(*args, **kwargs)` | run as soon as possible | none |
+| `await task.schedule(*args, **kwargs).delay(seconds, ...)` | run after delay | `job_id`, `now`, `replace` |
+| `await task.schedule(*args, **kwargs).at(at, ...)` | run at exact `datetime` | `job_id`, `replace`, `force` |
+| `await task.schedule(*args, **kwargs).cron(cron, ...)` | dynamic recurring schedule | `job_id` (required), `replace`, `force` |
 
 ## Cron Expressions
 
-`Jobify` uses the [crontab](https://pypi.org/project/crontab/) library to parse and schedule jobs from cron expressions. This provides a flexible and powerful way to define recurring tasks.
+Jobify uses the [`crontab`](https://pypi.org/project/crontab/) parser.
 
 ### Syntax
 
-A cron expression is a string of fields that describe a schedule. The `crontab` library supports standard 5-field cron expressions, but also expressions with 6 or 7 fields for second-level precision and year specification.
-
-The general representation is:
-
-```
+```text
 <seconds> <minutes> <hours> <day_of_month> <month> <day_of_week> <year>
 ```
 
-### Expression Formats
-
-The `crontab` library supports multiple expression formats, which are interpreted as follows:
+### Expression formats
 
 - **5 fields**: `MINUTES HOURS DAY_OF_MONTH MONTH DAY_OF_WEEK`
-    - Example: `* * * * *` - runs every minute.
-
+  - Example: `* * * * *` (every minute)
 - **6 fields**: `MINUTES HOURS DAY_OF_MONTH MONTH DAY_OF_WEEK YEAR`
-    - Example: `0 9 * * 1 2024` - runs at 9:00 AM every Monday in 2024.
-
+  - Example: `0 9 * * 1 2026`
 - **7 fields**: `SECONDS MINUTES HOURS DAY_OF_MONTH MONTH DAY_OF_WEEK YEAR`
-    - This is the format you must use for second-level precision.
-    - Example: `*/15 * * * * * *` - runs every 15 seconds.
+  - Example: `*/15 * * * * * *` (every 15 seconds)
 
-!!! warning
-    To schedule a job with second-level precision (e.g., every 15 seconds),
-    you must use a 7-field expression. A 6-field expression will be interpreted
-    as including a YEAR field, not a SECONDS field.
+!!! warning "Second-level precision"
+    Use the **7-field** format for seconds.
+    In this parser, 6 fields are interpreted with a **year** field, not seconds.
 
 ### Fields
 
-| Field          | Allowed Values  | Allowed Special Characters   |
-| -------------- | --------------- | ---------------------------- |
-| `seconds`      | 0-59            | `*`, `/`, `,`, `-`           |
-| `minutes`      | 0-59            | `*`, `/`, `,`, `-`           |
-| `hours`        | 0-23            | `*`, `/`, `,`, `-`           |
-| `day_of_month` | 1-31            | `*`, `/`, `,`, `-`, `?`, `L` |
-| `month`        | 1-12 or JAN-DEC | `*`, `/`, `,`, `-`           |
-| `day_of_week`  | 0-6 or SUN-SAT  | `*`, `/`, `,`, `-`, `?`, `L` |
-| `year`         | 1970-2099       | `*`, `/`, `,`, `-`           |
+| Field | Allowed values | Special characters |
+| --- | --- | --- |
+| `seconds` | `0-59` | `*`, `/`, `,`, `-` |
+| `minutes` | `0-59` | `*`, `/`, `,`, `-` |
+| `hours` | `0-23` | `*`, `/`, `,`, `-` |
+| `day_of_month` | `1-31` | `*`, `/`, `,`, `-`, `?`, `L` |
+| `month` | `1-12` or `JAN-DEC` | `*`, `/`, `,`, `-` |
+| `day_of_week` | `0-6` or `SUN-SAT` | `*`, `/`, `,`, `-`, `?`, `L` |
+| `year` | `1970-2099` | `*`, `/`, `,`, `-` |
 
-### Special Characters
+### Predefined aliases
 
-- **`*` (Asterisk):** Selects all possible values for a field. For example, `*` in the `minutes` field means "every minute".
-- **`,` (Comma)**: Used to specify a list of values. For example, "1, 5, 10" in the "minutes" field means "at minutes 1, 5 and 10".
-- **`-` (Dash)**: Specifies a range of values. For example, `1-5` in the `day_of_week` field means "Monday to Friday."
-- **`/` (Slash)**: Specifies a step value. For example, `/15` in the `seconds` field means "every 15 seconds."
-- **`?` (Question Mark)**: Used in `day_of_month` or `day_of_week` to indicate "no specific value", which is useful when you want to specify one of these fields but not the other.
-- **`L` (Last)**: has different meanings depending on the context. In **`day_of_month`** it refers to the last day of the month, while in **`day_of_week`** it means the last day of the week, which is Saturday.
-
-### Predefined Expressions (Aliases)
-
-You can also use one of the following predefined cron expressions:
-
-| Expression | Equivalent  | Description                               |
-| ---------- | ----------- | ----------------------------------------- |
-| `@yearly`  | `0 0 1 1 *` | Run once a year, at midnight on Jan 1st.  |
-| `@monthly` | `0 0 1 * *` | Run once a month, at midnight on the 1st. |
-| `@weekly`  | `0 0 * * 0` | Run once a week, at midnight on Sunday.   |
-| `@daily`   | `0 0 * * *` | Run once a day, at midnight.              |
-| `@hourly`  | `0 * * * *` | Run once an hour, at the beginning.       |
-
-For more detailed information, please refer to the official [crontab library documentation](https://pypi.org/project/crontab/).
+| Alias | Equivalent | Description |
+| --- | --- | --- |
+| `@yearly` | `0 0 1 1 *` | once a year |
+| `@monthly` | `0 0 1 * *` | once a month |
+| `@weekly` | `0 0 * * 0` | once a week |
+| `@daily` | `0 0 * * *` | once a day |
+| `@hourly` | `0 * * * *` | once an hour |
 
 ## The Cron Object
 
-You can use the `Cron` class to have more control over the scheduling of the job (e.g., limiting the number of runs or handling misfires).
+Use `Cron(...)` when you need scheduling policy controls beyond plain expression strings.
 
 ```python
-from jobify import Cron, MisfirePolicy
 from datetime import datetime
 
-Cron(
+from jobify import Cron, MisfirePolicy
+
+cron = Cron(
     "0 18 * * 1-5",
     max_runs=100,
     max_failures=5,
     misfire_policy=MisfirePolicy.ALL,
-    start_date=datetime(2027, 1, 1), # The task will start on January 1, 2027.
+    start_date=datetime(2027, 1, 1),
     args=("sales",),
     kwargs={"file_format": "csv"},
 )
 ```
 
-The **Cron** class has the following properties:
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `expression` | `str` | required | cron expression |
+| `max_runs` | `int` | `INFINITY (-1)` | max successful+failed run attempts before removal |
+| `max_failures` | `int` | `10` | consecutive failure threshold before permanent stop |
+| `misfire_policy` | `MisfirePolicy | GracePolicy` | `MisfirePolicy.ONCE` | missed-schedule behavior |
+| `start_date` | `datetime | None` | `None` | anchor for first execution |
+| `args` | `Collection[Any]` | `()` | positional arguments for scheduled executions |
+| `kwargs` | `Mapping[str, Any]` | `{}` | keyword arguments for scheduled executions |
 
-- **expression** (`str`): The cron expression as a string.
-- **max_runs** (`int`, default: `INFINITY (-1)`): The maximum number of times a job can run. The run count is persisted in the database, so it survives application restarts. When the limit is reached, the job is automatically removed from the schedule.
-- **max_failures** (`int`, default: `10`): The maximum number of consecutive failed attempts allowed before a job is permanently stopped and no longer scheduled. This value must be greater than or equal to 1.
-- **misfire_policy** (`MisfirePolicy | GracePolicy`, default: `MisfirePolicy.ONCE`): Determines how to deal with missed schedules (for example, if the application is unavailable).
-    - `MisfirePolicy.ALL`: Run all missed executions immediately.
-    - `MisfirePolicy.SKIP`: If there were missed executions, then skip them.
-    - `MisfirePolicy.ONCE`: If there were missed executions, run only once.
-    - `MisfirePolicy.GRACE(timedelta)`: If the missed schedule is within the specified grace period, please start it immediately.
-- **start_date** (`datetime | None`, default: `None`): The scheduled start time is used to anchor the first execution of the job to a specific datetime.
-- **args** (`Collection[Any]`, default: `()`): Positional arguments to be passed to the task function when it is executed.
-- **kwargs** (`Mapping[str, Any]`, default: `{}`): Keyword arguments to be passed to the task function when it is executed.
+Misfire policies:
+
+- `MisfirePolicy.ALL`: run all missed executions immediately.
+- `MisfirePolicy.SKIP`: skip missed executions.
+- `MisfirePolicy.ONCE`: run only once if there were misses.
+- `MisfirePolicy.GRACE(timedelta)`: run only if miss is within grace window.
 
 ## Dynamic Scheduling
 
-In addition to cron jobs that are defined at the application level, users can also schedule tasks to run at a specific time or after a delay. They can even dynamically create new cron schedules. This is useful for one-time tasks or tasks that are triggered by the application's logic.
+Start by creating a builder:
 
-To dynamically schedule a task, you need to create a `ScheduleBuilder`. You can do this by calling the `.schedule()` method on the task function. The arguments that you pass to `.schedule()` will be used when the task runs.
+```python
+builder = my_task.schedule(*args, **kwargs)
+```
 
+Then choose one of the methods below.
 
 ### cron
 
-To dynamically schedule a recurring task using a cron expression, use the `.cron()` method.
+Create/update a recurring dynamic cron job.
 
 ```python
-# Schedules a recurring task.
-schedule(*args, **kwargs).cron(
-    cron: str | Cron, # The cron expression or `Cron` object.
-    *,
-    job_id: str, # Required unique identifier for the job.
-    replace: bool = False, # If True, updates the existing job.
-    force: bool = False, # Force scheduling even if the job already exists with the same parameters.
+await my_task.schedule(*args, **kwargs).cron(
+    cron="*/5 * * * *",
+    job_id="cleanup_dynamic",  # required
+    replace=False,
+    force=False,
 )
 ```
 
-!!! warning "Outer Middleware Execution"
-    By default, the **Outer Middleware** is only executed when a new job is created or when an existing job's parameters are updated, such as a new schedule or different arguments.
-    If you try to schedule a job with identical configuration to an existing job, the outer middleware will not be executed to prevent unnecessary side effects like logging or metric spam.
+- `job_id` is required.
+- if `replace=False` and `job_id` already exists, `DuplicateJobError` is raised.
+- if `replace=True`, existing schedule is updated.
+- if `force=False` and schedule is unchanged, Jobify returns existing job without re-running outer middleware.
 
-    To ensure that the outer middleware always runs, set `force=True`.
-
-!!! info "Idempotency during Replacement"
-    - When using replace=True for cron jobs, the scheduler will preserve the current execution progress if the start_date has not changed in your code.
-    - This prevents "double-firing" or schedule resets during app redeploys.
-    - If the start_date is modified, however, the schedule will be "hard-reset" to the new date.
-
-example:
-
-```python
-import asyncio
-from jobify import Jobify
-
-app = Jobify()
-
-@app.task
-def cleanup_logs() -> None:
-    print("Cleaning up logs...")
-
-@app.task(cron="@daily")
-def daily_report() -> None:
-    print("Generating daily report...")
-
-@app.task(
-    cron=Cron(
-        "@weekly",
-        args=("performance",),
-        kwargs={"detailed": True},
-    )
-)
-def weekly_report(report_type: str, detailed: bool) -> None:
-    print(f"Generating weekly {report_type} report. Detailed: {detailed}")
-
-async def main() -> None:
-    async with app:
-        # Schedule cleanup every 5 minutes
-        job = await cleanup_logs.schedule().cron(
-            cron="*/5 * * * *",
-            job_id="cleanup_task_dynamic",
-        )
-
-        # Imperatively schedule another weekly report with different arguments
-        await weekly_report.schedule("security", detailed=False).cron(
-            cron="@weekly",
-            job_id="weekly_security_report",
-        )
-
-        # Keep the app running...
-        await app.wait_all()
-
-asyncio.run(main())
-```
+!!! warning "Outer middleware execution"
+    Outer middleware runs when a job is created/changed.
+    Use `force=True` to run outer middleware even when scheduling config is unchanged.
 
 ### push (Immediate Execution)
 
-The .push() method is the fastest way to offload a task to the background.
-It schedules the task to run as soon as possible, similar to the .delay(0), but more concise.
-
-Unlike the .schedule() method, which requires you to create the schedule first, the .push() method accepts your function arguments directly.
+Fastest way to enqueue a task for execution as soon as possible.
 
 ```python
-# Immediately schedules the job for execution.
-await my_task.push(*args, **kwargs)
+job = await my_task.push(*args, **kwargs)
+await job.wait()
 ```
 
 !!! note "Persistence"
-    Just like other scheduling methods, tasks created using .push() are automatically saved to storage (unless the durable=False parameter is set on the task).
-    This ensures that even if the application crashes immediately after the task is pushed, it will be picked up and processed when the application restarts.
-
-example:
-
-```python
-import asyncio
-from typing import Any
-
-from jobify import Jobify
-
-app = Jobify()
-
-
-@app.task(durable=False, retry=3)
-def process_data(data: dict[str, Any]) -> None:
-    print(f"Processing: {data}")
-
-
-async def main() -> None:
-    async with app:
-        # Offload execution immediately
-        job = await process_data.push({"id": 1, "value": "test"})
-
-        # You can still wait the result for it if needed
-        await job.wait()
-
-
-asyncio.run(main())
-```
+    `push()` jobs are also persisted when task is `durable=True`.
+    If task is `durable=False`, they are not restored after restart.
 
 ### delay
 
-To run a task after a specified delay, use the `delay()` method of the builder.
+Schedule execution after a delay in seconds.
 
 ```python
-# Schedules the task to run after a specified number of seconds.
-schedule(*args, **kwargs).delay(
-    seconds: float, # The delay in seconds.
-    *,
-    job_id: str | None = None, # Optional unique identifier for the job.
-    now: datetime | None = None, # Optional reference datetime.
-    replace: bool = False, # If True, updates the existing job.
-    force: bool = False, # Force scheduling even if the job already exists with the same parameters.
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+job = await my_task.schedule(*args, **kwargs).delay(
+    seconds=60,
+    job_id="email_60s",
+    now=datetime.now(tz=ZoneInfo("UTC")),  # optional reference point
+    replace=False,
 )
 ```
-example:
 
-```python
-import asyncio
-from jobify import Jobify
+Parameters:
 
-app = Jobify()
+- `seconds: float`
+- `job_id: str | None = None`
+- `now: datetime | None = None`
+- `replace: bool = False`
 
-@app.task
-def send_email(to: str, subject: str) -> None:
-    print(f"Sending email to {to} about {subject}")
-
-async def main() -> None:
-    async with app:
-        # Schedule the email to be sent in 60 seconds
-        job = await send_email.schedule(
-            to="user@example.com",
-            subject="Hello",
-        ).delay(seconds=60)
-        await job.wait()
-
-asyncio.run(main())
-```
+!!! note
+    `delay()` does not expose `force`; use `.at(..., force=True)` if you need force semantics for absolute-time rescheduling.
 
 ### at
 
-To run a task at a specific `datetime`, use the `.at()` method.
+Schedule execution at an exact `datetime`.
 
 ```python
-# Schedules the task to run at the specified `datetime`.
-schedule(*args, **kwargs).at(
-    at: datetime, # The execution time.
-    *,
-    job_id: str | None = None, # Optional unique identifier for the job.
-    replace: bool = False, # If True, updates the existing job.
-    force: bool = False, # Force scheduling even if the job already exists with the same parameters.
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+run_at = datetime.now(tz=ZoneInfo("UTC")) + timedelta(minutes=10)
+job = await my_task.schedule(*args, **kwargs).at(
+    at=run_at,
+    job_id="report_123",
+    replace=False,
+    force=False,
 )
 ```
 
-example:
+Parameters:
 
-```python
-import asyncio
-from datetime import datetime, timedelta
-from jobify import Jobify
+- `at: datetime`
+- `job_id: str | None = None`
+- `replace: bool = False`
+- `force: bool = False`
 
-app = Jobify()
+## Replacement and Duplicate IDs
 
-@app.task
-def generate_report(report_id: int) -> None:
-    print(f"Generating report {report_id}")
+By default, reusing an existing `job_id` raises `DuplicateJobError`.
+You can set `replace=True` in `cron`, `delay`, or `at` to update existing schedule instead.
 
-async def main() -> None:
-    async with app:
-        # Schedule the report to be generated 10 minutes from now
-        run_time = datetime.now(app.configs.tz) + timedelta(minutes=10)
-        job = await generate_report.schedule(report_id=123).at(at=run_time)
-        # Keep the app running to allow the job to execute
-        await job.wait()
-
-asyncio.run(main())
-```
-
-!!! info "Replacing existing jobs"
-    By default, if you try to schedule a job with a job ID that is already in use, a `DuplicateJobError` will be raised.
-    To avoid this, you can set `replace=True` when scheduling a job using any of the following methods: `cron`, `at`, or `delay`. This will automatically cancel the existing job and schedule a new one in its place.
-    For `cron` jobs, setting `replace=True` will also preserve the scheduling offset, ensuring consistency in execution.
+For cron jobs, replacement keeps offset/progress semantics unless relevant cron anchoring fields (for example `start_date`) change.

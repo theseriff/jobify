@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Generic, TypeVar, final
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from typing_extensions import override
 
@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 ReturnT = TypeVar("ReturnT")
 
 
-@final
 class CronContext(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "cron",
@@ -56,7 +55,6 @@ class CronContext(Generic[ReturnT]):
         return self.failure_count < self.cron.max_failures
 
 
-@final
 class Job(Generic[ReturnT]):
     __slots__: tuple[str, ...] = (
         "_cron_context",

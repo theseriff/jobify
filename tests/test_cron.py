@@ -121,19 +121,12 @@ def test_misfire_policy() -> None:
 
     assert str(GracePolicy(timedelta(days=1)))
     assert handler(policy=MisfirePolicy.ALL) == next_run_at
-    assert handler(policy=MisfirePolicy.SKIP) == cron_parser.next_run(
-        now=real_now
-    )
+    assert handler(policy=MisfirePolicy.SKIP) == cron_parser.next_run(now=real_now)
     assert handler(policy=MisfirePolicy.ONCE) == real_now
+    assert handler(policy=MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
+    expected_next_run_at = cron_parser.next_run(now=real_now - timedelta(days=6))
     assert (
-        handler(policy=MisfirePolicy.GRACE(timedelta(days=8))) == next_run_at
-    )
-    expected_next_run_at = cron_parser.next_run(
-        now=real_now - timedelta(days=6)
-    )
-    assert (
-        handler(policy=MisfirePolicy.GRACE(timedelta(days=6)))
-        == expected_next_run_at
+        handler(policy=MisfirePolicy.GRACE(timedelta(days=6))) == expected_next_run_at
     )
     invalid_enum_type: Any = "InvalidEnumType"
     assert handler(policy=invalid_enum_type) is None

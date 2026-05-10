@@ -1,126 +1,69 @@
-# System Time and Scheduling Trade-offs
+# System Time & Scheduling
 
-One of the key architectural decisions in Jobify is to completely avoid
-**polling**. While this approach provides significant advantages in
-terms of performance and precision, it also introduces a specific
-behavior when the operating system's clock is adjusted.
+Jobify is designed for performance and precision by completely avoiding **polling**. This architectural choice provides significant advantages but requires an understanding of how Jobify interacts with the system clock.
 
-## Polling vs. Native Timers
+<div class="grid cards" markdown>
 
-Most Python scheduling frameworks, such as APScheduler v3 and Celery,
-rely on a **polling loop**. Typically, this involves a continuous
-process like:
+- :material-meter-electric:{ .lg .middle } **Zero Idle CPU**
 
-```python
-while True:
-    sleep(1)
-    check_scheduled_tasks()
-```
+    ***
 
-In this model, the scheduler repeatedly checks the current system time
-against a list of scheduled jobs.
+    No background loops checking for tasks. Resources are consumed only during execution.
 
-**Jobify takes a different approach.** Instead of polling, it uses the
-`asyncio.loop.call_at` API. When a task is scheduled, Jobify calculates
-the exact moment the task should run and registers a timer directly in
-the event loop.
+- :material-target:{ .lg .middle } **High Precision**
 
-This allows the operating system's event notification mechanisms (such
-as epoll or kqueue) to wake the scheduler precisely when the task is
-due.
+    ***
 
-## Benefits of Jobify's Approach
+    Triggered by low-level OS event notification mechanisms (epoll, kqueue).
 
-This design provides several important advantages:
+- :material-chart-bell-curve-cumulative:{ .lg .middle } **High Scalability**
 
-- **Zero Idle CPU Usage**:
+    ***
 
-    > The scheduler does not run periodic checks.</br>
-    > CPU resources are used only when a scheduled task actually needs to execute.
+    Efficiently handles thousands of concurrent timers via the `asyncio` event loop.
 
-- **High Precision**:
+- :material-lightning-bolt-outline:{ .lg .middle } **Native Performance**
 
-    > Tasks are triggered directly by the event loop's timer system,</br>
-    > eliminating the timing jitter introduced by polling intervals.
+    ***
 
-- **High Scalability**:
+    Directly leverages the speed and efficiency of the underlying OS event loop.
 
-    > The asyncio event loop efficiently manages large numbers of timers,</br>
-    > allowing Jobify to handle thousands of scheduled tasks with minimal overhead.
+</div>
 
-## The Trade-off: System Time Adjustments
+## Polling vs. Native Timers
 
-The trade-off for this efficiency is how Jobify behaves when the
-**system clock (wall-clock time)** changes after a task has already been
-scheduled.
+Most Python schedulers (like APScheduler v3 or Celery) rely on a **polling loop** that repeatedly checks the current time against a task list.
 
-### Wall Clock vs Monotonic Time
+**Jobify uses `asyncio.loop.call_at`.** When you schedule a task, Jobify calculates the exact moment it should run and registers a timer directly in the event loop.
 
-Two different time concepts are involved:
+## The Trade-off: Clock Adjustments
 
-#### Wall-clock time (`datetime.now()`)
+Because Jobify registers a specific delay once, it is sensitive to **significant system clock shifts** (manual changes or NTP jumps).
 
-Represents the system's current calendar time. This value may change due
-to:
+### Wall-Clock vs. Monotonic Time
 
-- manual system time adjustments
-- NTP synchronization
-- daylight saving time transitions
+| Type | Name | Behavior |
+| :--- | :--- | :--- |
+| :material-clock-outline: | **Wall-Clock** (`datetime.now()`) | Current calendar time. Can jump forward/backward. |
+| :material-clock-fast: | **Monotonic** (`time.monotonic()`) | Steadily increasing. Unaffected by system time changes. |
 
-#### Monotonic time (`time.monotonic()`)
+### Internal Flow
 
-A steadily increasing clock that is **not affected by system time
-changes**.\
-`asyncio` relies on a monotonic clock for its internal timing.
+1.  **Read Wall-Clock**: Get current time (e.g., 14:50).
+2.  **Calculate Delay**: Scheduled for 15:00 → 10 minute (600s) delay.
+3.  **Register Timer**: Tell the event loop: *"Run this in 600s of Monotonic time"*.
 
-### What Happens Internally
-
-Suppose a task is scheduled to run at **15:00**, and the current time is
-**14:50**.
-
-Jobify performs the following steps:
-
-1.  Reads the current **wall-clock time** (14:50).
-
-2.  Computes the delay until the scheduled time (10 minutes / 600
-    seconds).
-
-3.  Registers a timer with the event loop:
-
-    > Execute this task 600 seconds from now.
-
-From this point forward, the timer is based entirely on **monotonic
-time**.
-
-If the system clock is manually changed to **15:00** immediately after
-scheduling, the monotonic clock does **not** change. The event loop will
-still wait for the full 600 seconds before executing the task.
-
-As a result, the task would run when the system clock shows **15:10**.
-
-## Why This Design Was Chosen
-
-This behavior is an **intentional design trade-off**.
-
-By relying on native event loop timers instead of polling, Jobify gains:
-
-- lower CPU overhead
-- higher scheduling precision
-- better scalability for large numbers of tasks
-
-The downside is that timers already registered in the event loop do not
-automatically adjust when the system clock changes.
+!!! warning "Clock Shift Impact"
+    If the system clock is manually changed to 15:00 immediately after scheduling, the **Monotonic clock does not change**. The task will still run after 600s of real time (when the system clock shows 15:10).
 
 ## Handling Time Changes
 
-If the system time changes significantly while Jobify is running, simply
-**restart the application**.
+If your system clock changes significantly (e.g., after a long sleep or NTP correction), simply **restart the application**.
 
-Upon startup, Jobify will:
+On startup, Jobify will:
 
-1.  Read the current wall-clock time
-2.  Recalculate delays for all scheduled tasks
-3.  Register fresh timers with the event loop
+1.  Read the **updated** wall-clock time.
+2.  Recalculate delays for all stored tasks.
+3.  Register **fresh timers** with the event loop.
 
-This ensures that all tasks are scheduled correctly according to the
-updated system time.
+This ensures all tasks align correctly with the new system time.

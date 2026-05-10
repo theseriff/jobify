@@ -62,9 +62,7 @@ async def test_all_jobs_completed(amock: AsyncMock) -> None:
             await app.wait_all(timeout=0)
 
         expected_planned_jobs = 3
-        assert (
-            len(app.task._task_tracker.pending_jobs) == expected_planned_jobs
-        )
+        assert len(app.task._task_tracker.pending_jobs) == expected_planned_jobs
 
 
 async def test_duplicate_job_error(amock: AsyncMock) -> None:

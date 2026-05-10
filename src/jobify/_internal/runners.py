@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import functools
-import inspect
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Final, Generic, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Final, Generic, ParamSpec, TypeVar
 
 from typing_extensions import override
 
 from jobify._internal.common.constants import RunMode
 
 if TYPE_CHECKING:
+    import inspect
     from collections.abc import Awaitable, Callable
     from concurrent.futures import Executor
 
@@ -95,17 +95,39 @@ class Runnable(Generic[ReturnT]):
         *,
         name: str,
         bound: inspect.BoundArguments,
-        strategy: RunStrategy[ParamsT, ReturnT],
+        strategy: RunStrategy[..., ReturnT],
         func_spec: FuncSpec[ReturnT],
     ) -> None:
         self.name: str = name
-        self.strategy: Final = strategy
+        self.strategy: RunStrategy[..., ReturnT] = strategy
         self.bound: inspect.BoundArguments = bound
-        self.origin_arguments: dict[str, Any] = bound.arguments.copy()
-        self.func_spec: FuncSpec[ReturnT] = func_spec
+        self.origin_arguments = bound.arguments.copy()
+        self.func_spec = func_spec
 
     def __call__(self) -> Awaitable[ReturnT]:
         return self.strategy(*self.bound.args, **self.bound.kwargs)
+
+
+def create_run_strategy(
+    func: Callable[ParamsT, ReturnT],
+    jobify_config: JobifyConfiguration,
+    *,
+    mode: RunMode | None,
+    is_async: bool,
+) -> RunStrategy[ParamsT, ReturnT]:
+    mode = _validate_run_mode(mode, is_async=is_async)
+    if is_async:
+        return AsyncStrategy(func)
+
+    match mode:
+        case RunMode.PROCESS:
+            processpool = jobify_config.worker_pools.processpool
+            return PoolStrategy(func, processpool, jobify_config.getloop)
+        case RunMode.THREAD:
+            threadpool = jobify_config.worker_pools.threadpool
+            return PoolStrategy(func, threadpool, jobify_config.getloop)
+        case _:
+            return SyncStrategy(func)
 
 
 def _validate_run_mode(mode: RunMode | None, *, is_async: bool) -> RunMode:
@@ -120,28 +142,3 @@ def _validate_run_mode(mode: RunMode | None, *, is_async: bool) -> RunMode:
     if mode is None:
         return RunMode.THREAD
     return mode
-
-
-def create_run_strategy(
-    func: Callable[ParamsT, ReturnT],
-    jobify_config: JobifyConfiguration,
-    *,
-    mode: RunMode | None,
-) -> RunStrategy[ParamsT, ReturnT]:
-    # inspect.iscoroutinefunction returns TypeGuard,
-    # but we need a regular bool variable
-    is_async = bool(inspect.iscoroutinefunction(func))
-
-    mode = _validate_run_mode(mode, is_async=is_async)
-    if is_async:
-        return AsyncStrategy(func)
-
-    match mode:
-        case RunMode.PROCESS:
-            processpool = jobify_config.worker_pools.processpool
-            return PoolStrategy(func, processpool, jobify_config.getloop)
-        case RunMode.THREAD:
-            threadpool = jobify_config.worker_pools.threadpool
-            return PoolStrategy(func, threadpool, jobify_config.getloop)
-        case _:
-            return SyncStrategy(func)

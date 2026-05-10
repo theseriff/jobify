@@ -7,7 +7,15 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any, ClassVar, Protocol, TypeAlias, get_args, get_type_hints
+from typing import (
+    Any,
+    ClassVar,
+    NamedTuple,
+    Protocol,
+    TypeAlias,
+    get_args,
+    get_type_hints,
+)
 from zoneinfo import ZoneInfo
 
 from typing_extensions import TypeIs, override
@@ -17,10 +25,6 @@ from jobify._internal.serializers.base import JSONCompat, Serializer
 
 class DataclassType(Protocol):
     __dataclass_fields__: ClassVar[dict[str, dataclasses.Field[Any]]]
-
-
-class NamedTupleType(Protocol):
-    _asdict: ClassVar[Callable[[NamedTupleType], dict[str, SupportedTypes]]]
 
 
 SupportedTypes: TypeAlias = (
@@ -36,7 +40,6 @@ SupportedTypes: TypeAlias = (
     | datetime
     | timedelta
     | DataclassType
-    | NamedTupleType
     | set["SupportedTypes"]
     | list["SupportedTypes"]
     | tuple["SupportedTypes", ...]
@@ -45,15 +48,13 @@ SupportedTypes: TypeAlias = (
 TypeRegistry: TypeAlias = dict[str, Callable[..., SupportedTypes]]
 
 
-def is_named_tuple_type(tp: Any) -> bool:  # noqa: ANN401
+def is_named_tuple_type(tp: Any) -> TypeIs[NamedTuple]:  # noqa: ANN401
     return (
-        isinstance(tp, type)
-        and issubclass(tp, tuple)
-        and hasattr(tp, "_fields")  # pyright: ignore[reportUnknownArgumentType]
+        isinstance(tp, type) and issubclass(tp, tuple) and hasattr(tp, "_fields")  # pyright: ignore[reportUnknownArgumentType]
     )
 
 
-def is_named_tuple(o: SupportedTypes) -> TypeIs[NamedTupleType]:
+def is_named_tuple(o: SupportedTypes) -> TypeIs[NamedTuple]:
     return isinstance(o, tuple) and hasattr(o, "_asdict")
 
 
@@ -65,10 +66,7 @@ def is_structured_type(tp: Any) -> bool:  # noqa: ANN401
     return (
         dataclasses.is_dataclass(tp)
         or is_named_tuple_type(tp)
-        or (
-            hasattr(tp, "__origin__")
-            and dataclasses.is_dataclass(tp.__origin__)
-        )
+        or (hasattr(tp, "__origin__") and dataclasses.is_dataclass(tp.__origin__))
     )
 
 
@@ -87,9 +85,7 @@ def json_extended_encoder(o: SupportedTypes) -> JSONCompat:  # noqa: C901, PLR09
         return {
             "__namedtuple__": {
                 "type": o.__class__.__name__,
-                "fields": {
-                    k: json_extended_encoder(v) for k, v in o._asdict().items()
-                },
+                "fields": {k: json_extended_encoder(v) for k, v in o._asdict().items()},
             }
         }
     if isinstance(o, Enum):
@@ -168,9 +164,7 @@ class ExtendedJSONSerializer(Serializer):
         self.add_system_types(registry)
         self.decoder_hook: JsonDecoderHook = JsonDecoderHook(self.registry)
 
-    def add_system_types(
-        self, tp: Sequence[Callable[..., SupportedTypes]], /
-    ) -> None:
+    def add_system_types(self, tp: Sequence[Callable[..., SupportedTypes]], /) -> None:
         self.registry.update({t.__name__: t for t in tp})
 
     @override

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Jobify Logo</title>
+  <desc id="desc">Rounded square gradient mark with a stylized J and queue lines.</desc>
+  <defs>
+    <linearGradient id="jobifyGradient" x1="24" y1="24" x2="232" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="56" fill="url(#jobifyGradient)"/>
+  <rect x="12" y="12" width="232" height="232" rx="56" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="2"/>
+  <rect x="50" y="70" width="82" height="14" rx="7" fill="#ffffff" fill-opacity="0.34"/>
+  <rect x="50" y="98" width="66" height="14" rx="7" fill="#ffffff" fill-opacity="0.34"/>
+  <rect x="50" y="126" width="50" height="14" rx="7" fill="#ffffff" fill-opacity="0.34"/>
+  <path d="M164 70V154C164 184 140 208 110 208H98" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="66" cy="184" r="12" fill="#ffffff" fill-opacity="0.9"/>
+</svg>
