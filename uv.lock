@@ -710,7 +710,7 @@ dev = [
     { name = "pytest-timeout" },
     { name = "ruff" },
     { name = "semgrep" },
-    { name = "types-setuptools" },
+    { name = "types-python-crontab" },
     { name = "zensical" },
     { name = "zizmor" },
 ]
@@ -725,7 +725,7 @@ lint = [
     { name = "pyrefly" },
     { name = "ruff" },
     { name = "semgrep" },
-    { name = "types-setuptools" },
+    { name = "types-python-crontab" },
     { name = "zizmor" },
 ]
 test = [
@@ -767,7 +767,7 @@ dev = [
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "ruff", specifier = "==0.15.12" },
     { name = "semgrep", specifier = "==1.162.0" },
-    { name = "types-setuptools" },
+    { name = "types-python-crontab" },
     { name = "zensical", specifier = "==0.0.41" },
     { name = "zizmor", specifier = "==1.24.1" },
 ]
@@ -780,7 +780,7 @@ lint = [
     { name = "pyrefly", specifier = "==0.64.1" },
     { name = "ruff", specifier = "==0.15.12" },
     { name = "semgrep", specifier = "==1.162.0" },
-    { name = "types-setuptools" },
+    { name = "types-python-crontab" },
     { name = "zizmor", specifier = "==1.24.1" },
 ]
 test = [
@@ -2092,12 +2092,24 @@ wheels = [
 ]
 
 [[package]]
-name = "types-setuptools"
-version = "82.0.0.20260408"
+name = "types-croniter"
+version = "6.2.2.20260508"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c3/12/3464b410c50420dd4674fa5fe9d3880711c1dbe1a06f5fe4960ee9067b9e/types_setuptools-82.0.0.20260408.tar.gz", hash = "sha256:036c68caf7e672a699f5ebbf914708d40644c14e05298bc49f7272be91cf43d3", size = 44861, upload-time = "2026-04-08T04:29:33.292Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/e0/06272cc8dea1d0f0599a150c81e44c4f21270d40cfd10117c2e4fbfa1503/types_croniter-6.2.2.20260508.tar.gz", hash = "sha256:fdbe8984b4a490b2ea446a308fb4d1998214312c90e4b09d6271bc4fa0456e7e", size = 12077, upload-time = "2026-05-08T04:46:30.761Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/e1/46a4fc3ef03aabf5d18bac9df5cf37c6b02c3bddf3e05c3533f4b4588331/types_setuptools-82.0.0.20260408-py3-none-any.whl", hash = "sha256:ece0a215cdfa6463a65fd6f68bd940f39e455729300ddfe61cab1147ed1d2462", size = 68428, upload-time = "2026-04-08T04:29:32.175Z" },
+    { url = "https://files.pythonhosted.org/packages/23/86/856e2b7795d74ce30e685390ccb61ce0a075b6e4111e88c49fafaca8ed0d/types_croniter-6.2.2.20260508-py3-none-any.whl", hash = "sha256:9038aa3fa264ef16a4e1034f8f8a1fcc7d73da4c56ed1f508e008abab8773bad", size = 9732, upload-time = "2026-05-08T04:46:29.738Z" },
+]
+
+[[package]]
+name = "types-python-crontab"
+version = "3.3.0.20260508"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-croniter" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/9e/056bea22686b6dfe5b14a4634cb46ecd7c2003b570bc8f3aee54a9a63117/types_python_crontab-3.3.0.20260508.tar.gz", hash = "sha256:007405eaf648e4f9782874639ee02961704ce82173e78d7b89945282eb075197", size = 12120, upload-time = "2026-05-08T04:50:30.83Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/d4/ce334efe87c1645d2f67bf36f145b09f0e5385c348667b655ebbdacc7082/types_python_crontab-3.3.0.20260508-py3-none-any.whl", hash = "sha256:fffe8d604c52c90f14ed95fa94ab5c5b92f7cf38aa62fc312a252b488e3ab192", size = 11967, upload-time = "2026-05-08T04:50:29.646Z" },
 ]
 
 [[package]]

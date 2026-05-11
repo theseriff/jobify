@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Protocol, cast
 
-from crontab import CronTab as _CronTab  # pyrefly: ignore [untyped-import]
+from crontab import CronTab as _CronTab
 from typing_extensions import override
 
 from jobify._internal.cron_parser import CronParser
