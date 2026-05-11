@@ -1,11 +1,12 @@
 import multiprocessing
 import random
 import sys
+import uuid
 from collections.abc import Collection, Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, NamedTuple, TypedDict
+from typing import Any, NamedTuple, Protocol, TypedDict
 from zoneinfo import ZoneInfo
 
 from jobify._internal.common.constants import INFINITY, RunMode
@@ -21,6 +22,10 @@ from jobify._internal.scheduler.misfire_policy import (
 from jobify._internal.serializers.base import Serializer
 from jobify._internal.storage.base import Storage
 from jobify._internal.typeadapter.base import Dumper, Loader
+
+
+class UUIDGenerator(Protocol):
+    def __call__(self) -> uuid.UUID: ...
 
 
 class WorkerPools:
@@ -64,6 +69,7 @@ class JobifyConfiguration:
         "serializer",
         "storage",
         "tz",
+        "uuid_generator",
         "worker_pools",
     )
 
@@ -78,6 +84,7 @@ class JobifyConfiguration:
         serializer: Serializer,
         worker_pools: WorkerPools,
         cron_factory: CronFactory,
+        uuid_generator: UUIDGenerator,
         app_started: bool = False,
     ) -> None:
         self.tz = tz
@@ -88,6 +95,7 @@ class JobifyConfiguration:
         self.serializer = serializer
         self.worker_pools = worker_pools
         self.cron_factory = cron_factory
+        self.uuid_generator = uuid_generator
         self.app_started = app_started
 
 

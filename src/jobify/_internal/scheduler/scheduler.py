@@ -4,7 +4,6 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Generic, TypeVar, cast
-from uuid import uuid4
 
 from jobify._internal.common.constants import JobStatus
 from jobify._internal.common.datastructures import RequestState, State
@@ -282,7 +281,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         """
         job = Job[ReturnT](
             exec_at=self.now(),
-            job_id=uuid4().hex,
+            job_id=self._configs.uuid_generator().hex,
             storage=self._configs.storage,
             unregister_hook=self._task_tracker.unregister_job,
         )
@@ -392,7 +391,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         *,
         replace: bool,
     ) -> tuple[str, Job[ReturnT] | None]:
-        job_id = job_id or uuid4().hex
+        job_id = job_id or self._configs.uuid_generator().hex
         if job := self._task_tracker.pending_jobs.get(job_id):
             if replace is True:
                 return (job_id, job)

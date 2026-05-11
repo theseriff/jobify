@@ -8,6 +8,7 @@ import logging
 import signal
 import sys
 import threading
+import uuid
 from contextlib import contextmanager
 from typing import (
     TYPE_CHECKING,
@@ -23,7 +24,12 @@ from zoneinfo import ZoneInfo
 from typing_extensions import Self
 
 from jobify._internal.common.constants import EMPTY, PATCH_CRON_DEF_ID
-from jobify._internal.configuration import Cron, JobifyConfiguration, WorkerPools
+from jobify._internal.configuration import (
+    Cron,
+    JobifyConfiguration,
+    UUIDGenerator,
+    WorkerPools,
+)
 from jobify._internal.message import (
     AtArguments,
     CronArguments,
@@ -138,6 +144,7 @@ class Jobify(RootRouter):
         processpool_executor: ProcessPoolExecutor | None = None,
         route_class: type[RootRoute[..., Any]] = RootRoute,
         plugins: Sequence[Plugin] = (),
+        uuid_generator: UUIDGenerator = uuid.uuid4,
     ) -> None:
         """Initialize a `Jobify` instance.
 
@@ -158,6 +165,7 @@ class Jobify(RootRouter):
             processpool_executor: Executor for process-based jobs.
             route_class: Class to use for root routes.
             plugins: List of plugins to register.
+            uuid_generator: uuid generator factory.
 
         """
         getloop = cache_result(loop_factory)
@@ -208,6 +216,7 @@ class Jobify(RootRouter):
                 threadpool=threadpool_executor,
             ),
             cron_factory=cron_factory,
+            uuid_generator=uuid_generator,
         )
         idle_event = asyncio.Event()
         idle_event.set()
