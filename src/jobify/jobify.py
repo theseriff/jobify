@@ -256,7 +256,7 @@ class Jobify(RootRouter):
             The initialized Jobify instance ready for use.
 
         Raises:
-            Any exception raised by `startup()` method.
+            Exception: Any exception raised by `startup()` method.
 
         """
         await self.startup()
@@ -271,8 +271,8 @@ class Jobify(RootRouter):
         3. Schedules any pending cron jobs
 
         Raises:
-            RuntimeError: If application startup fails due to configuration
-            issues or router initialization errors.
+            RuntimeError: If application startup fails due to configuration issues or
+                router initialization errors.
 
         """
 
