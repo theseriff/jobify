@@ -28,7 +28,7 @@
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
 - [When to Choose Jobify](#when-to-choose-jobify)
-- [Roadmap](#roadmap)
+- [Roadmap](https://github.com/theseriff/jobify/issues/107)
 - [License](#license)
 
 ## Why Jobify
