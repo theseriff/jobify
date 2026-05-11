@@ -22,13 +22,13 @@ async def test_app_runtime_error() -> None:
 
     reason = "The Jobify application is not started."
     with pytest.raises(ApplicationStateError, match=reason):
-        _ = await f.schedule().delay(0)
+        await f.schedule().delay(0)
 
     async with app:
         reason = "The Jobify app's already running and configuration is frozen."
 
         with pytest.raises(ApplicationStateError, match=reason):
-            _ = app.task(f, name="test1")
+            app.task(f, name="test1")
 
         with pytest.raises(ApplicationStateError, match=reason):
             app.add_middleware(Mock())
@@ -51,7 +51,7 @@ async def test_job_not_completed() -> None:
         job = await f1.schedule(1).delay(0)
         match = "Job result is not ready"
         with pytest.raises(JobNotCompletedError, match=match):
-            _ = job.result()
+            job.result()
 
         expected_val = 2
         await job.wait()
