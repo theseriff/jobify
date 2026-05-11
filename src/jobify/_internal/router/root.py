@@ -22,7 +22,7 @@ from jobify._internal.common.constants import (
     PATCH_FUNC_NAME,
     JobStatus,
 )
-from jobify._internal.configuration import Cron
+from jobify._internal.configuration import Cron, SmartRetry
 from jobify._internal.context import inject_context
 from jobify._internal.exceptions import (
     raise_app_already_started_error,
@@ -55,10 +55,7 @@ if TYPE_CHECKING:
         Lifespan,
         MappingExceptionHandlers,
     )
-    from jobify._internal.configuration import (
-        JobifyConfiguration,
-        RouteOptions,
-    )
+    from jobify._internal.configuration import JobifyConfiguration, RouteOptions
     from jobify._internal.context import JobContext, OuterContext
     from jobify._internal.middleware.base import BaseMiddleware, CallNext
     from jobify._internal.router.node import NodeRouter
@@ -239,6 +236,10 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
         if isinstance(self._jobify_config.serializer, ExtendedJSONSerializer):
             hints = get_type_hints(func)
             self._jobify_config.serializer.register_hints(hints.values())
+
+        retry = options.get("retry")
+        if isinstance(retry, int):
+            options["retry"] = SmartRetry(retries=retry)
 
         strategy = create_run_strategy(
             func,

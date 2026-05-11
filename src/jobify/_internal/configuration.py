@@ -1,10 +1,11 @@
 import multiprocessing
+import random
 import sys
 from collections.abc import Collection, Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, TypedDict
 from zoneinfo import ZoneInfo
 
 from jobify._internal.common.constants import INFINITY, RunMode
@@ -109,9 +110,50 @@ class Cron:
 class RouteOptions(TypedDict, total=False):
     name: str
     cron: Cron | str
-    retry: int
+    retry: "int | SmartRetry"
     timeout: float
     durable: bool
     run_mode: RunMode
     metadata: Mapping[str, Any]
     exception_handlers: MappingExceptionHandlers
+
+
+class SmartRetry(NamedTuple):
+    """Immutable configuration and delay logic for retrying failed operations.
+
+    Uses exponential backoff with optional equal jitter to spread retry load.
+    Designed as a value object: cheap to copy, safe to share across threads.
+
+    Attributes:
+        retries: Number of retries that should be performed after the first failure.
+            Must be >= 0. A value of 0 means no retries.
+        initial_delay: Base delay in seconds before the first retry.
+        max_delay: Upper bound on computed delay, regardless of backoff growth.
+        backoff_factor: Multiplier applied per retry. ``1.0`` gives constant
+            delay, ``2.0`` gives classic exponential backoff.
+        jitter: If ``True``, randomises delay in ``[delay/2, delay]`` to avoid
+            thundering-herd. If ``False``, delay is deterministic.
+        include_exceptions: Exception types that trigger a retry.
+            Defaults to ``(Exception,) — retries on anything.
+        exclude_exceptions: Exception types that are re-raised immediately,
+            even if they match ``include_exceptions``. Takes priority.
+
+    """
+
+    retries: int
+    initial_delay: float = 0.5
+    max_delay: float = 60.0
+    backoff_factor: float = 2.0
+    jitter: bool = True
+    include_exceptions: tuple[type[Exception], ...] = (Exception,)
+    exclude_exceptions: tuple[type[Exception], ...] = ()
+
+    def compute_delay(self, attempt: int) -> float:
+        delay = min(
+            self.initial_delay * self.backoff_factor ** (attempt - 1),
+            self.max_delay,
+        )
+        if self.jitter:
+            delay /= 2
+            return delay + random.uniform(0, delay)  # nosec # noqa: S311
+        return delay

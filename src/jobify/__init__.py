@@ -9,16 +9,13 @@ from importlib.metadata import version as get_version
 
 from jobify._internal.common.constants import JobStatus, RunMode
 from jobify._internal.common.datastructures import RequestState, State
-from jobify._internal.configuration import Cron
+from jobify._internal.configuration import Cron, SmartRetry
 from jobify._internal.context import JobContext, OuterContext
 from jobify._internal.inspection import INJECT
 from jobify._internal.router.node import NodeRouter as JobRouter
 from jobify._internal.runners import Runnable
 from jobify._internal.scheduler.job import CronContext, Job
-from jobify._internal.scheduler.misfire_policy import (
-    GracePolicy,
-    MisfirePolicy,
-)
+from jobify._internal.scheduler.misfire_policy import GracePolicy, MisfirePolicy
 from jobify._internal.scheduler.scheduler import ScheduleBuilder
 from jobify.jobify import Jobify, Plugin
 
@@ -40,5 +37,6 @@ __all__ = (
     "RunMode",
     "Runnable",
     "ScheduleBuilder",
+    "SmartRetry",
     "State",
 )
