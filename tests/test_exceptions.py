@@ -4,8 +4,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from jobify._internal.exceptions import (
+from jobify import JobStatus
+from jobify.exceptions import (
     ApplicationStateError,
+    JobFailedError,
     JobNotCompletedError,
     JobTimeoutError,
 )
@@ -88,3 +90,36 @@ async def test_job_timeout() -> None:
         assert type(job2.exception) is JobTimeoutError
         assert str(job2.exception) == match.format(id=job2.id, timeout=timeout)
         assert job3.result() == "test"
+
+
+async def test_job_failed_error() -> None:
+    app = create_app()
+
+    @app.task
+    def f() -> None:
+        msg = "inner"
+        raise ValueError(msg)
+
+    async with app:
+        job = await f.push()
+        await job.wait()
+        assert job.status is JobStatus.FAILED
+
+        with pytest.raises(JobFailedError) as exc_info:
+            job.result()
+
+        assert exc_info.value.job_id == job.id
+        assert "inner" in exc_info.value.reason
+        assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+async def test_app_not_started_push() -> None:
+    app = create_app()
+
+    @app.task
+    def f() -> None: ...
+
+    with pytest.raises(
+        ApplicationStateError, match="The Jobify application is not started\\."
+    ):
+        await f.push()

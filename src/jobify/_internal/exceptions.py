@@ -102,12 +102,3 @@ def raise_app_already_started_error(operation: str) -> NoReturn:
             "Move this call outside/before the 'async with jobify:' block."
         ),
     )
-
-
-class NoResultError(BaseJobifyError):
-    """Raised when a task should fail immediately without retrying."""
-
-    def __init__(
-        self, msg: str = "Job aborted: no result expected and retries stopped."
-    ) -> None:
-        super().__init__(msg)
