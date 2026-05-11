@@ -22,10 +22,14 @@ from jobify._internal.serializers.base import Serializer
 from jobify._internal.serializers.json import JSONSerializer
 from jobify._internal.serializers.json_extended import ExtendedJSONSerializer
 from jobify._internal.serializers.pickle_unsafe import UnsafePickleSerializer
+from jobify.serializers.cbor import CBORSerializer
+from jobify.serializers.orjson import OrjsonSerializer
 
 __all__ = (
+    "CBORSerializer",
     "ExtendedJSONSerializer",
     "JSONSerializer",
+    "OrjsonSerializer",
     "Serializer",
     "UnsafePickleSerializer",
 )

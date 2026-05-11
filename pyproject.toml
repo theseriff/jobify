@@ -49,10 +49,17 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "crontab==1.0.5",
-    "tzdata==2026.2; sys_platform == 'win32'",
+    "crontab>=1.0.5,<2",
+    "tzdata>=2026.2; sys_platform == 'win32'",
     "typing-extensions>=4.12.0",
 ]
+
+[project.optional-dependencies]
+cbor = ["cbor2>=6.0.0,<7"]
+msgpack = ["msgpack>=1.0.7,<2"]
+orjson = ["orjson>=3.0.0,<4"]
+uuid-utils = ["uuid-utils>=0.10.0,<1"]
+fast = ["jobify[orjson,uuid-utils]"]
 
 [dependency-groups]
 lint = [
@@ -142,6 +149,7 @@ exclude_also = [
     "raise NotImplementedError",
     "pass",
     '\.\.\.',
+    "ImportError",
 ]
 omit = [
     "*/__init__.py",
@@ -178,6 +186,7 @@ show_error_context = true
 show_column_numbers = true
 check_untyped_defs = true
 namespace_packages = true
+follow_untyped_imports = true
 
 [tool.semgrep]
 paths = ["src"]

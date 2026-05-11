@@ -11,9 +11,11 @@ from jobify._internal.serializers.json_extended import SupportedTypes
 from jobify.serializers import (
     ExtendedJSONSerializer,
     JSONSerializer,
+    OrjsonSerializer,
     Serializer,
     UnsafePickleSerializer,
 )
+from jobify.serializers.cbor import CBORSerializer
 
 
 class EnumTest(Enum):
@@ -123,7 +125,11 @@ def test_serialization_extended(
 
 @pytest.mark.parametrize(
     "serializer",
-    [pytest.param(JSONSerializer(), id="json")],
+    [
+        pytest.param(JSONSerializer(), id="json"),
+        pytest.param(CBORSerializer(), id="cbor"),
+        pytest.param(OrjsonSerializer(), id="orjson"),
+    ],
 )
 @pytest.mark.parametrize(
     "data",

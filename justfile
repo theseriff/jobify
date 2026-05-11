@@ -13,7 +13,7 @@ default:
 [doc("Prepare venv and repo for developing")]
 [group("Common")]
 init:
-  uv sync --group dev
+  uv sync --group dev --all-extras
   just _pre-commit install
 
 
