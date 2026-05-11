@@ -93,6 +93,22 @@ class JobifyConfiguration:
 
 @dataclass(slots=True, kw_only=True, order=True)
 class Cron:
+    """Configuration for cron-based job scheduling.
+
+    Attributes:
+        expression: The crontab-formatted expression.
+        max_runs: Maximum number of times the job can be triggered.
+            Defaults to infinity.
+        max_failures: Maximum number of consecutive failures before disabling the job.
+            Defaults to 10.
+        misfire_policy: Policy to handle missed job executions.
+            Defaults to MisfirePolicy.ONCE.
+        start_date: Optional datetime when the cron job becomes active.
+        args: Positional arguments to pass to the job.
+        kwargs: Keyword arguments to pass to the job.
+
+    """
+
     expression: str = field(kw_only=False)
     max_runs: int = INFINITY
     max_failures: int = 10

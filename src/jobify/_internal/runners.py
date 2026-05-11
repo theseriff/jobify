@@ -82,6 +82,20 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
 
 
 class Runnable(Generic[ReturnT]):
+    """Represents a job function that is ready for execution.
+
+    `Runnable` encapsulates the function, its bound arguments, and the
+    execution strategy (async, thread pool, or process pool).
+
+    Attributes:
+        name: The name of the job.
+        strategy: The execution strategy used to run the job.
+        bound: The bound arguments of the job function.
+        origin_arguments: The original arguments before any modifications.
+        func_spec: Inspection details of the job function.
+
+    """
+
     __slots__: tuple[str, ...] = (
         "bound",
         "func_spec",
@@ -105,6 +119,7 @@ class Runnable(Generic[ReturnT]):
         self.func_spec = func_spec
 
     def __call__(self) -> Awaitable[ReturnT]:
+        """Execute the job using the assigned strategy."""
         return self.strategy(*self.bound.args, **self.bound.kwargs)
 
 

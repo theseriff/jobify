@@ -8,13 +8,8 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import override
 
-from jobify._internal.common.constants import EMPTY, JobStatus
-from jobify._internal.common.types import STOP
-from jobify._internal.storage.base import (
-    ScheduledJob,
-    Storage,
-    validate_table_name,
-)
+from jobify._internal.common.constants import EMPTY, STOP, JobStatus
+from jobify._internal.storage.base import ScheduledJob, Storage, validate_table_name
 
 if TYPE_CHECKING:
     from concurrent.futures import ThreadPoolExecutor

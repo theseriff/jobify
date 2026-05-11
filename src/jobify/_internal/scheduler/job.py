@@ -20,6 +20,18 @@ ReturnT = TypeVar("ReturnT")
 
 
 class CronContext(Generic[ReturnT]):
+    """Holds configuration and state for a cron-based job.
+
+    Attributes:
+        cron: The cron configuration.
+        cron_parser: The parser used to calculate next run times.
+        failure_count: Number of consecutive failures.
+        job: The associated job instance.
+        offset: The base datetime from which the next run is calculated.
+        run_count: Number of times this job has been executed.
+
+    """
+
     __slots__: tuple[str, ...] = (
         "cron",
         "cron_parser",
@@ -39,6 +51,17 @@ class CronContext(Generic[ReturnT]):
         offset: datetime,
         run_count: int,
     ) -> None:
+        """Initialize the CronContext.
+
+        Args:
+            cron: The cron configuration.
+            cron_parser: The parser used to calculate next run times.
+            failure_count: Initial failure count.
+            job: The associated job instance.
+            offset: The base datetime.
+            run_count: Initial run count.
+
+        """
         self.cron = cron
         self.cron_parser = cron_parser
         self.failure_count = failure_count
@@ -47,15 +70,37 @@ class CronContext(Generic[ReturnT]):
         self.run_count = run_count
 
     def is_run_exceeded_by_limit(self) -> bool:
+        """Check if the maximum number of runs has been exceeded.
+
+        Returns:
+            True if the run limit is reached, False otherwise.
+
+        """
         if self.cron.max_runs == INFINITY:
             return False
         return self.run_count >= self.cron.max_runs
 
     def is_failure_allowed_by_limit(self) -> bool:
+        """Check if the job can still fail based on the allowed limit.
+
+        Returns:
+            True if the failure limit has not been reached, False otherwise.
+
+        """
         return self.failure_count < self.cron.max_failures
 
 
 class Job(Generic[ReturnT]):
+    """Represents a scheduled job.
+
+    Attributes:
+        id: Unique identifier for the job.
+        status: Current status of the job.
+        exec_at: The scheduled execution time.
+        exception: The exception raised, if any.
+
+    """
+
     __slots__: tuple[str, ...] = (
         "_cron_context",
         "_event",
@@ -78,6 +123,16 @@ class Job(Generic[ReturnT]):
         unregister_hook: Callable[[str], None],
         job_status: JobStatus = JobStatus.PENDING,
     ) -> None:
+        """Initialize the Job.
+
+        Args:
+            job_id: Unique identifier for the job.
+            storage: Storage backend.
+            exec_at: The scheduled execution time.
+            unregister_hook: Callback to unregister the job.
+            job_status: Initial status of the job.
+
+        """
         self._unregister_hook = unregister_hook
         self._event = asyncio.Event()
         self._result: ReturnT = EMPTY
@@ -93,6 +148,7 @@ class Job(Generic[ReturnT]):
 
     @property
     def cron_expression(self) -> str | None:
+        """Return the cron expression if this is a cron job, else None."""
         if self._cron_context is not None:
             return self._cron_context.cron.expression
         return None
@@ -119,12 +175,34 @@ class Job(Generic[ReturnT]):
         return _await().__await__()
 
     def bind_handle(self, handle: asyncio.Handle) -> None:
+        """Bind an asyncio handle to the job.
+
+        Args:
+            handle: The handle to bind.
+
+        """
         self._handle = handle
 
     def bind_cron_context(self, ctx: CronContext[ReturnT]) -> None:
+        """Bind a cron context to the job.
+
+        Args:
+            ctx: The cron context to bind.
+
+        """
         self._cron_context = ctx
 
     def result(self) -> ReturnT:
+        """Return the result of the job.
+
+        Returns:
+            The job result.
+
+        Raises:
+            JobFailedError: If the job failed.
+            JobNotCompletedError: If the job is not yet completed.
+
+        """
         if self.status is JobStatus.SUCCESS or self._result is not EMPTY:
             return self._result
         if self.status is JobStatus.FAILED:
@@ -135,25 +213,64 @@ class Job(Generic[ReturnT]):
         raise JobNotCompletedError
 
     def set_result(self, val: ReturnT, *, status: JobStatus) -> None:
+        """Set the result of the job.
+
+        Args:
+            val: The job result.
+            status: The status to set.
+
+        """
         self._result = val
         self.status = status
 
     def set_exception(self, exc: Exception, *, status: JobStatus) -> None:
+        """Set the exception for the job.
+
+        Args:
+            exc: The exception to set.
+            status: The status to set.
+
+        """
         self.exception = exc
         self.status = status
 
     def update(self, *, exec_at: datetime, status: JobStatus) -> None:
+        """Update the job schedule and status.
+
+        Args:
+            exec_at: The new scheduled time.
+            status: The new status.
+
+        """
         self._event = asyncio.Event()
         self.status = status
         self.exec_at = exec_at
 
     def is_done(self) -> bool:
+        """Check if the job is done.
+
+        Returns:
+            True if the job is done, False otherwise.
+
+        """
         return self._event.is_set()
 
     def is_cron(self) -> bool:
+        """Check if this is a cron job.
+
+        Returns:
+            True if it's a cron job, False otherwise.
+
+        """
         return self._cron_context is not None
 
     def is_reschedulable(self) -> bool:
+        """Check if the job can be rescheduled.
+
+        Returns:
+            True if reschedulable, False otherwise.
+
+        """
         return self.status not in (
             JobStatus.PERMANENTLY_FAILED,
             JobStatus.CANCELLED,
@@ -165,14 +282,16 @@ class Job(Generic[ReturnT]):
         If the job is already completed, this method returns immediately.
         Safe for concurrent use by multiple coroutines.
         """
-        _ = await self._event.wait()
+        await self._event.wait()
 
     async def cancel(self) -> None:
+        """Cancel the job."""
         self.status = JobStatus.CANCELLED
         self._cancel()
         await self._storage.delete_schedule(self.id)
 
     def _cancel(self) -> None:
+        """Handle cancellation internally."""
         self._event.set()
         self._unregister_hook(self.id)
         if self._handle is not None:

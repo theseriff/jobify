@@ -19,20 +19,46 @@ if TYPE_CHECKING:
 
 
 class CronTab(CronParser):
-    """Cron expression parser based on the `crontab` library."""
+    """Cron expression parser based on the `crontab` library.
+
+    Attributes:
+        _entry: Internal CronTab instance.
+
+    """
 
     __slots__: tuple[str, ...] = ("_entry",)
 
     def __init__(self, expression: str) -> None:
-        """Initialize a CronTab parser."""
+        """Initialize a CronTab parser.
+
+        Args:
+            expression: The crontab-formatted expression.
+
+        """
         self._entry = cast("CronTabStub", _CronTab(expression))
 
     @override
     def next_run(self, *, now: datetime) -> datetime:
-        """Compute the next scheduled execution time."""
+        """Compute the next scheduled execution time.
+
+        Args:
+            now: The reference datetime.
+
+        Returns:
+            The next scheduled execution datetime.
+
+        """
         return self._entry.next(now=now, return_datetime=True)
 
 
 def create_crontab(expression: str) -> CronTab:
-    """Create a CronTab instance."""
+    """Create a CronTab instance.
+
+    Args:
+        expression: The crontab-formatted expression.
+
+    Returns:
+        A CronTab parser instance.
+
+    """
     return CronTab(expression)

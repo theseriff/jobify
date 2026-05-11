@@ -30,7 +30,15 @@ class EmptyPlaceholder(str):
 
 
 class State(UserDict[str, Any]):
-    """An object that can be used to store arbitrary state."""
+    """An object that can be used to store arbitrary state.
+
+    This class provides dictionary-like access to state data, allowing for both
+    key-based and attribute-based access.
+
+    Args:
+        state: Initial state dictionary.
+
+    """
 
     data: dict[str, Any]
     __slots__: tuple[str, ...] = ("data",)
@@ -59,4 +67,5 @@ class State(UserDict[str, Any]):
         return f"{cls_name}({super().__str__()})"
 
 
-class RequestState(State): ...
+class RequestState(State):
+    """An object that can be used to store state specific to a request."""

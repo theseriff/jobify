@@ -8,6 +8,13 @@ from jobify._internal.cron_parser import CronParser
 
 
 class GracePolicy(NamedTuple):
+    """Grace period policy for handling misfired jobs.
+
+    Attributes:
+        value: The duration of the grace period.
+
+    """
+
     value: timedelta
 
     @override
@@ -16,6 +23,15 @@ class GracePolicy(NamedTuple):
 
 
 class MisfirePolicy(str, Enum):
+    """Policy for handling jobs that missed their scheduled run time.
+
+    Attributes:
+        ALL: Run all missed executions.
+        SKIP: Skip missed executions and schedule the next one.
+        ONCE: Run once immediately.
+
+    """
+
     ALL = "all"
     SKIP = "skip"
     ONCE = "once"
@@ -32,6 +48,18 @@ def handle_misfire_policy(
     real_now: datetime,
     policy: MisfirePolicy | GracePolicy,
 ) -> datetime:
+    """Handle job misfire based on the provided policy.
+
+    Args:
+        cron_parser: Parser to calculate next run time if needed.
+        next_run_at: The original scheduled execution time.
+        real_now: The current time.
+        policy: The policy to apply when the job is missed.
+
+    Returns:
+        The adjusted execution time based on the applied policy.
+
+    """
     if next_run_at >= real_now:
         return next_run_at
 

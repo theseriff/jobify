@@ -112,6 +112,11 @@ class Jobify(RootRouter):
     It provides a flexible and extensible framework for defining, running,
     and persisting jobs, supporting various executors, middleware, and
     serialization options.
+
+    Attributes:
+        configs: Configuration object for the application.
+        plugins: Set of registered plugins.
+
     """
 
     def __init__(  # noqa: PLR0913
@@ -134,7 +139,27 @@ class Jobify(RootRouter):
         route_class: type[RootRoute[..., Any]] = RootRoute,
         plugins: Sequence[Plugin] = (),
     ) -> None:
-        """Initialize a `Jobify` instance."""
+        """Initialize a `Jobify` instance.
+
+        Args:
+            tz: Timezone info, defaults to UTC.
+            state: Optional initial application state.
+            dumper: Dumper for serialization.
+            loader: Loader for deserialization.
+            storage: Storage backend, defaults to SQLite if not provided.
+            lifespan: Optional lifespan handler.
+            serializer: Serializer for job messages.
+            middleware: List of middleware components.
+            outer_middleware: List of outer middleware components.
+            cron_factory: Factory function for cron parsing.
+            loop_factory: Factory function for the event loop.
+            exception_handlers: Mapping of exception types to handlers.
+            threadpool_executor: Executor for thread-based jobs.
+            processpool_executor: Executor for process-based jobs.
+            route_class: Class to use for root routes.
+            plugins: List of plugins to register.
+
+        """
         getloop = cache_result(loop_factory)
         tz = tz or ZoneInfo("UTC")
 

@@ -30,6 +30,7 @@ nav = [
         "advanced_usage/exception_handlers.md",
         "advanced_usage/system_time.md",
         "advanced_usage/queue.md",
+        "advanced_usage/retry.md",
     ] },
 ]
 # ----------------------------------------------------------------------------

@@ -6,7 +6,7 @@ import pytest
 from typing_extensions import override
 
 from jobify import JobContext, JobStatus, OuterContext
-from jobify._internal.common.types import UNSET
+from jobify._internal.common.constants import UNSET
 from jobify._internal.configuration import SmartRetry
 from jobify.middleware import (
     BaseMiddleware,
