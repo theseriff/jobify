@@ -30,21 +30,13 @@ class RunStrategy(ABC, Generic[ParamsT, ReturnT]):
         self.func: Final = func
 
     @abstractmethod
-    async def __call__(
-        self,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> ReturnT:
+    async def __call__(self, *args: ParamsT.args, **kwargs: ParamsT.kwargs) -> ReturnT:
         raise NotImplementedError
 
 
 class SyncStrategy(RunStrategy[ParamsT, ReturnT]):
     @override
-    async def __call__(
-        self,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> ReturnT:
+    async def __call__(self, *args: ParamsT.args, **kwargs: ParamsT.kwargs) -> ReturnT:
         return self.func(*args, **kwargs)
 
 
@@ -72,11 +64,7 @@ class PoolStrategy(RunStrategy[ParamsT, ReturnT]):
         self.getloop: LoopFactory = getloop
 
     @override
-    async def __call__(
-        self,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> ReturnT:
+    async def __call__(self, *args: ParamsT.args, **kwargs: ParamsT.kwargs) -> ReturnT:
         func_call = functools.partial(self.func, *args, **kwargs)
         return await self.getloop().run_in_executor(self.executor, func_call)
 

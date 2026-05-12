@@ -759,9 +759,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-adaptix = [
-    { name = "adaptix" },
-]
 cbor = [
     { name = "cbor2" },
 ]
@@ -783,17 +780,20 @@ uuid-utils = [
 ]
 
 [package.dev-dependencies]
+adaptix = [
+    { name = "adaptix" },
+]
 benchmarks = [
-    { name = "jobify", extra = ["adaptix"] },
+    { name = "adaptix" },
     { name = "psutil" },
 ]
 dev = [
+    { name = "adaptix" },
     { name = "bandit" },
     { name = "codespell" },
     { name = "covdefaults" },
     { name = "coverage", extra = ["toml"] },
     { name = "detect-secrets" },
-    { name = "jobify", extra = ["adaptix"] },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mypy" },
     { name = "mypy-extensions" },
@@ -826,6 +826,7 @@ lint = [
     { name = "zizmor" },
 ]
 test = [
+    { name = "adaptix" },
     { name = "covdefaults" },
     { name = "coverage", extra = ["toml"] },
     { name = "pytest" },
@@ -836,7 +837,6 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "adaptix", marker = "extra == 'adaptix'", specifier = ">=3.0.0b1,<4" },
     { name = "cbor2", marker = "extra == 'cbor'", specifier = ">=6.0.0,<7" },
     { name = "crontab", specifier = ">=1.0.5,<2" },
     { name = "jobify", extras = ["orjson", "uuid-utils"], marker = "extra == 'fast'" },
@@ -847,20 +847,21 @@ requires-dist = [
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2026.2" },
     { name = "uuid-utils", marker = "extra == 'uuid-utils'", specifier = ">=0.10.0,<1" },
 ]
-provides-extras = ["fast", "cbor", "msgpack", "orjson", "uuid-utils", "pydantic", "adaptix"]
+provides-extras = ["fast", "cbor", "msgpack", "orjson", "uuid-utils", "pydantic"]
 
 [package.metadata.requires-dev]
+adaptix = [{ name = "adaptix", specifier = ">=3.0.0b1,<4" }]
 benchmarks = [
-    { name = "jobify", extras = ["adaptix"] },
+    { name = "adaptix", specifier = ">=3.0.0b1,<4" },
     { name = "psutil", specifier = "==7.2.2" },
 ]
 dev = [
+    { name = "adaptix", specifier = ">=3.0.0b1,<4" },
     { name = "bandit", specifier = "==1.9.4" },
     { name = "codespell", specifier = "==2.4.2" },
     { name = "covdefaults", specifier = ">=2.3.0" },
     { name = "coverage", extras = ["toml"], specifier = "==7.13.5" },
     { name = "detect-secrets", specifier = "==1.5.0" },
-    { name = "jobify", extras = ["adaptix"] },
     { name = "mkdocstrings", extras = ["python"], specifier = "==1.0.4" },
     { name = "mypy", specifier = "==2.0.0" },
     { name = "mypy-extensions", specifier = "==1.1.0" },
@@ -893,6 +894,7 @@ lint = [
     { name = "zizmor", specifier = "==1.24.1" },
 ]
 test = [
+    { name = "adaptix", specifier = ">=3.0.0b1,<4" },
     { name = "covdefaults", specifier = ">=2.3.0" },
     { name = "coverage", extras = ["toml"], specifier = "==7.13.5" },
     { name = "pytest", specifier = "==9.0.3" },

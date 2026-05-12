@@ -6,20 +6,11 @@ import uuid
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Final,
-    Generic,
-    ParamSpec,
-    TypeVar,
-    cast,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 
 from typing_extensions import Unpack, override
 
-from jobify._internal.common.constants import PATCH_FUNC_NAME
+from jobify._internal.common.constants import PATCH_FUNC_NAME, UNSET
 from jobify._internal.common.datastructures import State
 from jobify._internal.exceptions import RouteAlreadyRegisteredError
 
@@ -144,8 +135,9 @@ class Registrator(ABC, Generic[Route_co]):
         self._routes: dict[str, Route_co] = {}
         self._middleware: list[BaseMiddleware] = list(middleware or [])
         self._outer_middleware: list[BaseOuterMiddleware] = list(outer_middleware or [])
-        self._state_lifespan: Final = self._iter_lifespan(lifespan or dummy_lifespan)
+        self._state_lifespan: AsyncIterator[None] = UNSET
         self._exception_handlers: ExceptionHandlers = dict(exception_handlers or {})
+        self._lifespan: Lifespan[Any] = lifespan or dummy_lifespan
         self.state: State = state or State()
         self.route_class: type[Route_co] = route_class
 
@@ -209,6 +201,14 @@ class Registrator(ABC, Generic[Route_co]):
     ) -> Route[ParamsT, Return_co]:
         raise NotImplementedError
 
+    async def emit_startup(self) -> None:
+        self._state_lifespan = self._iter_lifespan(self._lifespan)
+        await anext(self._state_lifespan)
+
+    async def emit_shutdown(self) -> None:
+        await anext(self._state_lifespan, None)
+        self._state_lifespan = UNSET
+
     async def _iter_lifespan(
         self,
         user_lifespan: Lifespan[Any],
@@ -217,12 +217,6 @@ class Registrator(ABC, Generic[Route_co]):
             if maybe_state is not None:
                 self.state.update(maybe_state)
             yield None
-
-    async def emit_startup(self) -> None:
-        await anext(self._state_lifespan)
-
-    async def emit_shutdown(self) -> None:
-        await anext(self._state_lifespan, None)
 
 
 @asynccontextmanager

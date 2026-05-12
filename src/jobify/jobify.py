@@ -490,14 +490,16 @@ class Jobify(RootRouter):
         self.configs.worker_pools.close()
         await self._propagate_shutdown()
         await self.configs.storage.shutdown()
+        self._raise_captured_signals()
 
+        logger.info("Jobify shutdown complete.")
+
+    def _raise_captured_signals(self) -> None:
         # If we did gracefully shut down due to a signal, try to
         # trigger the expected behaviour now; multiple signals would be
         # done LIFO, see https://stackoverflow.com/questions/48434964
         for captured_signal in reversed(self._captured_signals):
             signal.raise_signal(captured_signal)
-
-        logger.info("Jobify shutdown complete.")
 
     async def wait_all(self, timeout: float | None = None) -> None:
         """Wait for all currently scheduled jobs to complete.
