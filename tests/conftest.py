@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from jobify import Jobify
-from jobify._internal.common.constants import EMPTY
+from jobify._internal.common.constants import UNSET
 from jobify._internal.cron_parser import CronFactory, CronParser
 from jobify._internal.storage.sqlite import SQLiteStorage
 
@@ -25,7 +25,7 @@ async def storage() -> AsyncIterable[SQLiteStorage]:
     try:
         yield s
     finally:
-        if s._conn is not EMPTY:  # pragma: no cover
+        if s._conn is not UNSET:  # pragma: no cover
             s._conn.close()
         s.database.unlink()
 

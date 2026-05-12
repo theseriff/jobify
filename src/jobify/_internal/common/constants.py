@@ -3,11 +3,8 @@ from typing import Any, Final
 
 from typing_extensions import Sentinel
 
-from jobify._internal.common.datastructures import EmptyPlaceholder
-
 UNSET: Any = Sentinel("UNSET")
 STOP: Any = Sentinel("STOP")
-EMPTY: Final[Any] = EmptyPlaceholder()
 INFINITY: Final[int] = -1
 PATCH_FUNC_NAME: Final[str] = "__jobify_original"
 PATCH_CRON_DEF_ID: Final[str] = "__jobify_cron_definition"

@@ -2,15 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from jobify._internal.common.datastructures import EmptyPlaceholder, State
-
-
-def test_empty_placeholder() -> None:
-    empty = EmptyPlaceholder()
-    assert str(empty) == "__EMPTY__"
-    assert hash(empty) == hash("__EMPTY__")
-    assert bool(empty) is False
-    assert empty == EmptyPlaceholder()
+from jobify._internal.common.datastructures import State
 
 
 async def test_state() -> None:

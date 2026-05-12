@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
-from jobify._internal.common.constants import EMPTY, PATCH_CRON_DEF_ID
+from jobify._internal.common.constants import PATCH_CRON_DEF_ID, UNSET
 from jobify._internal.configuration import (
     Cron,
     JobifyConfiguration,
@@ -132,7 +132,7 @@ class Jobify(RootRouter):
         state: State | None = None,
         dumper: Dumper | None = None,
         loader: Loader | None = None,
-        storage: Storage | Literal[False] = EMPTY,
+        storage: Storage | Literal[False] = UNSET,
         lifespan: Lifespan[AppT] | None = None,
         serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
@@ -173,7 +173,7 @@ class Jobify(RootRouter):
 
         if storage is False:
             storage = DummyStorage()
-        elif storage is EMPTY:
+        elif storage is UNSET:
             storage = SQLiteStorage()
 
         if isinstance(storage, SQLiteStorage):

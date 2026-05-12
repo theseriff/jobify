@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import override
 
-from jobify._internal.common.constants import EMPTY, STOP, JobStatus
+from jobify._internal.common.constants import STOP, UNSET, JobStatus
 from jobify._internal.storage.base import ScheduledJob, Storage, validate_table_name
 
 if TYPE_CHECKING:
@@ -77,10 +77,10 @@ class SQLiteStorage(Storage):
         self.max_queue_size: int = max_queue_size
         self.threadpool: ThreadPoolExecutor | None = None
 
-        self._conn: sqlite3.Connection = EMPTY
-        self._loop: asyncio.AbstractEventLoop = EMPTY
-        self._queue: _AsyncQueue = EMPTY
-        self._worker_task: asyncio.Task[None] = EMPTY
+        self._conn: sqlite3.Connection = UNSET
+        self._loop: asyncio.AbstractEventLoop = UNSET
+        self._queue: _AsyncQueue = UNSET
+        self._worker_task: asyncio.Task[None] = UNSET
 
         self.create_scheduled_table_query: str = CREATE_SCHEDULED_TABLE_QUERY.format(
             table_name
@@ -114,20 +114,20 @@ class SQLiteStorage(Storage):
 
     @override
     async def shutdown(self) -> None:
-        if self._queue is not EMPTY:
+        if self._queue is not UNSET:
             await self._queue.put(STOP)
             await self._queue.join()
-            self._queue = EMPTY
+            self._queue = UNSET
 
-        if self._worker_task is not EMPTY:
+        if self._worker_task is not UNSET:
             await self._worker_task
-            self._worker_task = EMPTY
+            self._worker_task = UNSET
 
-        if self._conn is not EMPTY:
+        if self._conn is not UNSET:
             self._conn.close()
-            self._conn = EMPTY
+            self._conn = UNSET
 
-        self._loop = EMPTY
+        self._loop = UNSET
 
     async def _execute(self, callback: _Callback[ReturnT]) -> ReturnT:
         loop = self.getloop()

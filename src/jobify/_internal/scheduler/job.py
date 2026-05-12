@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 from typing_extensions import override
 
-from jobify._internal.common.constants import EMPTY, INFINITY, JobStatus
+from jobify._internal.common.constants import INFINITY, UNSET, JobStatus
 from jobify._internal.exceptions import JobFailedError, JobNotCompletedError
 
 if TYPE_CHECKING:
@@ -135,7 +135,7 @@ class Job(Generic[ReturnT]):
         """
         self._unregister_hook = unregister_hook
         self._event = asyncio.Event()
-        self._result: ReturnT = EMPTY
+        self._result: ReturnT = UNSET
         self._storage = storage
         self._handle: asyncio.Handle | None = None
         self._cron_context: CronContext[ReturnT] | None = None
@@ -203,7 +203,7 @@ class Job(Generic[ReturnT]):
             JobNotCompletedError: If the job is not yet completed.
 
         """
-        if self.status is JobStatus.SUCCESS or self._result is not EMPTY:
+        if self.status is JobStatus.SUCCESS or self._result is not UNSET:
             return self._result
         if self.status is JobStatus.FAILED:
             raise JobFailedError(
