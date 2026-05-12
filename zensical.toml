@@ -45,8 +45,7 @@ handlers = { python = { paths = ["src"] } }
 variant = "modern"
 logo = "images/logo.svg"
 favicon = "images/favicon.svg"
-# font.text = "Merriweather"
-font.text = "Bricolage Grotesque"
+font.text = "Merriweather"
 font.code = "Google Sans Code"
 
 # ----------------------------------------------------------------------------
