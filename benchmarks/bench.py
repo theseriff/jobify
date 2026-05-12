@@ -36,7 +36,7 @@ def write_results(results: str) -> None:
     print(results)
     benches_file = Path("./benchmarks/results.txt")
     with benches_file.open(mode="w", encoding="utf-8") as fp:
-        _ = fp.write(results.strip())
+        fp.write(results.strip())
     print(f"Results saved to: {benches_file}")
 
 
@@ -52,17 +52,11 @@ async def main() -> None:
         if cpu_info
         else "CPU Frequency: N/A",
         f"CPU Min Frequency: {cpu_info.min:.2f}MHz" if cpu_info else "",
-        f"CPU Current Frequency: {cpu_info.current:.2f}MHz"
-        if cpu_info
-        else "",
+        f"CPU Current Frequency: {cpu_info.current:.2f}MHz" if cpu_info else "",
     ]
     with timer(), gc_control():
-        results.extend(
-            enrich_results(serializers_measure(), name="Serializers")
-        )
-        results.extend(
-            enrich_results(await jobify_run_benchmarks(), name="Jobify APP")
-        )
+        results.extend(enrich_results(serializers_measure(), name="Serializers"))
+        results.extend(enrich_results(await jobify_run_benchmarks(), name="Jobify APP"))
     write_results("\n".join(results))
 
 

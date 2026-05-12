@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from typing_extensions import override
 
 from jobify._internal.common.constants import UNSET
 from jobify._internal.typeadapter.base import Dumper, Loader
-
-if TYPE_CHECKING:
-    from pydantic import ConfigDict
 
 try:
     import pydantic
@@ -31,7 +28,7 @@ class PydanticConverter(Loader, Dumper):
     def __init__(  # noqa: PLR0913
         self,
         *,
-        config: ConfigDict | None = None,
+        config: pydantic.ConfigDict | None = None,
         strict: bool | None = None,
         from_attributes: bool | None = None,
         by_alias: bool = False,

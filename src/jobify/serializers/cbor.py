@@ -2,21 +2,12 @@
 
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TypeAlias
 
 from typing_extensions import override
 
 from jobify._internal.common.constants import UNSET
 from jobify._internal.serializers.base import JSONCompat, Serializer
-
-if TYPE_CHECKING:
-    from cbor2 import (
-        EncoderHook,
-        ObjectHook,
-        SemanticDecoderCallback,
-        ShareableDecoderInitializer,
-        TagHook,
-    )
 
 try:
     import cbor2
@@ -24,9 +15,10 @@ except ImportError:
     cbor2 = UNSET
 
 
-SemanticDecoders: TypeAlias = (
-    "Mapping[int, SemanticDecoderCallback | ShareableDecoderInitializer] | None"
+_DecoderCall: TypeAlias = (
+    "cbor2.SemanticDecoderCallback | cbor2.ShareableDecoderInitializer"
 )
+SemanticDecoders: TypeAlias = "Mapping[int, _DecoderCall] | None"
 
 
 class CBORSerializer(Serializer):
@@ -42,15 +34,15 @@ class CBORSerializer(Serializer):
         datetime_as_timestamp: bool = False,
         timezone: datetime.tzinfo | None = None,
         value_sharing: bool = False,
-        encoders: Mapping[type, "EncoderHook"] | None = None,
-        default: "EncoderHook | None" = None,
+        encoders: Mapping[type, "cbor2.EncoderHook"] | None = None,
+        default: "cbor2.EncoderHook | None" = None,
         canonical: bool = False,
         date_as_datetime: bool = False,
         string_referencing: bool = False,
         indefinite_containers: bool = False,
         # Decoder options
-        tag_hook: "TagHook | None" = None,
-        object_hook: "ObjectHook | None" = None,
+        tag_hook: "cbor2.TagHook | None" = None,
+        object_hook: "cbor2.ObjectHook | None" = None,
         semantic_decoders: SemanticDecoders = None,
         str_errors: str = "strict",
         max_depth: int = 400,

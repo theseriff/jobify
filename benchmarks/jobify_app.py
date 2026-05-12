@@ -1,17 +1,18 @@
 import asyncio
 import time
-from typing import Literal, NamedTuple, cast
+from typing import NamedTuple
 
 from adaptix import Retort
 
 from jobify import Jobify
-from jobify._internal.common.constants import EMPTY
+from jobify._internal.common.constants import UNSET
 from jobify.serializers import (
     ExtendedJSONSerializer,
     JSONSerializer,
+    OrjsonSerializer,
     UnsafePickleSerializer,
 )
-from jobify.storage import SQLiteStorage, Storage
+from jobify.storage import SQLiteStorage
 
 
 class CreateUser(NamedTuple):
@@ -43,6 +44,7 @@ ROUNDS = 3
 
 async def jobify_run_benchmarks() -> list[str]:
     serializers = {
+        "orjson": OrjsonSerializer(),
         "json": JSONSerializer(),
         "pickle": UnsafePickleSerializer(),
         "extended_json": ExtendedJSONSerializer(),
@@ -52,9 +54,9 @@ async def jobify_run_benchmarks() -> list[str]:
         "adaptix": (Retort(), Retort()),
     }
     bench_case = {
-        "DummyDB+None+None": (False, EMPTY, (EMPTY, EMPTY)),
+        "DummyDB+none+none": (False, UNSET, (UNSET, UNSET)),
         **{
-            f"Sqlite+{name_s}+{name_ta}": (SQLiteStorage(":memory:"), s, ta)
+            f"sqlite+{name_s}+{name_ta}": (SQLiteStorage(":memory:"), s, ta)
             for name_s, s in serializers.items()
             for name_ta, ta in type_adapters.items()
         },
@@ -62,8 +64,9 @@ async def jobify_run_benchmarks() -> list[str]:
     final_results: list[BenchResult] = []
 
     for bench_name, (db, serializer, (dumper, loader)) in bench_case.items():
+        print(f"bench case: {bench_name}")
         app = Jobify(
-            storage=cast("Storage | Literal[False]", db),
+            storage=db,
             serializer=serializer,
             dumper=dumper,
             loader=loader,
@@ -73,13 +76,13 @@ async def jobify_run_benchmarks() -> list[str]:
 
         async with app:
             for _ in range(WARMUP_RUNS):
-                _ = await task(create_user_dto)
+                await task(create_user_dto)
 
             warmup_coros = (
                 jobify_task.push(create_user_dto) for _ in range(WARMUP_RUNS)
             )
             jobs = await asyncio.gather(*warmup_coros)
-            _ = await asyncio.gather(*(job.wait() for job in jobs))
+            await asyncio.gather(*(job.wait() for job in jobs))
 
             # --- 1. Latency ---
             latencies: list[float] = []
@@ -89,28 +92,21 @@ async def jobify_run_benchmarks() -> list[str]:
                     job = await jobify_task.push(create_user_dto)
                     await job.wait()
 
-                latencies.append(
-                    (time.perf_counter() - start) / (AMOUNT_RUN // 10)
-                )
+                latencies.append((time.perf_counter() - start) / (AMOUNT_RUN // 10))
 
             # --- 2. Throughput ---
             tps_results: list[float] = []
             for _ in range(ROUNDS):
                 start = time.perf_counter()
-                coros = (
-                    jobify_task.push(create_user_dto)
-                    for _ in range(AMOUNT_RUN)
-                )
-                _ = await asyncio.gather(*coros)
+                coros = (jobify_task.push(create_user_dto) for _ in range(AMOUNT_RUN))
+                await asyncio.gather(*coros)
                 await app.wait_all()
                 elapsed = time.perf_counter() - start
                 tps_results.append(AMOUNT_RUN / elapsed)
 
             avg_latency_ms = min(latencies) * 1000
             max_tps = max(tps_results)
-            final_results.append(
-                BenchResult(bench_name, avg_latency_ms, max_tps)
-            )
+            final_results.append(BenchResult(bench_name, avg_latency_ms, max_tps))
             await asyncio.sleep(COOLDOWN_SLEEP)
 
     return prepare_report(final_results)
@@ -123,7 +119,7 @@ def prepare_report(results: list[BenchResult]) -> list[str]:
         f"{'-' * 35} | {'-' * 10} | {'-' * 12}",
     ]
     fmt_results.extend(
-        f"{r.name:<35} | {r.latency_ms:>7.3f} ms | {r.throughput_tps:>8.1f} TPS"  # noqa: E501
+        f"{r.name:<35} | {r.latency_ms:>7.3f} ms | {r.throughput_tps:>8.1f} TPS"
         for r in results
     )
     return fmt_results

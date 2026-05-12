@@ -24,3 +24,23 @@ This section contains the API documentation for Jobify, automatically generated 
         - ScheduleBuilder
         - SmartRetry
         - State
+        - PydanticConverter
+
+::: jobify.serializers
+    options:
+      members:
+        - Serializer
+        - CBORSerializer
+        - MsgpackSerializer
+        - OrjsonSerializer
+        - JSONSerializer
+        - ExtendedJSONSerializer
+        - UnsafePickleSerializer
+
+
+::: jobify.typeadapter
+    options:
+      members:
+        - Dumper
+        - Loader
+        - PydanticConverter

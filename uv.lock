@@ -772,6 +772,9 @@ msgpack = [
 orjson = [
     { name = "orjson" },
 ]
+pydantic = [
+    { name = "pydantic" },
+]
 uuid-utils = [
     { name = "uuid-utils" },
 ]
@@ -835,11 +838,12 @@ requires-dist = [
     { name = "jobify", extras = ["orjson", "uuid-utils"], marker = "extra == 'fast'" },
     { name = "msgpack", marker = "extra == 'msgpack'", specifier = ">=1.0.7,<2" },
     { name = "orjson", marker = "extra == 'orjson'", specifier = ">=3.0.0,<4" },
+    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0,<3.0" },
     { name = "typing-extensions", specifier = ">=4.12.0" },
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2026.2" },
     { name = "uuid-utils", marker = "extra == 'uuid-utils'", specifier = ">=0.10.0,<1" },
 ]
-provides-extras = ["cbor", "msgpack", "orjson", "uuid-utils", "fast"]
+provides-extras = ["fast", "cbor", "msgpack", "orjson", "uuid-utils", "pydantic"]
 
 [package.metadata.requires-dev]
 benchmarks = [
