@@ -8,15 +8,23 @@
 
     ***
 
-    Low-level `asyncio` timers instead of polling. Run now, after delay, at timestamp, or via cron.
+    No polling loops. Jobs are triggered via low-level `asyncio` timers.
 
     [:octicons-arrow-right-24: Why Jobify](#why-jobify){ data-preview }
+
+- :material-calendar-clock:{ .lg .middle } **Flexible Scheduling**
+
+    ***
+
+    Run now, after delay, at timestamp, or via cron (including seconds).
+
+    [:octicons-arrow-right-24: Open Scheduling](schedule.md){ data-preview }
 
 - :material-database-lock:{ .lg .middle } **Built-in Persistence**
 
     ***
 
-    SQLite storage keeps scheduled jobs across restarts. Durable by default, with easy opt-out.
+    SQLite storage keeps scheduled jobs across restarts.
 
     [:octicons-arrow-right-24: Open Storage](app_settings.md#storage){ data-preview }
 
@@ -24,17 +32,25 @@
 
     ***
 
-    Control throughput with bounded queues, concurrent workers, and priority-based routing.
+    Control throughput with bounded queues, workers, and priorities.
 
     [:octicons-arrow-right-24: Open Queue Middleware](advanced_usage/queue.md){ data-preview }
 
-- :material-shield-alert-outline:{ .lg .middle } **Reliable Architecture**
+- :material-vector-polyline:{ .lg .middle } **Router-style Organization**
 
     ***
 
-    FastAPI-style routing, lifespans, and hierarchical exception handlers for robust apps.
+    Structure tasks with `JobRouter` in a FastAPI-like style.
 
     [:octicons-arrow-right-24: Open Router](router.md){ data-preview }
+
+- :material-shield-alert-outline:{ .lg .middle } **Failure Handling**
+
+    ***
+
+    Hierarchical exception handlers at global, router, and task levels.
+
+    [:octicons-arrow-right-24: Open Exception Handlers](advanced_usage/exception_handlers.md){ data-preview }
 
 </div>
 
