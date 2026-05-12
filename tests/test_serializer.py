@@ -16,6 +16,7 @@ from jobify.serializers import (
     UnsafePickleSerializer,
 )
 from jobify.serializers.cbor import CBORSerializer
+from jobify.serializers.msgpack import MsgpackSerializer
 
 
 class EnumTest(Enum):
@@ -129,6 +130,7 @@ def test_serialization_extended(
         pytest.param(JSONSerializer(), id="json"),
         pytest.param(CBORSerializer(), id="cbor"),
         pytest.param(OrjsonSerializer(), id="orjson"),
+        pytest.param(MsgpackSerializer(), id="msgpack"),
     ],
 )
 @pytest.mark.parametrize(
