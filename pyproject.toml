@@ -55,15 +55,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fast = ["jobify[orjson,uuid-utils]"]
-cbor = ["cbor2>=6.0.0,<7"]
+cbor2 = ["cbor2>=6.0.0,<7"]
 msgpack = ["msgpack>=1.0.7,<2"]
 orjson = ["orjson>=3.0.0,<4"]
-uuid-utils = ["uuid-utils>=0.10.0,<1"]
 pydantic = ["pydantic>=2.0,<3"]
+adaptix = ["adaptix>=3.0.0b1,<4"]
+uuid-utils = ["uuid-utils>=0.10.0,<1"]
+fast = ["jobify[orjson,uuid-utils,pydantic]"]
 
 [dependency-groups]
-adaptix = ["adaptix>=3.0.0b1,<4"]
+optionals = ["jobify[cbor2,msgpack,orjson,uuid-utils,pydantic,adaptix]"]
 lint = [
     "mypy==2.0.0",
     "ruff==0.15.12",
@@ -77,7 +78,7 @@ lint = [
     "types-python-crontab",
 ]
 test = [
-    { include-group = "adaptix" },
+    { include-group = "optionals" },
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
     "pytest-timeout>=2.4.0",
@@ -90,7 +91,8 @@ docs = [
     "mkdocstrings[python]==1.0.4",
 ]
 benchmarks = [
-    { include-group = "adaptix" },
+    { include-group = "optionals" },
+    "pytest-codspeed==4.5.0",
     "psutil==7.2.2",
 ]
 dev = [
@@ -162,7 +164,7 @@ omit = [
 # Static Analysis
 [tool.pyrefly]
 python-version = "3.10"
-project-includes = ["src", "tests"]
+project-includes = ["src", "tests", "benchmarks"]
 search-path = ["src", "."]
 min-severity = "warn"
 preset = "strict"
