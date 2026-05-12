@@ -1,5 +1,4 @@
 import asyncio
-import gc
 import logging
 import platform
 import time
@@ -11,14 +10,8 @@ import psutil
 
 from benchmarks.jobify_app import jobify_run_benchmarks
 from benchmarks.serializers import serializers_measure
+from benchmarks.typeadapters import type_adapters_measure
 from jobify import __version__
-
-
-@contextmanager
-def gc_control() -> Iterator[None]:
-    gc.disable()
-    yield None
-    gc.enable()
 
 
 @contextmanager
@@ -54,8 +47,9 @@ async def main() -> None:
         f"CPU Min Frequency: {cpu_info.min:.2f}MHz" if cpu_info else "",
         f"CPU Current Frequency: {cpu_info.current:.2f}MHz" if cpu_info else "",
     ]
-    with timer(), gc_control():
+    with timer():
         results.extend(enrich_results(serializers_measure(), name="Serializers"))
+        results.extend(enrich_results(type_adapters_measure(), name="TypeAdapters"))
         results.extend(enrich_results(await jobify_run_benchmarks(), name="Jobify APP"))
     write_results("\n".join(results))
 
@@ -63,9 +57,9 @@ async def main() -> None:
 def enrich_results(results: list[str], name: str) -> list[str]:
     name = f" {name} "
     return [
-        f"\n{name:=^60}",
+        f"\n{name:=^100}",
         *results,
-        f"{'=' * 60}",
+        f"{'=' * 100}",
     ]
 
 

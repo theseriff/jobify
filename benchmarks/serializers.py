@@ -1,16 +1,19 @@
 from dataclasses import dataclass
-from timeit import timeit
 from typing import NamedTuple
 
-from jobify._internal.serializers.json_extended import SupportedTypes
-from jobify.serializers import (
-    ExtendedJSONSerializer,
-    Serializer,
-    UnsafePickleSerializer,
+from benchmarks.common import (
+    BenchmarkResult,
+    BenchmarkSettings,
+    format_results,
+    format_skips,
+    measure_sync,
 )
+from benchmarks.registry import configure_extended_types, iter_available_serializers
+from jobify._internal.serializers.json_extended import SupportedTypes
+from jobify.serializers import Serializer
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class BenchDataclass:
     id: int
     name: str
@@ -18,7 +21,7 @@ class BenchDataclass:
     meta: dict[str, int]
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class NestedBenchDataclass:
     bench: BenchDataclass
 
@@ -29,37 +32,16 @@ class BenchNamedTuple(NamedTuple):
     label: str
 
 
-big_serializable_data: dict[str, SupportedTypes] = {
-    # Simple types
+JSON_PAYLOAD: dict[str, SupportedTypes] = {
     "none_value": None,
     "boolean_true": True,
     "boolean_false": False,
     "positive_int": 42,
     "negative_int": -15,
-    "zero": 0,
     "positive_float": 3.14159,
-    "negative_float": -2.71828,
-    "simple_string": "Hello, World!",
-    "empty_string": "",
     "unicode_string": "Привет, мир! 🌍",
-    "binary_data": b"binary_data_bytes",
-    "empty_bytes": b"",
-    # Collections
-    "simple_set": {1, 2, 3, 4, 5},
-    "string_set": {"apple", "banana", "cherry"},
-    "mixed_set": {1, "text", 3.14},
-    "empty_set": set(),
     "simple_list": [1, 2, 3, 4, 5],
-    "mixed_list": [None, True, 42, 3.14, "text", b"data"],
-    "nested_list": [[1, 2], [3, 4], [5, 6]],
-    "deep_list": [1, [2, [3, [4, [5]]]]],
-    "empty_list": [],
-    "simple_tuple": (1, "two", 3.0, None),
-    "boolean_tuple": (True, False),
-    "bytes_tuple": (b"bytes1", b"bytes2"),
-    "single_tuple": ("single",),
-    "empty_tuple": (),
-    # Dictionaries
+    "mixed_list": [None, True, 42, 3.14, "text"],
     "simple_dict": {"name": "Alice", "age": 30, "is_active": True},
     "nested_dict": {
         "user": {
@@ -71,99 +53,44 @@ big_serializable_data: dict[str, SupportedTypes] = {
             },
         },
     },
-    "mixed_dict": {
-        "int_value": 42,
-        "float_value": 3.14,
-        "string_value": "hello",
-        "none_value": None,
-        "bool_value": False,
-        "bytes_value": b"data",
-    },
-    "empty_dict": {},
-    # Complex nested structures
     "complex_structure": {
         "users": [
             {
-                "id": 1,
-                "name": "Alice",
-                "tags": {"admin", "moderator"},
-                "scores": (95, 87, 92),
+                "id": idx,
+                "name": f"user_{idx}",
+                "tags": ["admin", "moderator"] if idx % 2 else ["user"],
+                "scores": [95, 87, 92],
                 "metadata": {"created_at": "2023-01-01", "is_verified": True},
-            },
-            {
-                "id": 2,
-                "name": "Bob",
-                "tags": {"user"},
-                "scores": (78, 85, 80),
-                "metadata": {"created_at": "2023-01-02", "is_verified": False},
-            },
+            }
+            for idx in range(50)
         ],
         "system_info": {
             "version": 2.1,
-            "features": {"auth", "logging", "api"},
+            "features": ["auth", "logging", "api"],
             "config": {"debug": True, "max_connections": 100, "timeout": 30.5},
         },
     },
-    # Matrices and multidimensional data
-    "matrix": [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-    "coordinates": [
-        (40.7128, -74.0060),  # NY
-        (51.5074, -0.1278),  # London
-        (35.6762, 139.6503),  # Tokyo
-    ],
-    # Edge cases
-    "edge_cases": {
-        "empty_structures": {
-            "empty_list": [],
-            "empty_dict": {},
-            "empty_set": set(),
-            "empty_tuple": (),
-            "empty_string": "",
-            "empty_bytes": b"",
-        },
-        "single_items": {
-            "single_list": [None],
-            "single_dict": {"key": "value"},
-            "single_set": {42},
-            "single_tuple": ("only",),
-        },
-        "deep_nesting": {
-            "level1": {
-                "level2": [{"level3": {"level4": {"level5": "deep_value"}}}],
-            },
-        },
-    },
-    # Data with different type combinations
-    "mixed_collections": {
-        "list_of_sets": [{1, 2}, {3, 4}, {5, 6}],
-        "set_of_tuples": {("a", 1), ("b", 2), ("c", 3)},
-        "tuple_of_lists": ([1, 2], [3, 4], [5, 6]),
-        "dict_with_collections": {
-            "list_key": [1, 2, 3],
-            "set_key": {"x", "y", "z"},
-            "tuple_key": (True, False, None),
-        },
-    },
-    # Special values
-    "special_numbers": {
-        "large_int": 10**18,
-        "small_int": -(10**18),
-        "float_precision": 0.1 + 0.2,  # 0.30000000000000004
-        "scientific": 1.23e-10,
-    },
-    # Unicode and special characters
     "unicode_data": {
         "emojis": "😀 🎉 🌟 📚 💻",
         "special_chars": "Line1\nLine2\tTabbed\\Backslash",
         "unicode_mix": "Hello 世界 🌍 Привет",
-        "escape_chars": 'New\nLine\tTab"Quote\\Backslash',
     },
+}
+
+EXTENDED_PAYLOAD: dict[str, SupportedTypes] = {
+    **JSON_PAYLOAD,
+    "binary_data": b"binary_data_bytes",
+    "simple_set": {1, 2, 3, 4, 5},
+    "simple_tuple": (1, "two", 3.0, None),
+    "coordinates": [
+        (40.7128, -74.0060),
+        (51.5074, -0.1278),
+        (35.6762, 139.6503),
+    ],
     "custom_types": {
         "dataclasses_simple": BenchDataclass(1, "test", ["a"], {"x": 1}),
         "namedtuples_simple": BenchNamedTuple(1.1, 2.2, "point"),
-        "dataclasses_list": [
-            BenchDataclass(i, f"nm_{i}", [], {}) for i in range(20)
-        ],
+        "dataclasses_list": [BenchDataclass(i, f"nm_{i}", [], {}) for i in range(20)],
         "mixed_custom": {
             "dc": BenchDataclass(99, "nested", ["root"], {}),
             "nt": BenchNamedTuple(0.0, 0.0, "origin"),
@@ -174,46 +101,72 @@ big_serializable_data: dict[str, SupportedTypes] = {
     },
 }
 
+PAYLOADS = {
+    "json": JSON_PAYLOAD,
+    "extended": EXTENDED_PAYLOAD,
+}
 
-def serializer_case(serializer: Serializer) -> None:
-    encoded = serializer.dumpb(big_serializable_data)
-    decoded = serializer.loadb(encoded)
-    assert decoded == big_serializable_data
-
-
-class BenchResult(NamedTuple):
-    name: str
-    execute_seconds: float
+configure_extended_types((BenchDataclass, NestedBenchDataclass, BenchNamedTuple))
 
 
 def serializers_measure() -> list[str]:
-    serializers = {
-        "pickle": UnsafePickleSerializer(),
-        "extended_json": ExtendedJSONSerializer(
-            (BenchDataclass, NestedBenchDataclass, BenchNamedTuple)
-        ),
-    }
-
-    common_globs = {"serializer_case": serializer_case}
-    stmt = "for _ in range(10): serializer_case(serializer)"
-
-    final_results: list[BenchResult] = []
-
-    for name, serializer in serializers.items():
-        globs = common_globs | {"serializer": serializer}
-        execute_seconds = round(timeit(stmt, globals=globs, number=1000), 6)
-        final_results.append(BenchResult(name, execute_seconds))
-
-    return prepare_report(final_results)
-
-
-def prepare_report(results: list[BenchResult]) -> list[str]:
-    results.sort(key=lambda x: x.execute_seconds)
-    fmt_results = [
-        f"{'Config Name':<35} | {'Total Seconds':<22}",
-        f"{'-' * 35} | {'-' * 22}",
-    ]
-    fmt_results.extend(
-        f"{r.name:<35} | {r.execute_seconds:>7.3f} sec" for r in results
+    settings = BenchmarkSettings.from_env(
+        prefix="JOBIFY_BENCH_SERIALIZER",
+        warmup=2,
+        rounds=5,
+        iterations=200,
     )
-    return fmt_results
+    results: list[BenchmarkResult] = []
+    skips: list[str] = []
+
+    for payload_name, payload in PAYLOADS.items():
+        serializers, current_skips = iter_available_serializers(payload_name)
+        skips.extend(current_skips)
+        for serializer_name, serializer in serializers:
+            case_name = f"{serializer_name}/{payload_name}"
+            try:
+                encoded = _assert_roundtrip(serializer, payload)
+            except Exception as exc:  # noqa: BLE001
+                skips.append(f"serializer {case_name}: roundtrip failed: {exc}")
+                continue
+
+            results.extend(
+                [
+                    measure_sync(
+                        case_name,
+                        "dump",
+                        lambda serializer=serializer, payload=payload: serializer.dumpb(
+                            payload,
+                        ),
+                        settings,
+                        size_bytes=len(encoded),
+                    ),
+                    measure_sync(
+                        case_name,
+                        "load",
+                        lambda serializer=serializer, encoded=encoded: serializer.loadb(
+                            encoded,
+                        ),
+                        settings,
+                        size_bytes=len(encoded),
+                    ),
+                    measure_sync(
+                        case_name,
+                        "roundtrip",
+                        lambda serializer=serializer, payload=payload: serializer.loadb(
+                            serializer.dumpb(payload),
+                        ),
+                        settings,
+                        size_bytes=len(encoded),
+                    ),
+                ]
+            )
+
+    return [*format_results(results), *format_skips(skips)]
+
+
+def _assert_roundtrip(serializer: Serializer, payload: object) -> bytes:
+    encoded = serializer.dumpb(payload)
+    decoded = serializer.loadb(encoded)
+    assert decoded == payload
+    return encoded

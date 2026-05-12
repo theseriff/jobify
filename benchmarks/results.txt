@@ -1,27 +1,65 @@
 jobify: 0.11.0
-OS: Linux 7.0.5-arch1-1
+OS: Linux 6.12.47
 Architecture: x86_64
-CPU Physical cores: 4
-CPU Logical cores: 8
-CPU Max Frequency: 4700.00MHz
-CPU Min Frequency: 400.00MHz
-CPU Current Frequency: 1702.26MHz
+CPU Physical cores: 3
+CPU Logical cores: 3
+CPU Max Frequency: 0.00MHz
+CPU Min Frequency: 0.00MHz
+CPU Current Frequency: 2793.44MHz
 
-======================= Serializers ========================
-Config Name                         | Total Seconds         
------------------------------------ | ----------------------
-pickle                              |   0.539 sec
-extended_json                       |   3.320 sec
-============================================================
+=========================================== Serializers ============================================
+Config Name                            | Op         | Best µs/op | Median µs/op |      Ops/sec |  Stdev % |    Bytes
+-------------------------------------- | ---------- | ---------- | ------------ | ------------ | -------- | --------
+pickle/json                            | dump       |      37.22 |        37.83 |      26867.6 |    1.22% |     3485
+pickle/extended                        | dump       |     125.08 |       126.04 |       7994.8 |    0.51% |     4586
+json/json                              | dump       |     128.74 |       130.29 |       7767.8 |    1.27% |     8055
+extended_json/extended                 | dump       |    1317.19 |      1323.95 |        759.2 |    0.30% |    11265
+pickle/json                            | load       |      63.45 |        63.68 |      15761.6 |    0.74% |     3485
+json/json                              | load       |     128.51 |       131.80 |       7781.6 |    5.11% |     8055
+pickle/extended                        | load       |     153.17 |       154.58 |       6528.5 |    4.07% |     4586
+extended_json/extended                 | load       |     342.40 |       349.75 |       2920.6 |    2.69% |    11265
+pickle/json                            | roundtrip  |     102.16 |       104.14 |       9788.8 |    1.04% |     3485
+json/json                              | roundtrip  |     271.28 |       273.54 |       3686.3 |    5.00% |     8055
+pickle/extended                        | roundtrip  |     284.40 |       294.93 |       3516.1 |    2.36% |     4586
+extended_json/extended                 | roundtrip  |    1637.04 |      1705.70 |        610.9 |   11.51% |    11265
 
-======================== Jobify APP ========================
-Config Name                         | Latency    | Throughput  
------------------------------------ | ---------- | ------------
-DummyDB+none+none                   |   0.029 ms |  55533.9 TPS
-Sqlite+json+none                    |   0.125 ms |   8585.6 TPS
-Sqlite+pickle+adaptix               |   0.129 ms |   8431.7 TPS
-Sqlite+json+adaptix                 |   0.131 ms |   8427.8 TPS
-Sqlite+pickle+none                  |   0.136 ms |   8084.5 TPS
-Sqlite+extended_json+adaptix        |   0.153 ms |   7156.8 TPS
-Sqlite+extended_json+none           |   0.146 ms |   6612.8 TPS
-============================================================
+Skipped:
+- serializer orjson: orjson is required: `uv add jobify[orjson]`
+- serializer msgpack: msgpack is required: `uv add jobify[msgpack]`
+- serializer cbor: cbor2 is required: `uv add jobify[cbor2]`
+====================================================================================================
+
+=========================================== TypeAdapters ===========================================
+Config Name                            | Op         | Best µs/op | Median µs/op |      Ops/sec |  Stdev % |    Bytes
+-------------------------------------- | ---------- | ---------- | ------------ | ------------ | -------- | --------
+dummy                                  | dump       |       0.10 |         0.11 |    9925509.1 |   35.71% |        -
+adaptix                                | dump       |       1.14 |         1.28 |     876015.0 |   27.39% |        -
+dummy                                  | load       |       0.10 |         0.13 |   10096420.8 |   23.29% |        -
+adaptix                                | load       |       2.52 |         2.88 |     396708.2 |    6.25% |        -
+dummy                                  | roundtrip  |       0.16 |         0.18 |    6171011.1 |   24.26% |        -
+adaptix                                | roundtrip  |       3.80 |         4.65 |     262918.1 |   18.90% |        -
+
+Skipped:
+- typeadapter pydantic: pydantic is required: `uv add jobify[pydantic]`
+====================================================================================================
+
+============================================ Jobify APP ============================================
+Config Name                            | Op         | Best µs/op | Median µs/op |      Ops/sec |  Stdev % |    Bytes
+-------------------------------------- | ---------- | ---------- | ------------ | ------------ | -------- | --------
+dummy_storage+default_serializer+none  | latency    |      85.54 |        91.24 |      11689.9 |    9.42% |        -
+sqlite+json+adaptix                    | latency    |     461.51 |       494.69 |       2166.8 |    5.52% |        -
+sqlite+pickle+adaptix                  | latency    |     471.34 |       475.58 |       2121.6 |    4.21% |        -
+sqlite+pickle+none                     | latency    |     477.08 |       604.24 |       2096.1 |   16.03% |        -
+sqlite+json+none                       | latency    |     535.61 |       571.55 |       1867.0 |   10.47% |        -
+dummy_storage+default_serializer+none  | throughput |      51.77 |        54.17 |      19314.7 |   21.59% |        -
+sqlite+json+adaptix                    | throughput |     408.83 |       415.66 |       2446.0 |    8.27% |        -
+sqlite+pickle+adaptix                  | throughput |     438.47 |       471.11 |       2280.6 |    3.56% |        -
+sqlite+json+none                       | throughput |     445.67 |       498.16 |       2243.8 |    9.23% |        -
+sqlite+pickle+none                     | throughput |     446.46 |       480.94 |       2239.8 |    7.59% |        -
+
+Skipped:
+- serializer orjson: orjson is required: `uv add jobify[orjson]`
+- serializer msgpack: msgpack is required: `uv add jobify[msgpack]`
+- serializer cbor: cbor2 is required: `uv add jobify[cbor2]`
+- typeadapter pydantic: pydantic is required: `uv add jobify[pydantic]`
+====================================================================================================
