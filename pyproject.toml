@@ -60,7 +60,8 @@ cbor = ["cbor2>=6.0.0,<7"]
 msgpack = ["msgpack>=1.0.7,<2"]
 orjson = ["orjson>=3.0.0,<4"]
 uuid-utils = ["uuid-utils>=0.10.0,<1"]
-pydantic = ["pydantic>=2.0,<3.0"]
+pydantic = ["pydantic>=2.0,<3"]
+adaptix = ["adaptix>=3.0.0b1,<4"]
 
 [dependency-groups]
 lint = [
@@ -89,7 +90,7 @@ docs = [
 ]
 benchmarks = [
     "psutil==7.2.2",
-    "adaptix==3.0.0b12",
+    "jobify[adaptix]",
 ]
 dev = [
     { include-group = "lint" },

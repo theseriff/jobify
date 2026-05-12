@@ -759,6 +759,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+adaptix = [
+    { name = "adaptix" },
+]
 cbor = [
     { name = "cbor2" },
 ]
@@ -781,16 +784,16 @@ uuid-utils = [
 
 [package.dev-dependencies]
 benchmarks = [
-    { name = "adaptix" },
+    { name = "jobify", extra = ["adaptix"] },
     { name = "psutil" },
 ]
 dev = [
-    { name = "adaptix" },
     { name = "bandit" },
     { name = "codespell" },
     { name = "covdefaults" },
     { name = "coverage", extra = ["toml"] },
     { name = "detect-secrets" },
+    { name = "jobify", extra = ["adaptix"] },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mypy" },
     { name = "mypy-extensions" },
@@ -833,30 +836,31 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "adaptix", marker = "extra == 'adaptix'", specifier = ">=3.0.0b1,<4" },
     { name = "cbor2", marker = "extra == 'cbor'", specifier = ">=6.0.0,<7" },
     { name = "crontab", specifier = ">=1.0.5,<2" },
     { name = "jobify", extras = ["orjson", "uuid-utils"], marker = "extra == 'fast'" },
     { name = "msgpack", marker = "extra == 'msgpack'", specifier = ">=1.0.7,<2" },
     { name = "orjson", marker = "extra == 'orjson'", specifier = ">=3.0.0,<4" },
-    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0,<3.0" },
+    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0,<3" },
     { name = "typing-extensions", specifier = ">=4.12.0" },
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2026.2" },
     { name = "uuid-utils", marker = "extra == 'uuid-utils'", specifier = ">=0.10.0,<1" },
 ]
-provides-extras = ["fast", "cbor", "msgpack", "orjson", "uuid-utils", "pydantic"]
+provides-extras = ["fast", "cbor", "msgpack", "orjson", "uuid-utils", "pydantic", "adaptix"]
 
 [package.metadata.requires-dev]
 benchmarks = [
-    { name = "adaptix", specifier = "==3.0.0b12" },
+    { name = "jobify", extras = ["adaptix"] },
     { name = "psutil", specifier = "==7.2.2" },
 ]
 dev = [
-    { name = "adaptix", specifier = "==3.0.0b12" },
     { name = "bandit", specifier = "==1.9.4" },
     { name = "codespell", specifier = "==2.4.2" },
     { name = "covdefaults", specifier = ">=2.3.0" },
     { name = "coverage", extras = ["toml"], specifier = "==7.13.5" },
     { name = "detect-secrets", specifier = "==1.5.0" },
+    { name = "jobify", extras = ["adaptix"] },
     { name = "mkdocstrings", extras = ["python"], specifier = "==1.0.4" },
     { name = "mypy", specifier = "==2.0.0" },
     { name = "mypy-extensions", specifier = "==1.1.0" },

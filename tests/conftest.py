@@ -1,18 +1,28 @@
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from itertools import count
 from typing import Any
 from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from jobify import Jobify
 from jobify._internal.cron_parser import CronFactory, CronParser
+from jobify._internal.storage.sqlite import SQLiteStorage
 
 
 @pytest.fixture
 def now() -> datetime:
     return datetime.now(tz=ZoneInfo("UTC"))
+
+
+@pytest.fixture
+def storage() -> Iterator[SQLiteStorage]:
+    s = SQLiteStorage(f"{uuid4()}.db")
+    yield s
+    s.database.unlink()
 
 
 @pytest.fixture

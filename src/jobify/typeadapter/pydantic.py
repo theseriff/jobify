@@ -58,7 +58,7 @@ class PydanticConverter(Loader, Dumper):
             ImportError: If pydantic is not installed.
 
         """
-        if pydantic is UNSET:
+        if pydantic is UNSET:  # pragma: no cover
             msg = "pydantic is required: `uv add jobify[pydantic]`"
             raise ImportError(msg)
 

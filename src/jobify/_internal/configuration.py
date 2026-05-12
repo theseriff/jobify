@@ -2,7 +2,7 @@ import multiprocessing
 import random
 import sys
 import uuid
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -122,8 +122,8 @@ class Cron:
     max_failures: int = 10
     misfire_policy: MisfirePolicy | GracePolicy = MisfirePolicy.ONCE
     start_date: datetime | None = None
-    args: Collection[Any] = ()
-    kwargs: Mapping[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
+    args: tuple[Any, ...] = ()
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.max_failures < 1:

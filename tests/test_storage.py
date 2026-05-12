@@ -1,5 +1,4 @@
 import asyncio
-from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
@@ -167,13 +166,6 @@ async def test_sqlite_with_jobify() -> None:
         assert job1_cron.result() == "biba_cron"
         assert job2.result() == "test"
         assert await app.configs.storage.get_schedules() == []
-
-
-@pytest.fixture
-def storage() -> Iterator[SQLiteStorage]:
-    s = SQLiteStorage("test_restore.db")
-    yield s
-    s.database.unlink()
 
 
 async def test_restore_schedules(
