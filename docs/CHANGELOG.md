@@ -2,6 +2,60 @@
 
 <!-- version list -->
 
+## v0.12.0 (2026-05-13)
+
+### Build System
+
+- Add adaptix to test group
+  ([`8c01776`](https://github.com/theseriff/jobify/commit/8c017762bbe058726e4ddfacafd40be5cf62d1cd))
+
+- Reorganize dependencies, refactor benchmarks, fix test filename and update font
+  ([`052808f`](https://github.com/theseriff/jobify/commit/052808fdaf7bdaf3b5fdb8026598781f17f3cbf1))
+
+### Documentation
+
+- Add Google-style docstrings for public API
+  ([`c9dfc52`](https://github.com/theseriff/jobify/commit/c9dfc52f8c62ddc0fbc9cb48db108a575d0167bf))
+
+- Re-design documentation with Zensical modern patterns
+  ([`144f004`](https://github.com/theseriff/jobify/commit/144f004922716e3a25ab3c00afbb469da2c24cf8))
+
+- Update index.md
+  ([`1418e24`](https://github.com/theseriff/jobify/commit/1418e24c89ecc755138774adfc28d62f867022db))
+
+- Update README.md
+  ([`871cfab`](https://github.com/theseriff/jobify/commit/871cfabd065283c6383865a95d54219bdfe46d74))
+
+- Update README.md
+  ([`51a1666`](https://github.com/theseriff/jobify/commit/51a1666a0a3f1ad16f87ce50c619c1db5ea1aea1))
+
+### Features
+
+- Add adaptix support and expand API documentation
+  ([`7735e4b`](https://github.com/theseriff/jobify/commit/7735e4bd9686c00eb25833d58a06b281d5bd3250))
+
+- Add optional support for cbor and orjson serializers
+  ([`bfbade2`](https://github.com/theseriff/jobify/commit/bfbade229d168efa58562d9636a3b972ef9a1a9f))
+
+- Allow custom UUID generator in configuration
+  ([`8f57868`](https://github.com/theseriff/jobify/commit/8f57868f52f491572df0f296a4f8430ef5907a86))
+
+- **retry**: Refactor SmartRetry to align with Airflow behavior
+  ([`bb337e5`](https://github.com/theseriff/jobify/commit/bb337e5e304501e8129742614c675821ddc57032))
+
+- **serializers**: Add cbor support
+  ([`60edb48`](https://github.com/theseriff/jobify/commit/60edb481c11091f0e6499d26f17d9c25b2cc55a9))
+
+- **serializers**: Add msgpack support
+  ([`82f05fb`](https://github.com/theseriff/jobify/commit/82f05fb8b33e5b07b879eda5a8dcd0fa78bbbf75))
+
+- **serializers**: Add orjson support
+  ([`e583032`](https://github.com/theseriff/jobify/commit/e5830320c88554d9d4cd7c4839f2f0eae1d8ea9d))
+
+- **typeadapter**: Add pydantic support
+  ([`cf09b80`](https://github.com/theseriff/jobify/commit/cf09b8082b5547bcb81e12cd36ec84bce86174bb))
+
+
 ## v0.11.0 (2026-05-10)
 
 ### Build System
