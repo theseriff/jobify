@@ -72,11 +72,9 @@ class PydanticConverter(Loader, Dumper):
 
     def _adapter(self, tp: type[T]) -> pydantic.TypeAdapter[T]:
         adapter = self._cache_adapters.get(tp)
-
         if adapter is None:
             adapter = pydantic.TypeAdapter(tp, config=self._config)
             self._cache_adapters[tp] = adapter
-
         return adapter
 
     @override

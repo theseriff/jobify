@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.10.9,<0.12.0"]
+requires = ["uv_build>=0.11.14,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -16,27 +16,13 @@ license-files = ["LICEN[CS]E*"]
 authors = [
     { name = "Sergey Yavorsky", email = "maclovi.dev@gmail.com" },
 ]
-keywords = [
-    "jobs",
-    "cron",
-    "asyncio",
-    "cron-jobs",
-    "scheduler",
-    "scheduling",
-    "asynchronous",
-    "job-scheduler",
-    "task-scheduler",
-    "python-scheduler",
-    "background-tasks",
-    "background-jobs",
-    "delayed-tasks",
-]
+keywords = ["asyncio", "cron", "scheduler", "task-manager", "job-scheduler", "background-tasks"]
 classifiers = [
-    "Typing :: Typed",
-    "Framework :: Pytest",
+    "Environment :: Console",
     "Framework :: AsyncIO",
-    "Natural Language :: English",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -46,7 +32,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration :: Scheduling",
     "Topic :: Utilities",
+    "Typing :: Typed",
 ]
 dependencies = [
     "crontab>=1.0.5,<2",
@@ -130,7 +118,7 @@ relative_files = true
 parallel = true
 branch = true
 concurrency = ["thread", "multiprocessing"]
-source = ["src", "tests"]
+source = ["src", "tests", "examples"]
 omit = ["**/__init__.py"]
 
 [tool.coverage.paths]
@@ -164,16 +152,16 @@ omit = [
 # Static Analysis
 [tool.pyrefly]
 python-version = "3.10"
-project-includes = ["src", "tests", "benchmarks"]
-search-path = ["src", "."]
+project-includes = ["src", "tests", "benchmarks", "examples"]
+search-path = ["src", ".", "examples/real_world/src"]
 min-severity = "warn"
 preset = "strict"
 skip-lsp-config-indexing = false
 infer-with-first-use = false
 
 [tool.mypy]
-mypy_path = "src"
-files = ["src", "tests"]
+mypy_path = "src:examples/real_world/src"
+files = ["src", "tests", "benchmarks"]
 python_version = "3.10"
 strict = true
 pretty = true
@@ -203,7 +191,7 @@ targets = "src"
 # Liter
 [tool.ruff]
 src = ["src"]
-include = ["src/**.py", "tests/**.py"]
+include = ["src/**.py", "tests/**.py", "examples/**.py", "benchmarks/**.py"]
 target-version = "py310"
 line-length = 88
 fix = true
@@ -222,6 +210,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "benchmarks/**" = ["D", "S101", "T201"]
+"examples/**" = ["S101", "D101", "D103", "D104", "T201", "SLF001"]
 "tests/**" = ["S101", "D", "SLF001"]
 
 [tool.ruff.format]

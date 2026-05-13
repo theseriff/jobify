@@ -9,10 +9,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from jobify._internal.common.datastructures import RequestState, State
-    from jobify._internal.configuration import (
-        JobifyConfiguration,
-        RouteOptions,
-    )
+    from jobify._internal.configuration import JobifyConfiguration, RouteOptions
     from jobify._internal.inspection import FuncSpec
     from jobify._internal.message import Triggers
     from jobify._internal.runners import Runnable
