@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
 from typing import NamedTuple
 from unittest.mock import Mock, call
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from adaptix import Retort
-from uuid_utils.compat import uuid7
 
 from jobify import Jobify
 from jobify._internal.message import AtArguments, PushArguments
@@ -41,7 +40,7 @@ async def test_adapter_dump(adapter: PairAdapter) -> None:
         loader=adapter,
     )
     task = app.task(create_user)
-    data = CreateUser(uuid7(), "Kava", datetime.now(UTC))
+    data = CreateUser(uuid4(), "Kava", datetime.now(UTC))
     async with app:
         job1 = await task.schedule(data).delay(0)
         job2 = await task.push(data)
@@ -65,10 +64,10 @@ async def test_adapter_load(adapter: PairAdapter, storage: SQLiteStorage) -> Non
         return d
 
     now = datetime.now(UTC)
-    data = CreateUser(uuid7(), "Kava", now)
+    data = CreateUser(uuid4(), "Kava", now)
 
-    job1_id1 = uuid7().hex
-    job1_id2 = uuid7().hex
+    job1_id1 = uuid4().hex
+    job1_id2 = uuid4().hex
 
     await app.startup()
 

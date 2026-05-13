@@ -43,14 +43,14 @@ async def _main() -> None:
         logger.info("Application started!")
 
         # 1. Schedule the daily planning task for backups
-        _job = await schedule_daily_backups.schedule().cron(
+        await schedule_daily_backups.schedule().cron(
             Cron(cron, max_runs=1, misfire_policy=MisfirePolicy.ONCE),
             job_id="plan_daily_backups",
             replace=True,
         )
 
         # 2. Schedule a startup notification (demonstrates the middleware)
-        _job = await send_email_alert.schedule(
+        await send_email_alert.schedule(
             recipient="admin@example.com",
             subject="Backup Service Started",
         ).delay(
@@ -63,7 +63,7 @@ async def _main() -> None:
         logger.info("Application stopped!")
 
 
-def main() -> None:  # noqa: D103
+def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
