@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from typing_extensions import override
 
-from jobify._internal.common.types import UNSET, AppType
+from jobify._internal.common.constants import UNSET
 from jobify._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
+    from jobify._internal.common.types import AppType
     from jobify._internal.context import JobContext
 
 logger = logging.getLogger("jobify.middleware")

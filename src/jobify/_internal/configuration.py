@@ -1,10 +1,12 @@
 import multiprocessing
+import random
 import sys
-from collections.abc import Collection, Mapping
+import uuid
+from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, Protocol, TypedDict
 from zoneinfo import ZoneInfo
 
 from jobify._internal.common.constants import INFINITY, RunMode
@@ -20,6 +22,10 @@ from jobify._internal.scheduler.misfire_policy import (
 from jobify._internal.serializers.base import Serializer
 from jobify._internal.storage.base import Storage
 from jobify._internal.typeadapter.base import Dumper, Loader
+
+
+class UUIDGenerator(Protocol):
+    def __call__(self) -> uuid.UUID: ...
 
 
 class WorkerPools:
@@ -63,6 +69,7 @@ class JobifyConfiguration:
         "serializer",
         "storage",
         "tz",
+        "uuid_generator",
         "worker_pools",
     )
 
@@ -77,6 +84,7 @@ class JobifyConfiguration:
         serializer: Serializer,
         worker_pools: WorkerPools,
         cron_factory: CronFactory,
+        uuid_generator: UUIDGenerator,
         app_started: bool = False,
     ) -> None:
         self.tz = tz
@@ -87,18 +95,35 @@ class JobifyConfiguration:
         self.serializer = serializer
         self.worker_pools = worker_pools
         self.cron_factory = cron_factory
+        self.uuid_generator = uuid_generator
         self.app_started = app_started
 
 
 @dataclass(slots=True, kw_only=True, order=True)
 class Cron:
+    """Configuration for cron-based job scheduling.
+
+    Attributes:
+        expression: The crontab-formatted expression.
+        max_runs: Maximum number of times the job can be triggered.
+            Defaults to infinity.
+        max_failures: Maximum number of consecutive failures before disabling the job.
+            Defaults to 10.
+        misfire_policy: Policy to handle missed job executions.
+            Defaults to MisfirePolicy.ONCE.
+        start_date: Optional datetime when the cron job becomes active.
+        args: Positional arguments to pass to the job.
+        kwargs: Keyword arguments to pass to the job.
+
+    """
+
     expression: str = field(kw_only=False)
     max_runs: int = INFINITY
     max_failures: int = 10
     misfire_policy: MisfirePolicy | GracePolicy = MisfirePolicy.ONCE
     start_date: datetime | None = None
-    args: Collection[Any] = ()
-    kwargs: Mapping[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
+    args: tuple[Any, ...] = ()
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.max_failures < 1:
@@ -109,9 +134,50 @@ class Cron:
 class RouteOptions(TypedDict, total=False):
     name: str
     cron: Cron | str
-    retry: int
+    retry: "int | SmartRetry"
     timeout: float
     durable: bool
     run_mode: RunMode
     metadata: Mapping[str, Any]
     exception_handlers: MappingExceptionHandlers
+
+
+class SmartRetry(NamedTuple):
+    """Immutable configuration and delay logic for retrying failed operations.
+
+    Uses exponential backoff with optional equal jitter to spread retry load.
+    Designed as a value object: cheap to copy, safe to share across threads.
+
+    Attributes:
+        retries: Number of retries that should be performed after the first failure.
+            Must be >= 0. A value of 0 means no retries.
+        initial_delay: Base delay in seconds before the first retry.
+        max_delay: Upper bound on computed delay, regardless of backoff growth.
+        backoff_factor: Multiplier applied per retry. ``1.0`` gives constant
+            delay, ``2.0`` gives classic exponential backoff.
+        jitter: If ``True``, randomises delay in ``[delay/2, delay]`` to avoid
+            thundering-herd. If ``False``, delay is deterministic.
+        include_exceptions: Exception types that trigger a retry.
+            Defaults to ``(Exception,) — retries on anything.
+        exclude_exceptions: Exception types that are re-raised immediately,
+            even if they match ``include_exceptions``. Takes priority.
+
+    """
+
+    retries: int
+    initial_delay: float = 0.5
+    max_delay: float = 60.0
+    backoff_factor: float = 2.0
+    jitter: bool = True
+    include_exceptions: tuple[type[Exception], ...] = (Exception,)
+    exclude_exceptions: tuple[type[Exception], ...] = ()
+
+    def compute_delay(self, attempt: int) -> float:
+        delay = min(
+            self.initial_delay * self.backoff_factor ** (attempt - 1),
+            self.max_delay,
+        )
+        if self.jitter:
+            delay /= 2
+            return delay + random.uniform(0, delay)  # nosec # noqa: S311
+        return delay

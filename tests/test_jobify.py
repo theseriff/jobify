@@ -71,7 +71,7 @@ def test_capture_signals_restoration_logic() -> None:
 
 def test_capture_signals_in_subthread() -> None:
     app = create_app()
-    _ = app.get_active_jobs()
+    app.get_active_jobs()
 
     initial_handler = signal.getsignal(signal.SIGINT)
 
@@ -93,5 +93,5 @@ async def test_shutdown_re_raises_signals_integration() -> None:
     assert signal.SIGTERM in app._captured_signals
 
     with patch("signal.raise_signal") as mock_raise:
-        await app.shutdown()
+        app._raise_captured_signals()
         mock_raise.assert_has_calls([call(signal.SIGTERM), call(signal.SIGINT)])

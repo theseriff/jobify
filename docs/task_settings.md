@@ -104,16 +104,24 @@ See [The Cron Object](schedule.md#the-cron-object){ data-preview } for full deta
 
 ## retry
 
-- **Type**: `int`
+- **Type**: `int | SmartRetry`
 - **Default**: not set (no retries)
 
-Number of retry attempts after failure.
+Number of retry attempts after failure, or a `SmartRetry` object for advanced backoff and filtering.
 
 ```python
-@app.task(retry=3)
+from jobify import SmartRetry
+
+@app.task(retry=3) # Simple: 3 retries after first failure
 def fragile_io() -> None:
     ...
+
+@app.task(retry=SmartRetry(retries=5, initial_delay=2.0)) # Advanced
+def custom_retry() -> None:
+    ...
 ```
+
+[Read detailed retry guide](advanced_usage/retry.md){ data-preview }
 
 ## timeout
 

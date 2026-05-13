@@ -2,38 +2,24 @@
 from __future__ import annotations
 
 from collections import UserDict
-from typing import Any, Literal
+from typing import Any
 
-from typing_extensions import Self, override
-
-
-class EmptyPlaceholder(str):
-    __slots__: tuple[()] = ()
-
-    def __new__(cls) -> Self:
-        return super().__new__(cls, "__EMPTY__")
-
-    def __bool__(self) -> Literal[False]:
-        return False
-
-    @override
-    def __str__(self) -> str:
-        return super().__str__()
-
-    @override
-    def __hash__(self) -> int:
-        return hash(super().__str__())
-
-    @override
-    def __eq__(self, other: object) -> bool:
-        return other == super().__str__()
+from typing_extensions import override
 
 
 class State(UserDict[str, Any]):
-    """An object that can be used to store arbitrary state."""
+    """An object that can be used to store arbitrary state.
+
+    This class provides dictionary-like access to state data, allowing for both
+    key-based and attribute-based access.
+
+    Args:
+        state: Initial state dictionary.
+
+    """
 
     data: dict[str, Any]
-    __slots__: tuple[str, ...] = ("data",)
+    __slots__: tuple[str] = ("data",)
 
     def __init__(self, state: dict[str, Any] | None = None) -> None:  # pyright: ignore[reportMissingSuperCall]
         object.__setattr__(self, "data", state or {})
@@ -59,4 +45,5 @@ class State(UserDict[str, Any]):
         return f"{cls_name}({super().__str__()})"
 
 
-class RequestState(State): ...
+class RequestState(State):
+    """An object that can be used to store state specific to a request."""

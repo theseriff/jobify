@@ -2,6 +2,34 @@
 
 Thank you for your interest in contributing to Jobify! We are always looking for new contributors.
 
+<div class="grid cards" markdown>
+
+- :material-tools:{ .lg .middle } **Modern Tooling**
+
+    ***
+
+    We use `uv` for speed and `just` for command orchestration.
+
+- :material-rocket-launch-outline:{ .lg .middle } **Fast Setup**
+
+    ***
+
+    Run `just init` to sync deps and install pre-commit hooks.
+
+- :material-shield-check-outline:{ .lg .middle } **Strict Quality**
+
+    ***
+
+    Ruff, Mypy, and Basedpyright ensure high code standards.
+
+- :material-test-tube:{ .lg .middle } **Full Testing**
+
+    ***
+
+    Comprehensive `pytest` suite for features and regressions.
+
+</div>
+
 ## Getting Started
 
 To start contributing, you will need to set up a development environment.

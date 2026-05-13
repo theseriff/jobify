@@ -19,6 +19,17 @@ TypeHint: TypeAlias = Any
 
 
 class FuncSpec(Generic[ReturnT]):
+    """Holds function inspection details, including signature and injection points.
+
+    Attributes:
+        inject_params: Map of parameter names to types that should be injected.
+        name: Name of the function.
+        result_type: Return type of the function.
+        signature: `inspect.Signature` object of the function.
+        type_params: Map of parameter names to their type hints.
+
+    """
+
     __slots__: tuple[str, ...] = (
         "inject_params",
         "name",
@@ -36,6 +47,16 @@ class FuncSpec(Generic[ReturnT]):
         type_params: dict[ParamName, TypeHint],
         inject_params: dict[str, Any],
     ) -> None:
+        """Initialize the FuncSpec.
+
+        Args:
+            name: Name of the function.
+            signature: `inspect.Signature` object.
+            result_type: Return type of the function.
+            type_params: Map of parameter names to their type hints.
+            inject_params: Map of parameter names to types that should be injected.
+
+        """
         self.name = name
         self.signature = signature
         self.result_type = result_type

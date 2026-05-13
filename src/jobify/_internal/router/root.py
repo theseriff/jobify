@@ -4,16 +4,7 @@ import functools
 import inspect
 import logging
 import sys
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Final,
-    ParamSpec,
-    TypeAlias,
-    TypeVar,
-    cast,
-    get_type_hints,
-)
+from typing import TYPE_CHECKING, Any, Final, ParamSpec, TypeAlias, TypeVar, cast
 
 from typing_extensions import override
 
@@ -22,7 +13,7 @@ from jobify._internal.common.constants import (
     PATCH_FUNC_NAME,
     JobStatus,
 )
-from jobify._internal.configuration import Cron
+from jobify._internal.configuration import Cron, SmartRetry
 from jobify._internal.context import inject_context
 from jobify._internal.exceptions import (
     raise_app_already_started_error,
@@ -55,10 +46,7 @@ if TYPE_CHECKING:
         Lifespan,
         MappingExceptionHandlers,
     )
-    from jobify._internal.configuration import (
-        JobifyConfiguration,
-        RouteOptions,
-    )
+    from jobify._internal.configuration import JobifyConfiguration, RouteOptions
     from jobify._internal.context import JobContext, OuterContext
     from jobify._internal.middleware.base import BaseMiddleware, CallNext
     from jobify._internal.router.node import NodeRouter
@@ -158,19 +146,11 @@ class RootRoute(Route[ParamsT, ReturnT]):
         return self.create_builder(bound)
 
     @override
-    async def push(
-        self,
-        *args: ParamsT.args,
-        **kwargs: ParamsT.kwargs,
-    ) -> Job[ReturnT]:
+    async def push(self, *args: ParamsT.args, **kwargs: ParamsT.kwargs) -> Job[ReturnT]:
         bound = self.func_spec.signature.bind(*args, **kwargs)
         return await self.create_builder(bound).push()
 
-    def create_builder(
-        self,
-        bound: inspect.BoundArguments,
-        /,
-    ) -> ScheduleBuilder[ReturnT]:
+    def create_builder(self, bound: inspect.BoundArguments) -> ScheduleBuilder[ReturnT]:
         if (
             self.jobify_config.app_started is False
             or self._chain_middleware is None
@@ -236,9 +216,15 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
         if self._jobify_config.app_started is True:
             raise_app_already_started_error("register")
 
+        func_spec = make_func_spec(func)
         if isinstance(self._jobify_config.serializer, ExtendedJSONSerializer):
-            hints = get_type_hints(func)
-            self._jobify_config.serializer.register_hints(hints.values())
+            self._jobify_config.serializer.register_hints(
+                func_spec.type_params.values()
+            )
+
+        retry = options.get("retry")
+        if isinstance(retry, int):
+            options["retry"] = SmartRetry(retries=retry)
 
         strategy = create_run_strategy(
             func,
@@ -257,7 +243,7 @@ class RootRegistrator(Registrator[RootRoute[..., Any]]):
             jobify_config=self._jobify_config,
             exception_handlers=self._exception_handlers,
         )
-        _ = functools.update_wrapper(route, func)
+        functools.update_wrapper(route, func)
         self._routes[name] = route
 
         if cron := options.get("cron"):

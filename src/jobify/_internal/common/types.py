@@ -3,8 +3,6 @@ from collections.abc import Callable, Mapping
 from contextlib import AbstractAsyncContextManager
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
-from typing_extensions import Sentinel
-
 if TYPE_CHECKING:
     from jobify._internal.context import JobContext
 
@@ -25,6 +23,3 @@ LoopFactory: TypeAlias = Callable[[], asyncio.AbstractEventLoop]
 ExceptionHandler: TypeAlias = Callable[[Exception, "JobContext"], Any]
 ExceptionHandlers: TypeAlias = dict[type[Exception], ExceptionHandler]
 MappingExceptionHandlers: TypeAlias = Mapping[type[Exception], ExceptionHandler]
-
-UNSET: Any = Sentinel("UNSET")
-STOP: Any = Sentinel("STOP")

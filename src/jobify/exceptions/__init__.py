@@ -12,7 +12,6 @@ from jobify._internal.exceptions import (
     JobFailedError,
     JobNotCompletedError,
     JobTimeoutError,
-    NoResultError,
     RouteAlreadyRegisteredError,
 )
 
@@ -23,6 +22,5 @@ __all__ = (
     "JobFailedError",
     "JobNotCompletedError",
     "JobTimeoutError",
-    "NoResultError",
     "RouteAlreadyRegisteredError",
 )

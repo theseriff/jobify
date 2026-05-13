@@ -105,6 +105,22 @@ class NodeRegistrator(Registrator[NodeRoute[..., Any]]):
 
 
 class NodeRouter(Router):
+    """Router for organizing jobs and sub-routers.
+
+    `NodeRouter` is a container for routes and sub-routers, providing
+    a way to structure large applications by grouping related jobs together.
+
+    Args:
+        state: Optional initial state for the router.
+        prefix: Optional prefix for route names.
+        lifespan: Optional lifespan handler for the router.
+        middleware: Middleware to apply to jobs in this router.
+        outer_middleware: Middleware to apply to scheduling process.
+        exception_handlers: Exception handlers for jobs.
+        route_class: Class to use for creating new routes.
+
+    """
+
     def __init__(  # noqa: PLR0913
         self,
         *,

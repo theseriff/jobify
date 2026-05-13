@@ -37,7 +37,7 @@
 - :material-identifier: **`job`**: `Job[Any]` — Live information about the task (ID, status, metadata).
 - :material-database: **`state`**: `State` — The global `app.state`, shared across all jobs (e.g., DB connections).
 - :material-play-circle-outline: **`runnable`**: `Runnable[Any]` — Internal execution strategy and bound arguments.
-- :material-Timer: **`request_state`**: `RequestState` — Temporary state existing only for the duration of this job.
+- :material-timer: **`request_state`**: `RequestState` — Temporary state existing only for the duration of this job.
 - :material-cog: **`route_options`**: `RouteOptions` — Configuration from the `@app.task(...)` decorator.
 - :material-tune: **`jobify_config`**: `JobifyConfiguration` — Global application settings.
 - :material-calendar-range: **`schedule_builder`**: `ScheduleBuilder[Any]` — Access to internal scheduling state.

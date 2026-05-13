@@ -1,18 +1,33 @@
+from collections.abc import AsyncIterable
 from datetime import datetime, timedelta
 from itertools import count
 from typing import Any
 from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from jobify import Jobify
+from jobify._internal.common.constants import UNSET
 from jobify._internal.cron_parser import CronFactory, CronParser
+from jobify._internal.storage.sqlite import SQLiteStorage
 
 
 @pytest.fixture
 def now() -> datetime:
     return datetime.now(tz=ZoneInfo("UTC"))
+
+
+@pytest.fixture
+async def storage() -> AsyncIterable[SQLiteStorage]:
+    s = SQLiteStorage(f"{uuid4().hex}.db")
+    try:
+        yield s
+    finally:
+        if s._conn is not UNSET:  # pragma: no cover
+            s._conn.close()
+        s.database.unlink()
 
 
 @pytest.fixture

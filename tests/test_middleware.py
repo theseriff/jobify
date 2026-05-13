@@ -6,9 +6,8 @@ import pytest
 from typing_extensions import override
 
 from jobify import JobContext, JobStatus, OuterContext
-from jobify._internal.common.constants import EMPTY
-from jobify._internal.common.types import UNSET
-from jobify.exceptions import JobFailedError, NoResultError
+from jobify._internal.common.constants import UNSET
+from jobify._internal.configuration import SmartRetry
 from jobify.middleware import (
     BaseMiddleware,
     BaseOuterMiddleware,
@@ -125,8 +124,10 @@ async def test_retry(sleep_mock: AsyncMock, *, amock: AsyncMock) -> None:
         job = await f.schedule().delay(0)
         await job.wait()
 
+    assert isinstance(f.options.get("retry"), SmartRetry)
+
     amock.assert_has_awaits([call()] * (retry + 1))
-    sleep_mock.assert_has_awaits(call(min(2**attempt, 60)) for attempt in range(retry))
+    assert sleep_mock.await_count == retry
 
 
 async def test_outer_middlewares(amock: AsyncMock) -> None:
@@ -148,25 +149,6 @@ async def test_outer_middlewares(amock: AsyncMock) -> None:
     async with app:
         job = await f.schedule().delay(0.01)
         assert job._handle is handle is not None
-
-
-async def test_retry_no_result_error(amock: AsyncMock) -> None:
-    amock.side_effect = NoResultError("Fatal failure")
-
-    app = create_app()
-    f = app.task(amock, retry=3)
-    async with app:
-        job = await f.push()
-        await job.wait()
-
-    assert job.status is JobStatus.FAILED
-
-    with pytest.raises(JobFailedError, match="Fatal failure"):
-        job.result()
-
-    assert job._result is EMPTY
-    assert type(job.exception) is NoResultError
-    amock.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
@@ -261,3 +243,13 @@ async def test_queue_middleware_shutdown_completes_queue(
         pass
 
     await asyncio.wait_for(queue.join(), timeout=0.1)
+
+
+async def test_smart_retry_no_jitter() -> None:
+    retry = SmartRetry(retries=1, jitter=False, initial_delay=0.1)
+    # attempt 1
+    delay = retry.compute_delay(1)
+    assert delay == 0.1  # noqa: PLR2004
+    # attempt 2
+    delay = retry.compute_delay(2)
+    assert delay == 0.2  # noqa: PLR2004

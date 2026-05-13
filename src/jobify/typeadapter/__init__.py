@@ -10,5 +10,6 @@ The module exports the main type adaptation interfaces:
 """
 
 from jobify._internal.typeadapter.base import Dumper, Loader
+from jobify.typeadapter.pydantic import PydanticConverter
 
-__all__ = ("Dumper", "Loader")
+__all__ = ("Dumper", "Loader", "PydanticConverter")

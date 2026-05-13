@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
-from jobify._internal.exceptions import NoResultError
+from jobify._internal.configuration import SmartRetry
 from jobify._internal.middleware.base import BaseMiddleware, CallNext
 
 if TYPE_CHECKING:
@@ -18,32 +18,32 @@ logger = logging.getLogger("jobify.middleware")
 class RetryMiddleware(BaseMiddleware):
     @override
     async def __call__(self, call_next: CallNext, context: JobContext) -> Any:
-        max_retries = context.route_options.get("retry")
-        if max_retries is None:
+        cfg = context.route_options.get("retry")
+        if not isinstance(cfg, SmartRetry):
             return await call_next(context)
 
-        failures = 0
+        attempt = 0
         while True:
             try:
                 return await call_next(context)
-            except NoResultError:  # noqa: PERF203
+            except cfg.exclude_exceptions:  # noqa: PERF203
                 raise
-            except Exception as exc:
-                failures += 1
-                if failures > max_retries:
+            except cfg.include_exceptions as exc:
+                attempt += 1
+                if attempt > cfg.retries:
                     msg = (
-                        f"Job failed after exhausting all {max_retries}"
+                        f"Job failed after exhausting all {cfg.retries}"
                         " retries. Propagating error."
                     )
                     logger.warning(msg)
                     raise
 
-                seconds_wait = min(2 ** (failures - 1), 60)
+                delay = cfg.compute_delay(attempt)
                 logger.warning(
                     "Attempt %s/%s failed. Retrying in %ss. Error: %s",
-                    failures,
-                    max_retries,
-                    seconds_wait,
+                    attempt,
+                    cfg.retries,
+                    delay,
                     exc,
                 )
-                await asyncio.sleep(seconds_wait)  # Exponential backoff
+                await asyncio.sleep(delay)

@@ -21,7 +21,7 @@ Exception handlers provide custom logic for dealing with errors during task exec
 
     ***
 
-    Raise `NoResultError` to abort all future retries and fail the job immediately.
+    Use `SmartRetry.exclude_exceptions` to abort all future retries and fail the job immediately.
 
 - :material-vector-arrange-below:{ .lg .middle } **Scoped Logic**
 
@@ -111,13 +111,19 @@ How your handler exits determines the final state of the job and whether retries
 
 === "3. Abort (No Retries)"
 
-    To stop all retries and fail immediately, raise `NoResultError`.
+    To stop all retries and fail immediately, raise an exception that is included in `exclude_exceptions` of your `SmartRetry` configuration.
 
     ```python
-    from jobify.exceptions import NoResultError
+    from jobify import SmartRetry
 
-    async def fatal_handler(exc, ctx):
-        raise NoResultError  # Job status: FAILED, no retries
+    # Define a custom fatal exception
+    class FatalError(Exception): ...
+
+    @app.task(
+        retry=SmartRetry(retries=3, exclude_exceptions=(FatalError,))
+    )
+    async def my_task():
+        raise FatalError("Unrecoverable") # Fails immediately, no retries
     ```
 
 ## Hierarchical Example

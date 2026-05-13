@@ -3,10 +3,26 @@ from __future__ import annotations
 import base64
 import dataclasses
 import json
+import re
+import uuid
+from collections import deque
 from collections.abc import Callable, Iterable, Sequence
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
+from fractions import Fraction
+from ipaddress import (
+    IPv4Address,
+    IPv4Interface,
+    IPv4Network,
+    IPv6Address,
+    IPv6Interface,
+    IPv6Network,
+    ip_address,
+    ip_interface,
+    ip_network,
+)
+from pathlib import Path
 from typing import (
     Any,
     ClassVar,
@@ -32,15 +48,31 @@ SupportedTypes: TypeAlias = (
     | int
     | str
     | bool
-    | Enum
     | float
+    | Enum
     | bytes
+    | bytearray
     | Decimal
+    | Fraction
     | ZoneInfo
     | datetime
+    | date
+    | time
     | timedelta
+    | uuid.UUID
+    | complex
+    | Path
+    | IPv4Address
+    | IPv6Address
+    | IPv4Network
+    | IPv6Network
+    | IPv4Interface
+    | IPv6Interface
+    | re.Pattern[str]
     | DataclassType
+    | frozenset["SupportedTypes"]
     | set["SupportedTypes"]
+    | deque["SupportedTypes"]
     | list["SupportedTypes"]
     | tuple["SupportedTypes", ...]
     | dict[str, "SupportedTypes"]
@@ -49,9 +81,7 @@ TypeRegistry: TypeAlias = dict[str, Callable[..., SupportedTypes]]
 
 
 def is_named_tuple_type(tp: Any) -> TypeIs[NamedTuple]:  # noqa: ANN401
-    return (
-        isinstance(tp, type) and issubclass(tp, tuple) and hasattr(tp, "_fields")  # pyright: ignore[reportUnknownArgumentType]
-    )
+    return isinstance(tp, type) and issubclass(tp, tuple) and hasattr(tp, "_fields")
 
 
 def is_named_tuple(o: SupportedTypes) -> TypeIs[NamedTuple]:
@@ -70,8 +100,8 @@ def is_structured_type(tp: Any) -> bool:  # noqa: ANN401
     )
 
 
-def json_extended_encoder(o: SupportedTypes) -> JSONCompat:  # noqa: C901, PLR0911
-    if is_dataclass(o):  # pragma: no cover
+def json_extended_encoder(o: SupportedTypes) -> JSONCompat:  # noqa: C901, PLR0911, PLR0912
+    if is_dataclass(o):
         return {
             "__dataclass__": {
                 "type": o.__class__.__name__,
@@ -89,30 +119,51 @@ def json_extended_encoder(o: SupportedTypes) -> JSONCompat:  # noqa: C901, PLR09
             }
         }
     if isinstance(o, Enum):
-        return {
-            "__enum__": {
-                "type": o.__class__.__name__,
-                "value": o.value,
-            }
-        }
+        return {"__enum__": {"type": o.__class__.__name__, "value": o.value}}
     if isinstance(o, datetime):
         return {"__datetime__": o.isoformat()}
-    if isinstance(o, Decimal):
-        return {"__decimal__": str(o)}
-    if isinstance(o, tuple):
-        return {"__tuple__": [json_extended_encoder(item) for item in o]}
-    if isinstance(o, set):
-        return {"__set__": [json_extended_encoder(item) for item in o]}
-    if isinstance(o, list):
-        return [json_extended_encoder(item) for item in o]
-    if isinstance(o, dict):
-        return {k: json_extended_encoder(v) for k, v in o.items()}
-    if isinstance(o, bytes):
-        return {"__bytes__": base64.b64encode(o).decode("utf-8")}
+    if isinstance(o, date):
+        return {"__date__": o.isoformat()}
+    if isinstance(o, time):
+        return {"__time__": o.isoformat()}
     if isinstance(o, timedelta):
         return {"__timedelta__": o.total_seconds()}
+    if isinstance(o, Decimal):
+        return {"__decimal__": str(o)}
+    if isinstance(o, Fraction):
+        return {"__fraction__": str(o)}
+    if isinstance(o, complex):
+        return {"__complex__": [o.real, o.imag]}
+    if isinstance(o, uuid.UUID):
+        return {"__uuid__": str(o)}
+    if isinstance(o, Path):
+        return {"__path__": o.as_posix()}
+    if isinstance(o, (IPv4Interface, IPv6Interface)):
+        return {"__ipinterface__": str(o)}
+    if isinstance(o, (IPv4Address, IPv6Address)):
+        return {"__ipaddress__": str(o)}
+    if isinstance(o, (IPv4Network, IPv6Network)):
+        return {"__ipnetwork__": str(o)}
+    if isinstance(o, re.Pattern):
+        return {"__pattern__": {"pattern": o.pattern, "flags": o.flags}}
+    if isinstance(o, bytearray):
+        return {"__bytearray__": base64.b64encode(bytes(o)).decode("utf-8")}
+    if isinstance(o, bytes):
+        return {"__bytes__": base64.b64encode(o).decode("utf-8")}
     if isinstance(o, ZoneInfo):
         return {"__zoneinfo__": o.key}
+    if isinstance(o, frozenset):
+        return {"__frozenset__": [json_extended_encoder(item) for item in o]}
+    if isinstance(o, set):
+        return {"__set__": [json_extended_encoder(item) for item in o]}
+    if isinstance(o, deque):
+        return {"__deque__": [json_extended_encoder(item) for item in o]}
+    if isinstance(o, list):
+        return [json_extended_encoder(item) for item in o]
+    if isinstance(o, tuple):
+        return {"__tuple__": [json_extended_encoder(item) for item in o]}
+    if isinstance(o, dict):
+        return {k: json_extended_encoder(v) for k, v in o.items()}
     return o
 
 
@@ -120,38 +171,58 @@ class JsonDecoderHook:
     def __init__(self, registry: TypeRegistry) -> None:
         self.registry: TypeRegistry = registry
 
-    def __call__(self, dct: dict[str, Any]) -> SupportedTypes:  # noqa: C901, PLR0911
+    def __call__(self, dct: dict[str, Any]) -> SupportedTypes:  # noqa: C901, PLR0911, PLR0912
         if "__dataclass__" in dct:
             data = dct["__dataclass__"]
-            fields = data["fields"]
-            type_name = data["type"]
-            return self.registry[type_name](**fields)
-
+            return self.registry[data["type"]](**data["fields"])
         if "__namedtuple__" in dct:
             data = dct["__namedtuple__"]
-            fields = data["fields"]
-            type_name = data["type"]
-            return self.registry[type_name](**fields)
-
+            return self.registry[data["type"]](**data["fields"])
         if "__enum__" in dct:
             data = dct["__enum__"]
-            type_name = data["type"]
-            return self.registry[type_name](data["value"])
-
+            return self.registry[data["type"]](data["value"])
         if "__datetime__" in dct:
             return datetime.fromisoformat(dct["__datetime__"])
-        if "__decimal__" in dct:
-            return Decimal(dct["__decimal__"])
-        if "__bytes__" in dct:
-            return base64.b64decode(dct["__bytes__"])
-        if "__tuple__" in dct:
-            return tuple(dct["__tuple__"])
-        if "__set__" in dct:
-            return set(dct["__set__"])
+        if "__date__" in dct:
+            return date.fromisoformat(dct["__date__"])
+        if "__time__" in dct:
+            return time.fromisoformat(dct["__time__"])
         if "__timedelta__" in dct:
             return timedelta(seconds=dct["__timedelta__"])
+        if "__decimal__" in dct:
+            return Decimal(dct["__decimal__"])
+        if "__fraction__" in dct:
+            return Fraction(dct["__fraction__"])
+        if "__complex__" in dct:
+            real, imag = dct["__complex__"]
+            return complex(real, imag)
+        if "__uuid__" in dct:
+            return uuid.UUID(dct["__uuid__"])
+        if "__path__" in dct:
+            return Path(dct["__path__"])
+        if "__ipinterface__" in dct:
+            return ip_interface(dct["__ipinterface__"])
+        if "__ipaddress__" in dct:
+            return ip_address(dct["__ipaddress__"])
+        if "__ipnetwork__" in dct:
+            return ip_network(dct["__ipnetwork__"])
+        if "__pattern__" in dct:
+            data = dct["__pattern__"]
+            return re.compile(data["pattern"], data["flags"])
+        if "__bytearray__" in dct:
+            return bytearray(base64.b64decode(dct["__bytearray__"]))
+        if "__bytes__" in dct:
+            return base64.b64decode(dct["__bytes__"])
         if "__zoneinfo__" in dct:
             return ZoneInfo(dct["__zoneinfo__"])
+        if "__frozenset__" in dct:
+            return frozenset(dct["__frozenset__"])
+        if "__set__" in dct:
+            return set(dct["__set__"])
+        if "__deque__" in dct:
+            return deque(dct["__deque__"])
+        if "__tuple__" in dct:
+            return tuple(dct["__tuple__"])
         return dct
 
 
@@ -169,14 +240,12 @@ class ExtendedJSONSerializer(Serializer):
 
     @override
     def dumpb(self, data: SupportedTypes) -> bytes:
-        json_compat = json_extended_encoder(data)
-        return json.dumps(json_compat).encode("utf-8")
+        return json.dumps(json_extended_encoder(data)).encode("utf-8")
 
     @override
     def loadb(self, data: bytes) -> SupportedTypes:
-        hook = self.decoder_hook
-        decoded: SupportedTypes = json.loads(data, object_hook=hook)
-        return decoded
+        r: SupportedTypes = json.loads(data, object_hook=self.decoder_hook)
+        return r
 
     def register_hints(self, types: Iterable[Any]) -> None:
         for tp in types:
@@ -189,7 +258,5 @@ class ExtendedJSONSerializer(Serializer):
                 continue
             if tp.__name__ in self.registry:
                 continue
-
             self.registry[tp.__name__] = tp
-            field_hints = get_type_hints(tp)
-            self.register_hints(field_hints.values())
+            self.register_hints(get_type_hints(tp).values())

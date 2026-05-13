@@ -9,10 +9,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from jobify._internal.common.datastructures import RequestState, State
-    from jobify._internal.configuration import (
-        JobifyConfiguration,
-        RouteOptions,
-    )
+    from jobify._internal.configuration import JobifyConfiguration, RouteOptions
     from jobify._internal.inspection import FuncSpec
     from jobify._internal.message import Triggers
     from jobify._internal.runners import Runnable
@@ -21,6 +18,30 @@ if TYPE_CHECKING:
 
 
 class OuterContext:
+    """Context object passed to middleware during the scheduling process.
+
+    This object holds all information required to inspect, modify, or
+    intercept a job before it is officially scheduled.
+
+    Attributes:
+        job: The job instance being scheduled.
+        state: The global application state.
+        trigger: The trigger mechanism (e.g., Cron, Push).
+        runnable: The runnable component (function/method) being scheduled.
+        arguments: The arguments bound to the job function.
+        func_spec: Inspection details of the job function.
+        is_force: Whether the job is forced to run.
+        is_persist: Whether the job should be persisted to storage.
+        is_replace: Whether the job replaces an existing one.
+        route_options: Configuration options for the route.
+        jobify_config: Global Jobify configuration.
+        request_state: State specific to the current request.
+        persist_job_hook: Callback to persist the job.
+        schedule_hook: Callback to schedule the job.
+        schedule_builder: Builder used to construct the schedule.
+
+    """
+
     __slots__: tuple[str, ...] = (
         "arguments",
         "func_spec",
@@ -39,6 +60,7 @@ class OuterContext:
         "trigger",
     )
 
+    # ... (rest of the __init__ remains the same)
     def __init__(  # noqa: PLR0913
         self,
         *,
@@ -76,6 +98,22 @@ class OuterContext:
 
 
 class JobContext(NamedTuple):
+    """Context object injected into jobs at runtime.
+
+    Provides access to job execution context, allowing jobs to inspect
+    their configuration, state, and scheduling builder.
+
+    Attributes:
+        job: The job instance.
+        state: The global application state.
+        runnable: The runnable component.
+        request_state: State specific to the current request.
+        route_options: Configuration options for the route.
+        jobify_config: Global Jobify configuration.
+        schedule_builder: Builder used to construct the schedule.
+
+    """
+
     job: Job[Any]
     state: State
     runnable: Runnable[Any]

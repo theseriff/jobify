@@ -8,6 +8,7 @@ import logging
 import signal
 import sys
 import threading
+import uuid
 from contextlib import contextmanager
 from typing import (
     TYPE_CHECKING,
@@ -22,8 +23,13 @@ from zoneinfo import ZoneInfo
 
 from typing_extensions import Self
 
-from jobify._internal.common.constants import EMPTY, PATCH_CRON_DEF_ID
-from jobify._internal.configuration import Cron, JobifyConfiguration, WorkerPools
+from jobify._internal.common.constants import PATCH_CRON_DEF_ID, UNSET
+from jobify._internal.configuration import (
+    Cron,
+    JobifyConfiguration,
+    UUIDGenerator,
+    WorkerPools,
+)
 from jobify._internal.message import (
     AtArguments,
     CronArguments,
@@ -112,6 +118,11 @@ class Jobify(RootRouter):
     It provides a flexible and extensible framework for defining, running,
     and persisting jobs, supporting various executors, middleware, and
     serialization options.
+
+    Attributes:
+        configs: Configuration object for the application.
+        plugins: Set of registered plugins.
+
     """
 
     def __init__(  # noqa: PLR0913
@@ -121,7 +132,7 @@ class Jobify(RootRouter):
         state: State | None = None,
         dumper: Dumper | None = None,
         loader: Loader | None = None,
-        storage: Storage | Literal[False] = EMPTY,
+        storage: Storage | Literal[False] = UNSET,
         lifespan: Lifespan[AppT] | None = None,
         serializer: Serializer | None = None,
         middleware: Sequence[BaseMiddleware] | None = None,
@@ -133,14 +144,36 @@ class Jobify(RootRouter):
         processpool_executor: ProcessPoolExecutor | None = None,
         route_class: type[RootRoute[..., Any]] = RootRoute,
         plugins: Sequence[Plugin] = (),
+        uuid_generator: UUIDGenerator = uuid.uuid4,
     ) -> None:
-        """Initialize a `Jobify` instance."""
+        """Initialize a `Jobify` instance.
+
+        Args:
+            tz: Timezone info, defaults to UTC.
+            state: Optional initial application state.
+            dumper: Dumper for serialization.
+            loader: Loader for deserialization.
+            storage: Storage backend, defaults to SQLite if not provided.
+            lifespan: Optional lifespan handler.
+            serializer: Serializer for job messages.
+            middleware: List of middleware components.
+            outer_middleware: List of outer middleware components.
+            cron_factory: Factory function for cron parsing.
+            loop_factory: Factory function for the event loop.
+            exception_handlers: Mapping of exception types to handlers.
+            threadpool_executor: Executor for thread-based jobs.
+            processpool_executor: Executor for process-based jobs.
+            route_class: Class to use for root routes.
+            plugins: List of plugins to register.
+            uuid_generator: uuid generator factory.
+
+        """
         getloop = cache_result(loop_factory)
         tz = tz or ZoneInfo("UTC")
 
         if storage is False:
             storage = DummyStorage()
-        elif storage is EMPTY:
+        elif storage is UNSET:
             storage = SQLiteStorage()
 
         if isinstance(storage, SQLiteStorage):
@@ -183,6 +216,7 @@ class Jobify(RootRouter):
                 threadpool=threadpool_executor,
             ),
             cron_factory=cron_factory,
+            uuid_generator=uuid_generator,
         )
         idle_event = asyncio.Event()
         idle_event.set()
@@ -231,7 +265,7 @@ class Jobify(RootRouter):
             The initialized Jobify instance ready for use.
 
         Raises:
-            Any exception raised by `startup()` method.
+            Exception: Any exception raised by `startup()` method.
 
         """
         await self.startup()
@@ -246,8 +280,8 @@ class Jobify(RootRouter):
         3. Schedules any pending cron jobs
 
         Raises:
-            RuntimeError: If application startup fails due to configuration
-            issues or router initialization errors.
+            RuntimeError: If application startup fails due to configuration issues or
+                router initialization errors.
 
         """
 
@@ -456,14 +490,16 @@ class Jobify(RootRouter):
         self.configs.worker_pools.close()
         await self._propagate_shutdown()
         await self.configs.storage.shutdown()
+        self._raise_captured_signals()
 
+        logger.info("Jobify shutdown complete.")
+
+    def _raise_captured_signals(self) -> None:
         # If we did gracefully shut down due to a signal, try to
         # trigger the expected behaviour now; multiple signals would be
         # done LIFO, see https://stackoverflow.com/questions/48434964
         for captured_signal in reversed(self._captured_signals):
             signal.raise_signal(captured_signal)
-
-        logger.info("Jobify shutdown complete.")
 
     async def wait_all(self, timeout: float | None = None) -> None:
         """Wait for all currently scheduled jobs to complete.

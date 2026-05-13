@@ -4,7 +4,6 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Generic, TypeVar, cast
-from uuid import uuid4
 
 from jobify._internal.common.constants import JobStatus
 from jobify._internal.common.datastructures import RequestState, State
@@ -45,6 +44,18 @@ logger = logging.getLogger("jobify.scheduler")
 
 
 class ScheduleBuilder(Generic[ReturnT]):
+    """Builder class for scheduling jobs.
+
+    This class provides methods to schedule tasks to run immediately (push),
+    at a specific time (at), or according to a cron schedule (cron).
+
+    Attributes:
+        func_spec: Function specification.
+        name: Name of the scheduled task.
+        route_options: Route options for the task.
+
+    """
+
     __slots__: tuple[str, ...] = (
         "_chain_middleware",
         "_chain_outer_middleware",
@@ -74,6 +85,22 @@ class ScheduleBuilder(Generic[ReturnT]):
         options: RouteOptions,
         is_persist: bool,
     ) -> None:
+        """Initialize the ScheduleBuilder.
+
+        Args:
+            name: The task name.
+            state: Application state.
+            task_tracker: Tracker for scheduled tasks.
+            jobify_config: Jobify configuration.
+            runnable: The runnable task.
+            chain_middleware: Middleware for task execution.
+            chain_outer_middleware: Middleware for scheduling.
+            func_spec: Function specification.
+            exception_handlers: Exception handlers.
+            options: Route options.
+            is_persist: Whether the schedule should be persisted.
+
+        """
         self._state: State = state
         self._task_tracker: TaskTracker = task_tracker
         self._configs: JobifyConfiguration = jobify_config
@@ -87,6 +114,12 @@ class ScheduleBuilder(Generic[ReturnT]):
         self.name: str = name
 
     def now(self) -> datetime:
+        """Return the current datetime in the configured timezone.
+
+        Returns:
+            Current datetime.
+
+        """
         return datetime.now(tz=self._configs.tz)
 
     async def cron(
@@ -97,6 +130,18 @@ class ScheduleBuilder(Generic[ReturnT]):
         replace: bool = False,
         force: bool = False,
     ) -> Job[ReturnT]:
+        """Schedules a task based on a cron expression.
+
+        Args:
+            cron: Cron expression string or object.
+            job_id: Unique identifier for the job.
+            replace: Whether to replace an existing job if it exists.
+            force: Whether to force scheduling even if parameters match.
+
+        Returns:
+            The scheduled Job instance.
+
+        """
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
         if isinstance(cron, str):
             cron = Cron(cron)
@@ -166,6 +211,18 @@ class ScheduleBuilder(Generic[ReturnT]):
         now: datetime | None = None,
         replace: bool = False,
     ) -> Job[ReturnT]:
+        """Schedules a task to run after a delay.
+
+        Args:
+            seconds: Delay in seconds.
+            job_id: Unique identifier for the job.
+            now: Current time base.
+            replace: Whether to replace an existing job.
+
+        Returns:
+            The scheduled Job instance.
+
+        """
         now = now or self.now()
         at = now + timedelta(seconds=seconds)
         return await self.at(at=at, job_id=job_id, replace=replace)
@@ -178,6 +235,18 @@ class ScheduleBuilder(Generic[ReturnT]):
         replace: bool = False,
         force: bool = False,
     ) -> Job[ReturnT]:
+        """Schedules a task to run at a specific time.
+
+        Args:
+            at: The scheduled datetime.
+            job_id: Unique identifier for the job.
+            replace: Whether to replace an existing job.
+            force: Whether to force scheduling even if already scheduled at this time.
+
+        Returns:
+            The scheduled Job instance.
+
+        """
         job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
         if exists_job is not None:
             if not force and exists_job.exec_at == at:
@@ -204,9 +273,15 @@ class ScheduleBuilder(Generic[ReturnT]):
         return job
 
     async def push(self) -> Job[ReturnT]:
+        """Schedules a task to run immediately.
+
+        Returns:
+            The scheduled Job instance.
+
+        """
         job = Job[ReturnT](
             exec_at=self.now(),
-            job_id=uuid4().hex,
+            job_id=self._configs.uuid_generator().hex,
             storage=self._configs.storage,
             unregister_hook=self._task_tracker.unregister_job,
         )
@@ -316,7 +391,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         *,
         replace: bool,
     ) -> tuple[str, Job[ReturnT] | None]:
-        job_id = job_id or uuid4().hex
+        job_id = job_id or self._configs.uuid_generator().hex
         if job := self._task_tracker.pending_jobs.get(job_id):
             if replace is True:
                 return (job_id, job)

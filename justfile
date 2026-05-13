@@ -13,7 +13,7 @@ default:
 [doc("Prepare venv and repo for developing")]
 [group("Common")]
 init:
-  uv sync --group dev
+  uv sync --group dev --all-extras
   just _pre-commit install
 
 
@@ -113,4 +113,4 @@ alias tca := test-coverage-all
 [doc("Run benchmarks")]
 [group("benchmarks")]
 bench:
-  @uv run --no-dev --group benchmarks --frozen -m benchmarks.bench
+  @uv run --no-dev --group benchmarks --frozen pytest benchmarks/ --codspeed
