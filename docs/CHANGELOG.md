@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.12.1 (2026-05-13)
+
+### Bug Fixes
+
+- Trigger worflow pypi
+  ([`909412d`](https://github.com/theseriff/jobify/commit/909412d0752c4586ef3664e973903ea5e9e2afd4))
+
+
 ## v0.12.0 (2026-05-13)
 
 ### Build System
