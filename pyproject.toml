@@ -32,7 +32,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: System :: Systems Administration :: Scheduling",
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
