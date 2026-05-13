@@ -1,11 +1,9 @@
-import pytest
-
 from benchmarks.serializers.common import serializer_case
 from jobify.serializers import OrjsonSerializer
-from .common import PairAdapter, parametrize_adapters
+from .common import PairAdapter, benchmark_serializer, parametrize_adapters
 
 
-@pytest.mark.benchmark(group="serializers")
+@benchmark_serializer
 class TestOrjson:
     def setup_method(self) -> None:
         self.serializer = OrjsonSerializer()

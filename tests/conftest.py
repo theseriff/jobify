@@ -21,7 +21,7 @@ def now() -> datetime:
 
 @pytest.fixture
 async def storage() -> AsyncIterable[SQLiteStorage]:
-    s = SQLiteStorage(f"{uuid4()}.db")
+    s = SQLiteStorage(f"{uuid4().hex}.db")
     try:
         yield s
     finally:

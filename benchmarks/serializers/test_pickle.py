@@ -1,10 +1,8 @@
-import pytest
-
-from benchmarks.serializers.common import serializer_case
+from benchmarks.serializers.common import benchmark_serializer, serializer_case
 from jobify.serializers import UnsafePickleSerializer
 
 
-@pytest.mark.benchmark(group="serializers")
+@benchmark_serializer
 class TestPickle:
     def setup_method(self) -> None:
         self.serializer = UnsafePickleSerializer()

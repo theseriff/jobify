@@ -29,6 +29,7 @@ class PairAdapter(Dumper, Loader, Protocol):
     pass
 
 
+benchmark_serializer = pytest.mark.benchmark(group="serializers")
 parametrize_adapters = pytest.mark.parametrize(
     "adapter",
     [
