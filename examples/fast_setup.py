@@ -23,7 +23,7 @@ from jobify.serializers.orjson import OrjsonSerializer
 from jobify.typeadapter import PydanticConverter
 
 # Manually configure fast components
-adapter = PydanticConverter()
+adapter = PydanticConverter()  # or use adaptix: `adapter = adaptix.Retort()`
 app = Jobify(
     serializer=OrjsonSerializer(),
     dumper=adapter,
