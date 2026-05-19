@@ -326,6 +326,7 @@ class ScheduleBuilder(Generic[ReturnT]):
     async def _exec_job(self, job: Job[ReturnT]) -> None:
         job.status = JobStatus.RUNNING
         job_context = JobContext(
+            app=self._configs.app,
             job=job,
             state=self._state,
             request_state=RequestState(),
@@ -410,6 +411,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         schedule_hook: Callable[[], asyncio.Handle],
     ) -> OuterContext:
         return OuterContext(
+            app=self._configs.app,
             job=job,
             state=self._state,
             trigger=trigger,

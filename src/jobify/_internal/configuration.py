@@ -1,27 +1,27 @@
+from __future__ import annotations
+
 import multiprocessing
 import random
 import sys
-import uuid
-from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, NamedTuple, Protocol, TypedDict
-from zoneinfo import ZoneInfo
+from datetime import datetime  # noqa: TC003 # Leave it, for introspection types
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, TypedDict
 
 from jobify._internal.common.constants import INFINITY, RunMode
-from jobify._internal.common.types import (
-    LoopFactory,
-    MappingExceptionHandlers,
-)
-from jobify._internal.cron_parser import CronFactory
-from jobify._internal.scheduler.misfire_policy import (
-    GracePolicy,
-    MisfirePolicy,
-)
-from jobify._internal.serializers.base import Serializer
-from jobify._internal.storage.base import Storage
-from jobify._internal.typeadapter.base import Dumper, Loader
+from jobify._internal.scheduler.misfire_policy import GracePolicy, MisfirePolicy
+
+if TYPE_CHECKING:
+    import uuid
+    from collections.abc import Mapping
+    from zoneinfo import ZoneInfo
+
+    from jobify._internal.common.types import LoopFactory, MappingExceptionHandlers
+    from jobify._internal.cron_parser import CronFactory
+    from jobify._internal.serializers.base import Serializer
+    from jobify._internal.storage.base import Storage
+    from jobify._internal.typeadapter.base import Dumper, Loader
+    from jobify.jobify import Jobify
 
 
 class UUIDGenerator(Protocol):
@@ -61,6 +61,7 @@ class WorkerPools:
 
 class JobifyConfiguration:
     __slots__: tuple[str, ...] = (
+        "app",
         "app_started",
         "cron_factory",
         "dumper",
@@ -76,6 +77,7 @@ class JobifyConfiguration:
     def __init__(  # noqa: PLR0913
         self,
         *,
+        app: Jobify,
         tz: ZoneInfo,
         dumper: Dumper,
         loader: Loader,
@@ -87,6 +89,7 @@ class JobifyConfiguration:
         uuid_generator: UUIDGenerator,
         app_started: bool = False,
     ) -> None:
+        self.app = app
         self.tz = tz
         self.dumper = dumper
         self.loader = loader
@@ -134,7 +137,7 @@ class Cron:
 class RouteOptions(TypedDict, total=False):
     name: str
     cron: Cron | str
-    retry: "int | SmartRetry"
+    retry: int | SmartRetry
     timeout: float
     durable: bool
     run_mode: RunMode

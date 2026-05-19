@@ -206,6 +206,7 @@ class Jobify(RootRouter):
 
         self.configs: JobifyConfiguration = JobifyConfiguration(
             tz=tz,
+            app=self,
             dumper=dumper,
             loader=loader,
             storage=storage,

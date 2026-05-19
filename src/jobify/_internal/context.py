@@ -1,4 +1,3 @@
-# pyright: reportImportCycles=false
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -15,6 +14,7 @@ if TYPE_CHECKING:
     from jobify._internal.runners import Runnable
     from jobify._internal.scheduler.job import Job
     from jobify._internal.scheduler.scheduler import ScheduleBuilder
+    from jobify.jobify import Jobify
 
 
 class OuterContext:
@@ -43,6 +43,7 @@ class OuterContext:
     """
 
     __slots__: tuple[str, ...] = (
+        "app",
         "arguments",
         "func_spec",
         "is_force",
@@ -64,6 +65,7 @@ class OuterContext:
     def __init__(  # noqa: PLR0913
         self,
         *,
+        app: Jobify,
         job: Job[Any],
         state: State,
         trigger: Triggers,
@@ -80,6 +82,7 @@ class OuterContext:
         schedule_hook: Callable[[], asyncio.Handle],
         schedule_builder: ScheduleBuilder[Any],
     ) -> None:
+        self.app = app
         self.job = job
         self.state = state
         self.trigger = trigger
@@ -114,6 +117,7 @@ class JobContext(NamedTuple):
 
     """
 
+    app: Jobify
     job: Job[Any]
     state: State
     runnable: Runnable[Any]
