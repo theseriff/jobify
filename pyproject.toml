@@ -47,6 +47,7 @@ msgpack = ["msgpack>=1.0.7,<2"]
 orjson = ["orjson>=3.0.0,<4"]
 pydantic = ["pydantic>=2.0,<3"]
 uuid-utils = ["uuid-utils>=0.10.0,<1"]
+uuid7-rs = ["uuid7-rs>=0.0.7"]
 fast = ["jobify[orjson,uuid-utils,pydantic]"]
 
 [dependency-groups]
