@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from asyncio import Future, PriorityQueue
-from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
 
 from typing_extensions import override
 
@@ -25,7 +25,8 @@ class Item(NamedTuple):
 
     @override
     def __lt__(self, value: tuple[Any, ...], /) -> bool:
-        return self.priority < cast("int", value[3])
+        other_priority: int = value[-1]
+        return self.priority < other_priority
 
 
 _STOP_ITEM = Item(UNSET, UNSET, UNSET, priority=1 << 31)

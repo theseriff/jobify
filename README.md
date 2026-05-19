@@ -53,7 +53,7 @@ pip install jobify
 ```python
 import asyncio
 
-from jobify import Jobify
+from jobify import Jobify, Job
 
 app = Jobify()
 
@@ -65,7 +65,7 @@ async def hello(name: str) -> None:
 
 async def main() -> None:
     async with app:
-        job = await hello.push("Alex")
+        job: Job = await hello.push("Alex")
         await job.wait()
 
 
@@ -81,7 +81,7 @@ import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from jobify import Jobify
+from jobify import Jobify, Job
 
 UTC = ZoneInfo("UTC")
 app = Jobify(tz=UTC)
@@ -103,9 +103,9 @@ async def main() -> None:
         await my_job.push("Alex")
 
         run_next_day = datetime.now(tz=UTC) + timedelta(days=1)
-        job_at = await my_job.schedule("Connor").at(run_next_day)
-        job_delay = await my_job.schedule("Sara").delay(seconds=20)
-        job_cron = await my_cron.schedule().cron("* * * * *", job_id="dynamic_cron_id")
+        job_at: Job = await my_job.schedule("Connor").at(run_next_day)
+        job_delay: Job = await my_job.schedule("Sara").delay(seconds=20)
+        job_cron: Job = await my_cron.schedule().cron("* * * * *", job_id="dynamic_cron_id")
 
         await job_at.wait()
         await job_delay.wait()

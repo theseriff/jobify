@@ -221,7 +221,7 @@ known-first-party = ["src", "tests"]
 no-lines-before = ["local-folder"]
 
 [tool.codespell]
-skip = "*.pyi,*.pyc,./site"
+skip = "*.pyi,*.pyc,./site,./docs/CHANGELOG.md"
 
 # Python Semantic Release
 [tool.semantic_release]

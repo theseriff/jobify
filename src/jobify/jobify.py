@@ -395,7 +395,7 @@ class Jobify(RootRouter):
             bound = route.func_spec.signature.bind(**msg.arguments)
         except (KeyError, TypeError, ValueError) as exc:
             logger.warning(
-                "Failed to revive job %s (%s). Reason: %s",
+                "Failed to restore job %s (%s). Reason: %s",
                 sch.job_id,
                 sch.name,
                 exc,
