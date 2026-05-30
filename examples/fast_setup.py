@@ -9,8 +9,8 @@ Demonstrates:
 Requires the ``fast`` extra to be installed. Install it with::
 
 dependencies = [
-    "jobify[fast]>=0.12.1",
-    "uuid7-rs>=0.0.7",
+    "jobify[fast]>=0.13.0",
+    "uuid7-rs>=0.0.8",
 ]
 """
 
@@ -25,8 +25,11 @@ from jobify import Jobify
 from jobify.serializers.orjson import OrjsonSerializer
 from jobify.typeadapter import PydanticConverter
 
+adapter = PydanticConverter()  # or use adaptix: `uv add adaptix`
+# from adaptix import Retort
+# adapter = Retort()
+
 # Manually configure fast components
-adapter = PydanticConverter()  # or use adaptix: `adapter = adaptix.Retort()`
 app = Jobify(
     serializer=OrjsonSerializer(),
     dumper=adapter,
