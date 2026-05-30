@@ -162,12 +162,31 @@ await my_task.schedule(*args, **kwargs).cron(
 
 ### push (Immediate Execution)
 
-Fastest way to enqueue a task for execution as soon as possible.
+Fastest way to enqueue a task for execution as soon as possible. There are 2 ways:
 
-```python
-job = await my_task.push(*args, **kwargs)
-await job.wait()
-```
+=== "Way 1 (`task.push`)"
+
+    ```python
+    job = await my_task.push(*args, **kwargs) # syntactic sugar
+    await job.wait()
+    ```
+
+=== "Way 2 (`task.schedule().push`)"
+
+    ```python
+    job = await my_task.schedule(*args, **kwargs).push(
+        job_id="idempotency_key",
+        replace=True,
+        force=True,
+    )
+    await job.wait()
+    ```
+
+    !!! note "`replace` vs `force`"
+        - `replace=True`: don't error if job exists — just return it.
+        - `force=True`: Cancel the existing job,
+            then execute the OuterMiddleware chain and reschedule it to run immediately.
+        - `force` only works when `replace=True`.
 
 !!! note "Persistence"
     `push()` jobs are also persisted when task is `durable=True`.
