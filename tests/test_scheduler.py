@@ -80,7 +80,7 @@ async def test_jobify(  # noqa: PLR0913
         else:
             raise NotImplementedError
 
-        _ = await asyncio.wait_for(
+        await asyncio.wait_for(
             asyncio.gather(job_sync.wait(), job_async.wait()),
             timeout=1.0,
         )
@@ -92,7 +92,7 @@ async def test_jobify(  # noqa: PLR0913
 
 
 @pytest.mark.parametrize("storage", [False, SQLiteStorage(":memory:")])
-@pytest.mark.parametrize("method", ["at", "cron", "delay"])
+@pytest.mark.parametrize("method", ["at", "cron", "delay", "push"])
 async def test_schedule_replace(
     method: str,
     amock: AsyncMock,
@@ -102,6 +102,10 @@ async def test_schedule_replace(
     job_id = "job_test"
     app = Jobify(storage=storage)
     f = app.task(amock)
+
+    @app.task
+    async def heavy_task() -> None:
+        await asyncio.sleep(20)
 
     async with app:
         builder = f.schedule()
@@ -120,6 +124,13 @@ async def test_schedule_replace(
             first_job = await builder.delay(20, job_id=job_id)
             first_handle = first_job._handle
             second_job = await builder.delay(60, job_id=job_id, replace=True)
+        elif method == "push":
+            heavy_builder = heavy_task.schedule()
+            first_job = await heavy_builder.push(job_id=job_id)
+            first_handle = first_job._handle
+            second_job = await heavy_builder.push(
+                job_id=job_id, replace=True, force=True
+            )
         else:
             now = datetime.now(tz=timezone.utc)
             first_job = await builder.at(now + timedelta(1), job_id=job_id)
@@ -216,14 +227,21 @@ async def test_update_exists_job(amock: AsyncMock) -> None:
     assert offset4 == start_date4 == start_date + timedelta(1)
 
 
-async def test_at_idempotent(now: datetime, amock: AsyncMock) -> None:
+@pytest.mark.parametrize("method", ["at", "push"])
+async def test_idempotent(method: str, now: datetime, amock: AsyncMock) -> None:
     app = create_app()
     f = app.task(amock)
-    at = now + timedelta(1)
+
     async with app:
-        job1 = await f.schedule().at(at, job_id="test")
-        job2 = await f.schedule().at(at, job_id="test", replace=True)
-        assert job1 is job2
+        if method == "at":
+            at = now + timedelta(1)
+            job1 = await f.schedule().at(at, job_id="test")
+            job2 = await f.schedule().at(at, job_id="test", replace=True)
+        else:
+            job1 = await f.schedule().push(job_id="test")
+            job2 = await f.schedule().push(job_id="test", replace=True)
+
+    assert job1 is job2
 
 
 async def test_cron_def_idempotent() -> None:

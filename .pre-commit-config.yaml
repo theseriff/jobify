@@ -35,7 +35,7 @@ repos:
           )$
 
   - repo: https://github.com/crate-ci/typos
-    rev: v1.45.0
+    rev: v1.46.3
     hooks:
       - id: typos
         exclude: ^docs/CHANGELOG\.md$
