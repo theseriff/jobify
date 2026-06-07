@@ -56,7 +56,7 @@ fast = ["jobify[orjson,pydantic]"]
 optionals = ["jobify[cbor2,msgpack,orjson,pydantic]"]
 lint = [
     "mypy==2.1.0",
-    "ruff==0.15.14",
+    "ruff==0.15.15",
     "bandit==1.9.4",
     "zizmor==1.25.2",
     "semgrep==1.164.0",
@@ -78,7 +78,7 @@ test = [
     "adaptix>=3.0.0b1,<4",
     "uuid-utils",
 ]
-docs = ["zensical==0.0.41", "mkdocstrings[python]==1.0.4"]
+docs = ["zensical==0.0.43", "mkdocstrings[python]==1.0.4"]
 benchmarks = [
     { include-group = "optionals" },
     { include-group = "test" },
