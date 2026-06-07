@@ -47,7 +47,7 @@ class AsyncStrategy(RunStrategy[ParamsT, ReturnT]):
         *args: ParamsT.args,
         **kwargs: ParamsT.kwargs,
     ) -> ReturnT:
-        return await self.func(*args, **kwargs)
+        return await self.func(*args, **kwargs)  # ty: ignore[invalid-return-type]
 
 
 class PoolStrategy(RunStrategy[ParamsT, ReturnT]):

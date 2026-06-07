@@ -133,7 +133,7 @@ class RootRoute(Route[ParamsT, ReturnT]):
             original_qualname = func.__qualname__.rsplit(".", 1)
             original_qualname[-1] = new_name
             new_qualname = ".".join(original_qualname)
-            func.__qualname__ = new_qualname
+            func.__qualname__ = new_qualname  # ty: ignore [invalid-assignment]
         setattr(module, new_name, func)
 
     @override

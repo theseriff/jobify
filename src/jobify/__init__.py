@@ -9,7 +9,7 @@ from importlib.metadata import version as get_version
 
 from jobify._internal.common.constants import JobStatus, RunMode
 from jobify._internal.common.datastructures import RequestState, State
-from jobify._internal.configuration import Cron, SmartRetry
+from jobify._internal.configuration import Cron, JobifyConfiguration, SmartRetry
 from jobify._internal.context import JobContext, OuterContext
 from jobify._internal.inspection import INJECT
 from jobify._internal.router.node import NodeRouter as JobRouter
@@ -30,6 +30,7 @@ __all__ = (
     "JobRouter",
     "JobStatus",
     "Jobify",
+    "JobifyConfiguration",
     "MisfirePolicy",
     "OuterContext",
     "Plugin",

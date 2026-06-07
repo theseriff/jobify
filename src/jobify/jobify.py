@@ -206,6 +206,7 @@ class Jobify(RootRouter):
 
         self.configs: JobifyConfiguration = JobifyConfiguration(
             tz=tz,
+            app=self,
             dumper=dumper,
             loader=loader,
             storage=storage,
@@ -473,10 +474,13 @@ class Jobify(RootRouter):
             tasks to prevent shutdown from being interrupted by task exception.
 
         """
+        self.configs.app_started = False
+
         for plug in self.plugins:
             await plug.shutdown()
 
-        self.configs.app_started = False
+        await self._propagate_shutdown()
+        await self.configs.storage.shutdown()
 
         if jobs := tuple(self.task._task_tracker.pending_jobs.values()):
             for job in jobs:
@@ -488,8 +492,6 @@ class Jobify(RootRouter):
             await asyncio.gather(*tasks, return_exceptions=True)
 
         self.configs.worker_pools.close()
-        await self._propagate_shutdown()
-        await self.configs.storage.shutdown()
         self._raise_captured_signals()
 
         logger.info("Jobify shutdown complete.")

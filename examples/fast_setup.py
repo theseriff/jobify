@@ -8,7 +8,10 @@ Demonstrates:
 
 Requires the ``fast`` extra to be installed. Install it with::
 
-    uv add jobify[fast]
+dependencies = [
+    "jobify[fast]>=0.13.0",
+    "uuid_utils",
+]
 """
 
 import asyncio
@@ -22,8 +25,11 @@ from jobify import Jobify
 from jobify.serializers.orjson import OrjsonSerializer
 from jobify.typeadapter import PydanticConverter
 
+adapter = PydanticConverter()  # or use adaptix: `uv add adaptix`
+# from adaptix import Retort
+# adapter = Retort()
+
 # Manually configure fast components
-adapter = PydanticConverter()  # or use adaptix: `adapter = adaptix.Retort()`
 app = Jobify(
     serializer=OrjsonSerializer(),
     dumper=adapter,

@@ -272,25 +272,49 @@ class ScheduleBuilder(Generic[ReturnT]):
         )
         return job
 
-    async def push(self) -> Job[ReturnT]:
+    async def push(
+        self,
+        *,
+        job_id: str | None = None,
+        replace: bool = False,
+        force: bool = False,
+    ) -> Job[ReturnT]:
         """Schedules a task to run immediately.
+
+        Args:
+            job_id: Unique identifier for the job.
+            replace: Whether to replace an existing job.
+            force: Whether to force scheduling even if already scheduled at this time.
 
         Returns:
             The scheduled Job instance.
 
         """
-        job = Job[ReturnT](
-            exec_at=self.now(),
-            job_id=self._configs.uuid_generator().hex,
-            storage=self._configs.storage,
-            unregister_hook=self._task_tracker.unregister_job,
-        )
+        exec_at = self.now()
+        job_id, exists_job = self._ensure_job_id(job_id, replace=replace)
+        if exists_job is not None:
+            if not force:
+                logger.info(
+                    JOB_ALREADY_EXISTS.format(
+                        job_id=job_id, schedule=exists_job.exec_at
+                    )
+                )
+                return exists_job
+            exists_job.exec_at = exec_at
+            job = exists_job
+        else:
+            job = Job[ReturnT](
+                exec_at=exec_at,
+                job_id=job_id,
+                storage=self._configs.storage,
+                unregister_hook=self._task_tracker.unregister_job,
+            )
         await self._chain_outer_middleware(
             self._create_outer_context(
                 job=job,
                 trigger=PushArguments(job_id=job.id),
-                is_force=False,
-                is_replace=False,
+                is_force=force,
+                is_replace=replace,
                 schedule_hook=lambda: self._push_execution(job),
             )
         )
@@ -326,6 +350,7 @@ class ScheduleBuilder(Generic[ReturnT]):
     async def _exec_job(self, job: Job[ReturnT]) -> None:
         job.status = JobStatus.RUNNING
         job_context = JobContext(
+            app=self._configs.app,
             job=job,
             state=self._state,
             request_state=RequestState(),
@@ -410,6 +435,7 @@ class ScheduleBuilder(Generic[ReturnT]):
         schedule_hook: Callable[[], asyncio.Handle],
     ) -> OuterContext:
         return OuterContext(
+            app=self._configs.app,
             job=job,
             state=self._state,
             trigger=trigger,

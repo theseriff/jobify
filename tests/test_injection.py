@@ -4,15 +4,7 @@ from unittest.mock import Mock
 import pytest
 from typing_extensions import override
 
-from jobify import (
-    INJECT,
-    Job,
-    JobContext,
-    Jobify,
-    Runnable,
-    ScheduleBuilder,
-    State,
-)
+from jobify import INJECT, Job, JobContext, Jobify, Runnable, ScheduleBuilder, State
 from jobify._internal.common.datastructures import RequestState
 from jobify._internal.configuration import JobifyConfiguration, RouteOptions
 from jobify.middleware import BaseMiddleware, CallNext
@@ -35,6 +27,7 @@ async def test_injection() -> None:
 
     @app.task
     async def some_func(  # noqa: PLR0913
+        app: Jobify = INJECT,
         job: Job[None] = INJECT,
         app_state: State = INJECT,
         runnable: Runnable[None] = INJECT,
@@ -45,6 +38,7 @@ async def test_injection() -> None:
         builder: ScheduleBuilder[None] = INJECT,
     ) -> None:
         mock(
+            app,
             job,
             app_state,
             runnable,
@@ -64,6 +58,7 @@ async def test_injection() -> None:
     context = contexts.pop()
     assert isinstance(context, JobContext)
     mock.assert_called_once_with(
+        app,
         job,
         {},
         builder._runnable,
@@ -78,6 +73,8 @@ async def test_injection() -> None:
 async def test_injection_wrong_usage() -> None:
     app = create_app()
 
+    class SomeClass: ...
+
     with pytest.raises(
         ValueError,
         match="Parameter '_job' requires a type annotation for INJECT",
@@ -89,7 +86,7 @@ async def test_injection_wrong_usage() -> None:
             pass
 
     @app.task
-    async def not_exists_type_in_map(_job: Jobify = INJECT) -> None:
+    async def not_exists_type_in_map(_job: SomeClass = INJECT) -> None:
         pass
 
     async with app:

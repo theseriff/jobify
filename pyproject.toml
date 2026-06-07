@@ -13,15 +13,19 @@ requires-python = ">=3.10,<3.15"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-authors = [
-    { name = "Sergey Yavorsky", email = "maclovi.dev@gmail.com" },
+authors = [{ name = "Sergey Yavorsky", email = "theseriff@proton.me" }]
+keywords = [
+    "asyncio",
+    "cron",
+    "scheduler",
+    "task-manager",
+    "job-scheduler",
+    "background-tasks",
 ]
-keywords = ["asyncio", "cron", "scheduler", "task-manager", "job-scheduler", "background-tasks"]
 classifiers = [
     "Environment :: Console",
     "Framework :: AsyncIO",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -46,19 +50,18 @@ cbor2 = ["cbor2>=6.0.0,<7"]
 msgpack = ["msgpack>=1.0.7,<2"]
 orjson = ["orjson>=3.0.0,<4"]
 pydantic = ["pydantic>=2.0,<3"]
-uuid-utils = ["uuid-utils>=0.10.0,<1"]
-fast = ["jobify[orjson,uuid-utils,pydantic]"]
+fast = ["jobify[orjson,pydantic]"]
 
 [dependency-groups]
-optionals = ["jobify[cbor2,msgpack,orjson,uuid-utils,pydantic]"]
+optionals = ["jobify[cbor2,msgpack,orjson,pydantic]"]
 lint = [
-    "mypy==2.0.0",
-    "ruff==0.15.12",
+    "mypy==2.1.0",
+    "ruff==0.15.14",
     "bandit==1.9.4",
-    "zizmor==1.24.1",
-    "semgrep==1.162.0",
+    "zizmor==1.25.2",
+    "semgrep==1.164.0",
     "codespell==2.4.2",
-    "pyrefly==0.64.1",
+    "ty==0.0.44",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-python-crontab",
@@ -66,22 +69,20 @@ lint = [
 test = [
     { include-group = "optionals" },
     "pytest==9.0.3",
-    "pytest-asyncio==1.3.0",
+    "pytest-asyncio==1.4.0",
     "pytest-timeout>=2.4.0",
     "pytest-cov>=6.2.1",
     "covdefaults>=2.3.0",
-    "coverage[toml]==7.13.5",
+    "coverage[toml]==7.14.1",
     # integrations
     "adaptix>=3.0.0b1,<4",
+    "uuid-utils",
 ]
-docs = [
-    "zensical==0.0.41",
-    "mkdocstrings[python]==1.0.4",
-]
+docs = ["zensical==0.0.41", "mkdocstrings[python]==1.0.4"]
 benchmarks = [
     { include-group = "optionals" },
     { include-group = "test" },
-    "pytest-codspeed==4.5.0",
+    "pytest-codspeed==5.0.3",
 ]
 dev = [
     { include-group = "lint" },
@@ -89,7 +90,7 @@ dev = [
     { include-group = "docs" },
     { include-group = "benchmarks" },
     "detect-secrets==1.5.0",
-    "prek==0.3.11",
+    "prek==0.4.3",
 ]
 
 [project.urls]
@@ -107,9 +108,7 @@ addopts = "--strict-markers --strict-config"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
-filterwarnings = [
-    "ignore:Async functions are always done in the main loop",
-]
+filterwarnings = ["ignore:Async functions are always done in the main loop"]
 markers = []
 
 [tool.coverage.run]
@@ -122,14 +121,8 @@ source = ["src", "tests", "examples"]
 omit = ["**/__init__.py"]
 
 [tool.coverage.paths]
-source = [
-    "src",
-    "*/userbot/src",
-]
-tests = [
-    "tests",
-    "*/userbot/tests",
-]
+source = ["src", "*/jobify/src"]
+tests = ["tests", "*/jobify/tests"]
 
 [tool.coverage.report]
 fail_under = 100
@@ -144,20 +137,26 @@ exclude_also = [
     '\.\.\.',
     "ImportError",
 ]
-omit = [
-    "*/__init__.py",
-    '*/types.py',
-]
+omit = ["*/__init__.py", '*/types.py']
 
 # Static Analysis
-[tool.pyrefly]
+[tool.ty.environment]
 python-version = "3.10"
-project-includes = ["src", "tests", "benchmarks", "examples"]
-search-path = ["src", ".", "examples/real_world/src"]
-min-severity = "warn"
-preset = "strict"
-skip-lsp-config-indexing = false
-infer-with-first-use = false
+
+[tool.ty.src]
+include = ["src", "tests", "benchmarks", "examples"]
+
+[tool.ty.rules]
+all = "error"
+unresolved-attribute = "ignore"
+
+
+[tool.ty.analysis]
+respect-type-ignore-comments = false
+
+[tool.ty.terminal]
+error-on-warning = true
+output-format = "concise"
 
 [tool.mypy]
 mypy_path = "src:examples/real_world/src"
@@ -199,8 +198,8 @@ fix = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D203",  # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
-    "D213",  # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
+    "D203",   # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
+    "D213",   # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
     "COM812", # Conflict: Danger! This rule ("trailing-comma-missing") conflicts with the automatic behavior of "ruff format", which manages trailing commas.
     "SLF001",
 ]
@@ -210,7 +209,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "benchmarks/**" = ["D", "S101", "T201"]
-"examples/**" = ["S101", "D101", "D103", "D104", "T201", "SLF001"]
+"examples/**" = ["S101", "D101", "D103", "D104", "T201", "SLF001", "ERA001"]
 "tests/**" = ["S101", "D", "SLF001"]
 
 [tool.ruff.format]
@@ -247,7 +246,7 @@ ignore_merge_commits = true
 [tool.semantic_release.changelog]
 # Recommended patterns for conventional commits parser that is scope aware
 exclude_commit_patterns = [
-    '''Initial [Cc]ommit.*''', # codespell:ignore ommit
+    '''Initial [Cc]ommit.*''',         # codespell:ignore ommit
     '''refactor(?:\([^)]*?\))?: .+''',
     '''polish(?:\([^)]*?\))?: .+''',
     '''style(?:\([^)]*?\))?: .+''',
