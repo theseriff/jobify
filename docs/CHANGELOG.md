@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v0.13.0 (2026-06-07)
+
+### Bug Fixes
+
+- **shutdown**: Reorder sequence to prevent future race in storage
+  ([`e21d3c3`](https://github.com/theseriff/jobify/commit/e21d3c382001d10a3f9a0a2c0ae9de8c6f818fad))
+
+### Build System
+
+- **deps**: Bump github-actions group with 4 updates
+  ([`4ffdc1c`](https://github.com/theseriff/jobify/commit/4ffdc1c47ed6dc307e65d9494a9dadb4836cf443))
+
+- **deps**: Bump the pip group with 13 updates
+  ([`2162370`](https://github.com/theseriff/jobify/commit/2162370946ed03dc61827e7eb6192c132b6abe89))
+
+### Documentation
+
+- Add idempotency example for push() with replace/force
+  ([`8f980fb`](https://github.com/theseriff/jobify/commit/8f980fbbd10f1f80af6188934ada2ea03ffccfa8))
+
+- Add Job type hints to examples, minor code cleanups
+  ([`81688ce`](https://github.com/theseriff/jobify/commit/81688ce2643e086c3af8709132797c67e1339633))
+
+### Features
+
+- Inject Jobify app instance into contexts, configuration, and tasks
+  ([`3e70f26`](https://github.com/theseriff/jobify/commit/3e70f26be0bad48d996cfe20b6babf2115142152))
+
+- Make push() idempotent with replace/force flags
+  ([`e943578`](https://github.com/theseriff/jobify/commit/e943578c879ca999be029e98404d8e8afacf78d7))
+
+
 ## v0.12.1 (2026-05-13)
 
 ### Bug Fixes
