@@ -13,10 +13,15 @@ requires-python = ">=3.10,<3.15"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-authors = [
-    { name = "Sergey Yavorsky", email = "maclovi.dev@gmail.com" },
+authors = [{ name = "Sergey Yavorsky", email = "maclovi.dev@gmail.com" }]
+keywords = [
+    "asyncio",
+    "cron",
+    "scheduler",
+    "task-manager",
+    "job-scheduler",
+    "background-tasks",
 ]
-keywords = ["asyncio", "cron", "scheduler", "task-manager", "job-scheduler", "background-tasks"]
 classifiers = [
     "Environment :: Console",
     "Framework :: AsyncIO",
@@ -74,10 +79,7 @@ test = [
     # integrations
     "adaptix>=3.0.0b1,<4",
 ]
-docs = [
-    "zensical==0.0.41",
-    "mkdocstrings[python]==1.0.4",
-]
+docs = ["zensical==0.0.41", "mkdocstrings[python]==1.0.4"]
 benchmarks = [
     { include-group = "optionals" },
     { include-group = "test" },
@@ -107,9 +109,7 @@ addopts = "--strict-markers --strict-config"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
-filterwarnings = [
-    "ignore:Async functions are always done in the main loop",
-]
+filterwarnings = ["ignore:Async functions are always done in the main loop"]
 markers = []
 
 [tool.coverage.run]
@@ -122,14 +122,8 @@ source = ["src", "tests", "examples"]
 omit = ["**/__init__.py"]
 
 [tool.coverage.paths]
-source = [
-    "src",
-    "*/userbot/src",
-]
-tests = [
-    "tests",
-    "*/userbot/tests",
-]
+source = ["src", "*/userbot/src"]
+tests = ["tests", "*/userbot/tests"]
 
 [tool.coverage.report]
 fail_under = 100
@@ -144,10 +138,7 @@ exclude_also = [
     '\.\.\.',
     "ImportError",
 ]
-omit = [
-    "*/__init__.py",
-    '*/types.py',
-]
+omit = ["*/__init__.py", '*/types.py']
 
 # Static Analysis
 [tool.pyrefly]
@@ -199,8 +190,8 @@ fix = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D203",  # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
-    "D213",  # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
+    "D203",   # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
+    "D213",   # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
     "COM812", # Conflict: Danger! This rule ("trailing-comma-missing") conflicts with the automatic behavior of "ruff format", which manages trailing commas.
     "SLF001",
 ]
@@ -247,7 +238,7 @@ ignore_merge_commits = true
 [tool.semantic_release.changelog]
 # Recommended patterns for conventional commits parser that is scope aware
 exclude_commit_patterns = [
-    '''Initial [Cc]ommit.*''', # codespell:ignore ommit
+    '''Initial [Cc]ommit.*''',         # codespell:ignore ommit
     '''refactor(?:\([^)]*?\))?: .+''',
     '''polish(?:\([^)]*?\))?: .+''',
     '''style(?:\([^)]*?\))?: .+''',
