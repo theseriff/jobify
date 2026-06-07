@@ -34,6 +34,7 @@
 
 `JobContext` provides complete insight into the execution lifecycle through the following attributes:
 
+- :material-application: **`app`**: `Jobify` — The Jobify application instance.
 - :material-identifier: **`job`**: `Job[Any]` — Live information about the task (ID, status, metadata).
 - :material-database: **`state`**: `State` — The global `app.state`, shared across all jobs (e.g., DB connections).
 - :material-play-circle-outline: **`runnable`**: `Runnable[Any]` — Internal execution strategy and bound arguments.
@@ -83,6 +84,27 @@ While middleware has direct access to `JobContext`, your task functions can acce
 
 `OuterContext` is the scheduling-phase counterpart to `JobContext`. It is used exclusively by **outer middleware** to inspect or modify a job *before* it is registered or persisted.
 
+## Context Attributes
+
+`OuterContext` provides a comprehensive view of the scheduling attempt:
+
+- :material-application: **`app`**: `Jobify` — The Jobify application instance.
+- :material-identifier: **`job`**: `Job[Any]` — The job instance being scheduled.
+- :material-database: **`state`**: `State` — The global application state.
+- :material-lightning-bolt: **`trigger`**: `Triggers` — The trigger mechanism (e.g., Cron, Push).
+- :material-play-circle-outline: **`runnable`**: `Runnable[Any]` — The runnable component being scheduled.
+- :material-code-braces: **`arguments`**: `dict[str, Any]` — The arguments bound to the job function.
+- :material-information-outline: **`func_spec`**: `FuncSpec[Any]` — Inspection details of the job function.
+- :material-lightning-bolt-outline: **`is_force`**: `bool` — Whether the job is forced to run.
+- :material-database-lock: **`is_persist`**: `bool` — Whether the job should be persisted to storage.
+- :material-swap-horizontal-circle-outline: **`is_replace`**: `bool` — Whether the job replaces an existing one.
+- :material-cog: **`route_options`**: `RouteOptions` — Configuration options for the route.
+- :material-tune: **`jobify_config`**: `JobifyConfiguration` — Global Jobify configuration.
+- :material-timer: **`request_state`**: `RequestState` — State specific to the current request.
+- :material-api: **`persist_job_hook`**: `Callable` — Callback to persist the job.
+- :material-api: **`schedule_hook`**: `Callable` — Callback to schedule the job.
+- :material-calendar-range: **`schedule_builder`**: `ScheduleBuilder[Any]` — Access to internal scheduling state.
+
 ## Key Differences
 
 | Feature          | JobContext           | OuterContext          |
@@ -91,3 +113,29 @@ While middleware has direct access to `JobContext`, your task functions can acce
 | **Availability** | Task & Middleware    | Outer Middleware Only |
 | **Persistence**  | Post-storage         | Pre-storage           |
 | **Purpose**      | Running the business | Routing & Validation  |
+
+## Using OuterContext
+
+Outer middleware receives `OuterContext` to perform pre-scheduling logic. This is ideal for validating job arguments or injecting metadata before persistence.
+
+```python
+import asyncio
+from jobify import Jobify, OuterContext
+from jobify.middleware import BaseOuterMiddleware, CallNextOuter
+
+class ValidationMiddleware(BaseOuterMiddleware):
+    async def __call__(
+        self,
+        call_next: CallNextOuter,
+        ctx: OuterContext,
+    ) -> asyncio.Handle:
+        # Inspect arguments before scheduling
+        if ctx.arguments.get("admin") and not ctx.arguments.get("is_authorized"):
+            msg = f"Unauthorized scheduling attempt for job: {ctx.job.id}"
+            raise PermissionError(msg)
+
+        # Proceed to scheduling
+        return await call_next(ctx)
+
+app = Jobify(outer_middleware=[ValidationMiddleware()])
+```

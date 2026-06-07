@@ -24,6 +24,7 @@ class OuterContext:
     intercept a job before it is officially scheduled.
 
     Attributes:
+        app: The Jobify application instance.
         job: The job instance being scheduled.
         state: The global application state.
         trigger: The trigger mechanism (e.g., Cron, Push).
@@ -107,6 +108,7 @@ class JobContext(NamedTuple):
     their configuration, state, and scheduling builder.
 
     Attributes:
+        app: The Jobify application instance.
         job: The job instance.
         state: The global application state.
         runnable: The runnable component.

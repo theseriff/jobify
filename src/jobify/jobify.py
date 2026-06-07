@@ -459,20 +459,32 @@ class Jobify(RootRouter):
     async def shutdown(self) -> None:
         """Gracefully shut down the Jobify application.
 
-        This method performs a structured shutdown:
-        1. Marks the application as stopped (`app_started = False`).
-        2. Propagates shutdown events to all routers/components.
-        3. Cancels all scheduled future jobs in the registry
-           (`_jobs_registry`).
-        4. Closes the jobify configuration (e.g., stopping the internal
-           scheduler).
-        5. Cancels all currently running tasks (in `_tasks_registry`), waits
-           for their completion, and explicitly clears the task registry.
+        Performs a structured shutdown in the following order:
+
+        1. Marks the application as stopped by setting ``configs.app_started``
+        to ``False``.
+        2. Shuts down all registered plugins by calling their ``shutdown()``
+        method.
+        3. Propagates the shutdown event to all internal routers/components
+        via ``_propagate_shutdown()``.
+        4. Closes the application storage backend
+        (``configs.storage.shutdown()``).
+        5. Cancels every pending job tracked by the task tracker
+        (``task._task_tracker.pending_jobs``).
+        6. Cancels all pending tasks (``task._task_tracker.pending_tasks``),
+        waits for them to finish, and swallows any exceptions to avoid
+        interrupting the shutdown process.
+        7. Closes all configured worker pools
+        (``configs.worker_pools.close()``).
+        8. Re-raises any signals that were captured during the application
+        lifecycle, if applicable (``_raise_captured_signals()``).
+
+        Finally, logs a confirmation message.
 
         Note:
-            The method uses `return_exceptions=True` when gathering cancelled
-            tasks to prevent shutdown from being interrupted by task exception.
-
+            Cancelled tasks are gathered with ``return_exceptions=True`` so
+            that any exception raised inside a task does not halt the
+            shutdown procedure.
         """
         self.configs.app_started = False
 

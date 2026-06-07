@@ -150,7 +150,6 @@ include = ["src", "tests", "benchmarks", "examples"]
 all = "error"
 unresolved-attribute = "ignore"
 
-
 [tool.ty.analysis]
 respect-type-ignore-comments = false
 
