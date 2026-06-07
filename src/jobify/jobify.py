@@ -479,7 +479,6 @@ class Jobify(RootRouter):
         for plug in self.plugins:
             await plug.shutdown()
 
-        self.configs.worker_pools.close()
         await self._propagate_shutdown()
         await self.configs.storage.shutdown()
 
@@ -492,6 +491,7 @@ class Jobify(RootRouter):
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
 
+        self.configs.worker_pools.close()
         self._raise_captured_signals()
 
         logger.info("Jobify shutdown complete.")

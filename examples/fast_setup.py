@@ -10,7 +10,7 @@ Requires the ``fast`` extra to be installed. Install it with::
 
 dependencies = [
     "jobify[fast]>=0.13.0",
-    "uuid7-rs>=0.0.8",
+    "uuid_utils",
 ]
 """
 
@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import NamedTuple
 from uuid import UUID
 
-from uuid7_rs.compat import uuid7
+from uuid_utils.compat import uuid7
 
 from jobify import Jobify
 from jobify.serializers.orjson import OrjsonSerializer
