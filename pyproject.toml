@@ -13,10 +13,15 @@ requires-python = ">=3.10,<3.15"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-authors = [
-    { name = "Sergey Yavorsky", email = "theseriff@proton.me" },
+authors = [{ name = "Sergey Yavorsky", email = "theseriff@proton.me" }]
+keywords = [
+    "asyncio",
+    "cron",
+    "scheduler",
+    "task-manager",
+    "job-scheduler",
+    "background-tasks",
 ]
-keywords = ["asyncio", "cron", "scheduler", "task-manager", "job-scheduler", "background-tasks"]
 classifiers = [
     "Environment :: Console",
     "Framework :: AsyncIO",
@@ -56,7 +61,7 @@ lint = [
     "zizmor==1.24.1",
     "semgrep==1.162.0",
     "codespell==2.4.2",
-    "pyrefly==1.0.0",
+    "ty==0.0.44",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-python-crontab",
@@ -73,10 +78,7 @@ test = [
     "adaptix>=3.0.0b1,<4",
     "uuid7-rs>=0.0.7,<1",
 ]
-docs = [
-    "zensical==0.0.41",
-    "mkdocstrings[python]==1.0.4",
-]
+docs = ["zensical==0.0.41", "mkdocstrings[python]==1.0.4"]
 benchmarks = [
     { include-group = "optionals" },
     { include-group = "test" },
@@ -106,9 +108,7 @@ addopts = "--strict-markers --strict-config"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
-filterwarnings = [
-    "ignore:Async functions are always done in the main loop",
-]
+filterwarnings = ["ignore:Async functions are always done in the main loop"]
 markers = []
 
 [tool.coverage.run]
@@ -121,14 +121,8 @@ source = ["src", "tests", "examples"]
 omit = ["**/__init__.py"]
 
 [tool.coverage.paths]
-source = [
-    "src",
-    "*/jobify/src",
-]
-tests = [
-    "tests",
-    "*/jobify/tests",
-]
+source = ["src", "*/jobify/src"]
+tests = ["tests", "*/jobify/tests"]
 
 [tool.coverage.report]
 fail_under = 100
@@ -143,20 +137,26 @@ exclude_also = [
     '\.\.\.',
     "ImportError",
 ]
-omit = [
-    "*/__init__.py",
-    '*/types.py',
-]
+omit = ["*/__init__.py", '*/types.py']
 
 # Static Analysis
-[tool.pyrefly]
+[tool.ty.environment]
 python-version = "3.10"
-project-includes = ["src", "tests", "benchmarks", "examples"]
-search-path = ["src", ".", "examples/real_world/src"]
-min-severity = "warn"
-preset = "strict"
-skip-lsp-config-indexing = false
-infer-with-first-use = false
+
+[tool.ty.src]
+include = ["src", "tests", "benchmarks", "examples"]
+
+[tool.ty.rules]
+all = "error"
+unresolved-attribute = "ignore"
+
+
+[tool.ty.analysis]
+respect-type-ignore-comments = false
+
+[tool.ty.terminal]
+error-on-warning = true
+output-format = "concise"
 
 [tool.mypy]
 mypy_path = "src:examples/real_world/src"
@@ -198,8 +198,8 @@ fix = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D203",  # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
-    "D213",  # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
+    "D203",   # Conflict: D203 ("one-blank-line-before-class-docstring") is incompatible with D211 (No blank line before class docstring). We follow D211.
+    "D213",   # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
     "COM812", # Conflict: Danger! This rule ("trailing-comma-missing") conflicts with the automatic behavior of "ruff format", which manages trailing commas.
     "SLF001",
 ]
@@ -246,7 +246,7 @@ ignore_merge_commits = true
 [tool.semantic_release.changelog]
 # Recommended patterns for conventional commits parser that is scope aware
 exclude_commit_patterns = [
-    '''Initial [Cc]ommit.*''', # codespell:ignore ommit
+    '''Initial [Cc]ommit.*''',         # codespell:ignore ommit
     '''refactor(?:\([^)]*?\))?: .+''',
     '''polish(?:\([^)]*?\))?: .+''',
     '''style(?:\([^)]*?\))?: .+''',

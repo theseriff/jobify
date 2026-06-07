@@ -171,7 +171,7 @@ class Registrator(ABC, Generic[Route_co]):
         wrapper = self._register(options)
         if callable(func):
             return wrapper(func)
-        return wrapper  # pragma: no cover
+        return wrapper  # pragma: no cover # ty: ignore[invalid-return-type]
 
     def _register(
         self,

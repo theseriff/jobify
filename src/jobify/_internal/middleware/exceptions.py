@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from typing_extensions import override
 
@@ -25,7 +25,7 @@ class ExceptionMiddleware(BaseMiddleware):
         except Exception as exc:
             for cls_exc in type(exc).__mro__:
                 exc_handlers = context.schedule_builder._exception_handlers
-                if handler := exc_handlers.get(cls_exc):
+                if handler := exc_handlers.get(cast("type[Exception]", cls_exc)):
                     break
             else:
                 raise
