@@ -56,29 +56,29 @@ fast = ["jobify[orjson,pydantic]"]
 optionals = ["jobify[cbor2,msgpack,orjson,pydantic]"]
 lint = [
     "mypy==2.1.0",
-    "ruff==0.15.14",
+    "ruff==0.15.19",
     "bandit==1.9.4",
-    "zizmor==1.25.2",
-    "semgrep==1.164.0",
+    "zizmor==1.26.1",
+    "semgrep==1.168.0",
     "codespell==2.4.2",
-    "ty==0.0.44",
+    "ty==0.0.53",
     # mypy extensions
     "mypy-extensions==1.1.0",
     "types-python-crontab",
 ]
 test = [
     { include-group = "optionals" },
-    "pytest==9.0.3",
+    "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
     "pytest-timeout>=2.4.0",
     "pytest-cov>=6.2.1",
     "covdefaults>=2.3.0",
-    "coverage[toml]==7.14.1",
+    "coverage[toml]==7.14.3",
     # integrations
     "adaptix>=3.0.0b1,<4",
     "uuid-utils",
 ]
-docs = ["zensical==0.0.41", "mkdocstrings[python]==1.0.4"]
+docs = ["zensical==0.0.46", "mkdocstrings[python]==1.0.4"]
 benchmarks = [
     { include-group = "optionals" },
     { include-group = "test" },
@@ -90,7 +90,7 @@ dev = [
     { include-group = "docs" },
     { include-group = "benchmarks" },
     "detect-secrets==1.5.0",
-    "prek==0.4.3",
+    "prek==0.4.5",
 ]
 
 [project.urls]
