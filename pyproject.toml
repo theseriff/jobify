@@ -149,6 +149,8 @@ include = ["src", "tests", "benchmarks", "examples"]
 [tool.ty.rules]
 all = "error"
 unresolved-attribute = "ignore"
+unsound-assignment = "ignore"
+unsound-return-statement = "ignore"
 
 [tool.ty.analysis]
 respect-type-ignore-comments = false
@@ -201,6 +203,7 @@ ignore = [
     "D213",   # Conflict: D213 ("multi-line summary second line") conflicts with D212 (summary on the same line as triple quotes). We follow D212.
     "COM812", # Conflict: Danger! This rule ("trailing-comma-missing") conflicts with the automatic behavior of "ruff format", which manages trailing commas.
     "SLF001",
+    "CPY001",
 ]
 
 [tool.ruff.lint.pydocstyle]

@@ -336,7 +336,7 @@ class RootRouter(Router):
         for sub_router in router.sub_routers:
             suffix = f".{sub_router.prefix}" if sub_router.prefix else ""
             sub_router.prefix = f"{router.prefix}{suffix}"
-            self._propagate_real_routes(sub_router)
+            self._propagate_real_routes(cast("NodeRouter", sub_router))
 
     async def _propagate_startup(self, router: Router) -> None:
         await router.task.emit_startup()
