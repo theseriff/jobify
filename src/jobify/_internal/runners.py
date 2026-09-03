@@ -42,7 +42,7 @@ class SyncStrategy(RunStrategy[ParamsT, ReturnT]):
 
 class AsyncStrategy(RunStrategy[ParamsT, ReturnT]):
     @override
-    async def __call__(
+    async def __call__(  # ty: ignore[invalid-method-override]
         self: AsyncStrategy[ParamsT, Awaitable[ReturnT]],
         *args: ParamsT.args,
         **kwargs: ParamsT.kwargs,
