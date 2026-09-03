@@ -26,7 +26,7 @@ async def test_injection() -> None:
     contexts: list[JobContext] = []
 
     @app.task
-    async def some_func(  # noqa: PLR0913
+    async def some_func(  # noqa: PLR0913, PLR0917
         app: Jobify = INJECT,
         job: Job[None] = INJECT,
         app_state: State = INJECT,

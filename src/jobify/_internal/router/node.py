@@ -155,8 +155,3 @@ class NodeRouter(Router):
     @override
     def routes(self) -> Iterator[NodeRoute[..., Any]]:
         yield from self.task._routes.values()
-
-    @property
-    @override
-    def sub_routers(self) -> list[NodeRouter]:
-        return cast("list[NodeRouter]", self._sub_routers)

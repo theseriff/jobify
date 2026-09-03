@@ -44,8 +44,7 @@ class DataclassType(Protocol):
 
 
 SupportedTypes: TypeAlias = (
-    None
-    | int
+    int
     | str
     | bool
     | float
@@ -76,6 +75,7 @@ SupportedTypes: TypeAlias = (
     | list["SupportedTypes"]
     | tuple["SupportedTypes", ...]
     | dict[str, "SupportedTypes"]
+    | None
 )
 TypeRegistry: TypeAlias = dict[str, Callable[..., SupportedTypes]]
 
@@ -93,7 +93,7 @@ def is_dataclass(o: SupportedTypes) -> TypeIs[DataclassType]:
 
 
 def is_structured_type(tp: Any) -> bool:  # noqa: ANN401
-    return (
+    return bool(
         dataclasses.is_dataclass(tp)
         or is_named_tuple_type(tp)
         or (hasattr(tp, "__origin__") and dataclasses.is_dataclass(tp.__origin__))
